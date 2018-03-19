@@ -14,13 +14,11 @@
 #
 import os
 import sys
+import pkg_resources
 
 source_dir = os.path.dirname(__file__)
-pkg_dir = os.path.join(source_dir, '..', '..', 'src', 'dicomweb-client')
+pkg_dir = os.path.join(source_dir, '..', '..', 'src', 'dicomweb_client')
 sys.path.insert(0, os.path.abspath(pkg_dir))
-
-import dicomweb_client
-
 
 # -- Project information -----------------------------------------------------
 
@@ -28,10 +26,14 @@ project = 'dicomweb-client'
 copyright = '2018, MGH & BWH Center for Clinical Data Science'
 author = 'Markus D. Herrmann'
 
-# The short X.Y version
-version = dicomweb_client.__version__
 # The full version, including alpha/beta/rc tags
-release = ''
+try:
+    release = pkg_resources.get_distribution('dicomweb_client').version
+except pkg_resources.DistributionNotFound:
+    print('Package "dicomweb-client" must be installed to build docs.')
+    sys.exit(1)
+# The short X.Y version
+version = '.'.join(release.split('.')[:2])
 
 
 # -- General configuration ---------------------------------------------------
