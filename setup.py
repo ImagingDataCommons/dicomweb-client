@@ -48,7 +48,6 @@ setuptools.setup(
             'sphinx>=1.7.1',
             'sphinx-pyreverse>=0.0.12',
             'sphinxcontrib-autoprogram>=0.1.4',
-            'numpydoc>=0.7',
             'sphinx_rtd_theme>=0.2.4'
         ]
     },
