@@ -27,7 +27,7 @@ Before creating a pull request on Github, read the coding style guideline, run t
 
 .. _coding-style:
 
-Coding sytle
+Coding style
 ------------
 
 Code must comply with `PEP 8 <https://www.python.org/dev/peps/pep-0008/>`_. The `flake8 <http://flake8.pycqa.org/en/latest/>`_ package is used to enforce compliance.
