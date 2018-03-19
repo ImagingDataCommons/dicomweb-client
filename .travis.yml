@@ -1,0 +1,14 @@
+language: python
+python:
+  - "2.7"
+  - "3.4"
+addons:
+  apt:
+    packages:
+    - libpng-dev
+    - libjpeg-dev
+install:
+  - "pip install --upgrade setuptools pip"
+  - "pip install -r requirements_test.txt"
+  - "pip install ."
+script: pytest --flake8 -v
