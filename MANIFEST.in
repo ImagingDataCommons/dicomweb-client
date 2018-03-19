@@ -1,0 +1,3 @@
+include src/dicomweb_client/*
+include src/dicomweb_client/tests/*
+include src/dicomweb_client/data/*
