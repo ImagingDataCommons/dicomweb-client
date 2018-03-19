@@ -1,21 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+import io
 import sys
+import re
 
 import setuptools
 
-
-def get_version():
-    src_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'src')
-    sys.path = [src_path] + sys.path
-    import dicomweb_client
-    return dicomweb_client.__version__
+with io.open('src/dicomweb_client/__init__.py', 'rt', encoding='utf8') as f:
+    version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
 
 
 setuptools.setup(
     name='dicomweb-client',
-    version=get_version(),
+    version=version,
     description='Client for DICOMweb RESTful services.',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
@@ -45,15 +43,26 @@ setuptools.setup(
     setup_requires=[
         'pytest-runner>=3.0',
     ],
+    extras_require={
+        'docs': [
+            'sphinx>=1.7.1',
+            'sphinx-pyreverse>=0.0.12',
+            'sphinxcontrib-autoprogram>=0.1.4',
+            'numpydoc>=0.7',
+            'sphinx_rtd_theme>=0.2.4'
+        ]
+    },
     tests_require=[
         'pytest>=3.3',
         'pytest-localserver>=0.4',
         'pytest-flake8>=0.9',
+        'tox>=2.9'
     ],
     install_requires=[
         'numpy>=1.13',
         'pillow>=5.0',
         'pydicom>=1.0',
         'requests>=2.18',
+        'six>=1.11'
     ]
 )
