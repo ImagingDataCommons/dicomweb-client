@@ -55,7 +55,7 @@ def _create_dataelement(tag, vr, value):
         if not(isinstance(value, list)):
             raise DICOMJSONError(
                 '"Value" of data element "{}" must be an array.'.format(tag)
-                )
+            )
     if vr == 'SQ':
         value = value[0]
         ds = _init_dataset()
@@ -457,8 +457,8 @@ class DICOMWebClient(object):
 
         '''
         multipart, content_type, boundary = content_type.split(';')
-        boundary = boundary[boundary.find('=')+2:-1]
-        content_type = content_type[content_type.find('=')+2:-1]
+        boundary = boundary[boundary.find('=') + 2:-1]
+        content_type = content_type[content_type.find('=') + 2:-1]
         body = b''
         for payload in data:
             body += (

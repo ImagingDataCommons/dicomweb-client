@@ -232,7 +232,7 @@ def _get_parser():
         ),
         parents=[
             abstract_required_study_parser, abstract_required_series_parser
-         ]
+        ]
     )
     retrieve_series_subparsers = retrieve_series_parser.add_subparsers(
         dest='series_resource'
@@ -266,7 +266,7 @@ def _get_parser():
         parents=[
             abstract_required_study_parser, abstract_required_series_parser,
             abstract_required_instance_parser
-         ]
+        ]
     )
     retrieve_instance_subparsers = retrieve_instance_parser.add_subparsers(
         dest='instances_resource'
