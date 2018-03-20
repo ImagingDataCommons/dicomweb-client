@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
 import io
-import sys
 import re
 
 import setuptools
@@ -17,7 +15,7 @@ setuptools.setup(
     description='Client for DICOMweb RESTful services.',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    website='https://github.com/clindatsci/dicomweb-python-client',
+    url='https://github.com/clindatsci/dicomweb-client',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
