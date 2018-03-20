@@ -1,6 +1,6 @@
 # DICOMweb Client
 
-[![Build Status](https://travis-ci.org/clindatsci/dicomweb-python-client.svg?branch=master)](https://travis-ci.org/clindatsci/dicomweb-python-client)
+[![Build Status](https://travis-ci.org/clindatsci/dicomweb-client.svg?branch=master)](https://travis-ci.org/clindatsci/dicomweb-client)
 
 Python client for DICOMweb services.
 
