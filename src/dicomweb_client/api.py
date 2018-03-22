@@ -57,31 +57,34 @@ def _create_dataelement(tag, vr, value):
                 '"Value" of data element "{}" must be an array.'.format(tag)
             )
     if vr == 'SQ':
-        value = value[0]
-        ds = _init_dataset()
-        if value is not None:
-            for key, val in value.items():
-                if 'vr' not in val:
-                    raise DICOMJSONError(
-                        'Data element "{}" must have key "vr".'.format(tag)
-                    )
-                supported_value_keys = {'Value', 'BulkDataURI', 'InlineBinary'}
-                val_key = None
-                for k in supported_value_keys:
-                    if k in val:
-                        val_key = k
-                        break
-                if val_key is None:
-                    logger.warn(
-                        'data element has neither key "{}".'.format(
-                            '" nor "'.join(supported_value_keys)
+        elem_value = []
+        for value_item in value:
+            ds = _init_dataset()
+            if value_item is not None:
+                for key, val in value_item.items():
+                    if 'vr' not in val:
+                        raise DICOMJSONError(
+                            'Data element "{}" must have key "vr".'.format(tag)
                         )
-                    )
-                    e = pydicom.dataelem.DataElement(tag=tag, value=None, VR=vr)
-                else:
-                    e = _create_dataelement(key, val['vr'], val[val_key])
-                ds.add(e)
-        elem_value = [ds]
+                    supported_keys = {'Value', 'BulkDataURI', 'InlineBinary'}
+                    val_key = None
+                    for k in supported_keys:
+                        if k in val:
+                            val_key = k
+                            break
+                    if val_key is None:
+                        logger.warn(
+                            'data element has neither key "{}".'.format(
+                                '" nor "'.join(supported_keys)
+                            )
+                        )
+                        e = pydicom.dataelem.DataElement(
+                            tag=tag, value=None, VR=vr
+                        )
+                    else:
+                        e = _create_dataelement(key, val['vr'], val[val_key])
+                    ds.add(e)
+            elem_value.append(ds)
     elif vr == 'PN':
         # Special case, see DICOM Part 18 Annex F2.2
         # http://dicom.nema.org/medical/dicom/current/output/html/part18.html#sect_F.2.2
@@ -234,9 +237,12 @@ class DICOMWebClient(object):
             '(?::(?P<port>\d+))?(?:(?P<prefix>/\w+))?'
         )
         match = re.match(pattern, self.base_url)
-        self.protocol = match.group('scheme')
-        self.host = match.group('host')
-        self.port = match.group('port')
+        try:
+            self.protocol = match.group('scheme')
+            self.host = match.group('host')
+            self.port = match.group('port')
+        except AttributeError:
+            raise ValueError('Malformed URL: {}'.format(self.base_url))
         if self.port is not None:
             self.port = int(self.port)
         else:
@@ -577,7 +583,7 @@ class DICOMWebClient(object):
             'boundary="boundary"'
         )
         encoded_datasets = list()
-        # TODO: can we do this more memory efficient?
+        # TODO: can we do this more memory efficient? Concatenations?
         for ds in datasets:
             with BytesIO() as b:
                 pydicom.dcmwrite(b, ds)
@@ -927,7 +933,7 @@ class DICOMWebClient(object):
         url = self._get_instances_url(
             study_instance_uid, series_instance_uid, sop_instance_uid
         )
-        params = {'quality': 100}  # TODO: viewport, window
+        params = {'quality': 95}  # TODO: viewport, window
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += '/frames/{frame_list}/rendered'.format(frame_list=frame_list)
         pixeldata = self._http_get_multipart_image(url, compression, **params)
