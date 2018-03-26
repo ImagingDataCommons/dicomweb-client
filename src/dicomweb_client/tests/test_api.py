@@ -99,6 +99,23 @@ def test_search_instances_limit_offset(httpserver, client, cache_dir):
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
+def test_search_instances_includefields(httpserver, client, cache_dir):
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content='', code=200, headers=headers)
+    f1 = 'StudyInstanceUID'
+    f2 = 'SeriesInstanceUID'
+    client.search_instances(fields={f1, f2})
+    request = httpserver.requests[0]
+    query_string_opt_1 = 'includefield={}&includefield={}'.format(f1, f2)
+    query_string_opt_2 = 'includefield={}&includefield={}'.format(f2, f1)
+    assert (
+        request.query_string.decode() == query_string_opt_1 or
+        request.query_string.decode() == query_string_opt_2
+    )
+    assert request.path == '/instances'
+    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+
+
 def test_retrieve_instance_metadata(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_metadata.json')
     with open(cache_filename, 'r') as f:

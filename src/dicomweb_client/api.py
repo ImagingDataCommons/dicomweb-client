@@ -256,10 +256,11 @@ class DICOMWebClient(object):
             else:
                 params['fuzzymatching'] = 'false'
         if fields is not None:
+            params['includefield'] = list()
             for field in set(fields):
                 if not(isinstance(field, str)):
                     raise TypeError('Elements of "fields" must be a string.')
-                params['includefield'] = field
+                params['includefield'].append(field)
         for field, criterion in search_filters.items():
             if not(isinstance(field, str)):
                 raise TypeError('Keys of "search_filters" must be strings.')
