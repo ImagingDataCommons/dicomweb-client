@@ -121,36 +121,6 @@ def _create_dataelement(tag, vr, value):
     return pydicom.dataelem.DataElement(tag=tag, value=elem_value, VR=vr)
 
 
-def _map_color_mode(photometic_interpretation):
-    '''Maps a DICOM *photometric interpretation* to Python Pillow color *mode*.
-
-    Parameters
-    ----------
-    photometic_interpretation: str
-        photometric interpretation
-
-    Returns
-    -------
-    str
-        color mode
-
-    '''
-    color_map = {
-        'RGB': 'RGB',
-        'MONOCHROME2': 'L',
-        'YBR_FULL_422': 'YCbCr'
-    }
-    try:
-        mode = color_map[photometic_interpretation]
-    except IndexError:
-        raise ValueError(
-            'Photometric interpretation "{}" is not supported.'.format(
-                photometic_interpretation
-            )
-        )
-    return mode
-
-
 def load_json_dataset(dataset):
     '''Loads DICOM Data Set in DICOM JSON format.
 
@@ -436,8 +406,8 @@ class DICOMWebClient(object):
         elements = list()
         for part in message.walk():
             if part.get_content_maintype() == 'multipart':
-                # NOTE for http://wg26.pathcore.com/wado
-                # If only one frame number is provided, returns a normal
+                # Some servers don't handle this correctly.
+                # If only one frame number is provided, return a normal
                 # message body instead of a multipart message body.
                 if part.is_multipart():
                     continue
@@ -520,14 +490,16 @@ class DICOMWebClient(object):
         resp = self._http_get(url, params, {'Accept': content_type})
         return self._decode_multipart_message(resp.content, resp.headers)
 
-    def _http_get_multipart_image(self, url, compression, **params):
+    def _http_get_multipart_image(self, url, image_format, **params):
         '''Performs a HTTP GET request that accepts a multipart message with
-        "image/{compression}" media type.
+        "image/{image_format}" media type.
 
         Parameters
         ----------
         url: str
             unique resource locator
+        image_format: str
+            image format
         params: Dict[str]
             query parameters
 
@@ -537,8 +509,8 @@ class DICOMWebClient(object):
             content of HTTP message body parts
 
         '''
-        content_type = 'multipart/related; type="image/{compression}"'.format(
-            compression=compression
+        content_type = 'multipart/related; type="image/{image_format}"'.format(
+            image_format=image_format
         )
         resp = self._http_get(url, params, {'Accept': content_type})
         return self._decode_multipart_message(resp.content, resp.headers)
@@ -887,60 +859,10 @@ class DICOMWebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
-    def retrieve_instance_frames_rendered(self, study_instance_uid,
-                                          series_instance_uid,
-                                          sop_instance_uid, frame_numbers,
-                                          compression='jpeg'):
-        '''Retrieves compressed frame items of pixel data element of an
-        individual DICOM instance.
-
-        Parameters
-        ----------
-        study_instance_uid: str
-            unique study identifier
-        series_instance_uid: str
-            unique series identifier
-        sop_instance_uid: str
-            unique instance identifier
-        frame_numbers: List[int]
-            one-based positional indices of the frames within the instance
-        compression: str, optional
-            name of the image compression format
-            (default:``"jpeg"``, options: ``{"jpeg", "png"}``)
-
-        Returns
-        -------
-        PIL.Image.Image
-            image
-
-        '''
-        if study_instance_uid is None:
-            raise ValueError(
-                'Study UID is required for retrieval of instance frames.'
-            )
-        if series_instance_uid is None:
-            raise ValueError(
-                'Series UID is required for retrieval of instance frames.'
-            )
-        if sop_instance_uid is None:
-            raise ValueError(
-                'Instance UID is required for retrieval of instance frames.'
-            )
-        if compression not in {'jpeg', 'png'}:
-            raise ValueError(
-                'Compression format "{}" is not supported.'.format(compression)
-            )
-        url = self._get_instances_url(
-            study_instance_uid, series_instance_uid, sop_instance_uid
-        )
-        params = {'quality': 95}  # TODO: viewport, window
-        frame_list = ','.join([str(n) for n in frame_numbers])
-        url += '/frames/{frame_list}/rendered'.format(frame_list=frame_list)
-        pixeldata = self._http_get_multipart_image(url, compression, **params)
-        return [Image.open(BytesIO(d)) for d in pixeldata]
-
     def retrieve_instance_frames(self, study_instance_uid, series_instance_uid,
-                                 sop_instance_uid, frame_numbers):
+                                 sop_instance_uid, frame_numbers,
+                                 image_format=None,
+                                 image_params={'quality': 95}):
         '''Retrieves uncompressed frame items of a pixel data element of an
         individual DICOM image instance.
 
@@ -954,11 +876,20 @@ class DICOMWebClient(object):
             unique instance identifier
         frame_numbers: List[int]
             one-based positional indices of the frames within the instance
+        image_format: str, optional
+            name of the image format; if ``None`` pixel data will be requested
+            uncompressed as ``"application/octet-stream"``
+            (default:``None``, options: ``{"jpeg", "png"}``)
+        image_params: Dict[str], optional
+            additional parameters relevant for a given `image_format`
 
         Returns
         -------
-        PIL.Image.Image
-            image
+        List[Union[PIL.Image.Image, bytes]]
+            pixel data for each frame; type depends on `image_format`
+            (returned as ``PIL.Image.Image`` if frames are requested as
+            compressed image and as ``bytes`` if requested as uncompressed
+            byte stream)
 
         '''
         if study_instance_uid is None:
@@ -973,20 +904,27 @@ class DICOMWebClient(object):
             raise ValueError(
                 'Instance UID is required for retrieval of instance frames.'
             )
-        # First retrieve metadata to determine dimensions of image
-        metadata = self.retrieve_instance_metadata(
-            study_instance_uid, series_instance_uid, sop_instance_uid
-        )
-        dataset = load_json_dataset(metadata)
-        mode = _map_color_mode(dataset.PhotometricInterpretation)
-        size = (dataset.Columns, dataset.Rows)
+        if image_format is not None:
+            if image_format not in {'jpeg', 'png'}:
+                raise ValueError(
+                    'Image format "{}" is not supported.'.format(image_format)
+                )
         url = self._get_instances_url(
             study_instance_uid, series_instance_uid, sop_instance_uid
         )
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += '/frames/{frame_list}'.format(frame_list=frame_list)
-        pixeldata = self._http_get_multipart_application_octet_stream(url)
-        return [Image.frombytes(mode, size, d) for d in pixeldata]
+        if image_format is None:
+            pixeldata = self._http_get_multipart_application_octet_stream(url)
+            # To interpret the raw pixel data, one would need additional
+            # metadata, such as the dimensions of the image and its
+            # photometric interpretation.
+            return pixeldata
+        else:
+            pixeldata = self._http_get_multipart_image(
+                url, image_format, **image_params
+            )
+            return [Image.open(BytesIO(d)) for d in pixeldata]
 
     @staticmethod
     def lookup_keyword(tag):

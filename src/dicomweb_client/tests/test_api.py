@@ -164,15 +164,15 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
-    result = client.retrieve_instance_frames_rendered(
+    result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers
+        frame_numbers, image_format='jpeg'
     )
     assert result == [parsed_content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_list}/rendered'.format(**locals())
+        '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
     )
     assert request.path == expected_path
     assert request.accept_mimetypes == [(headers['content-type'], 1)]
@@ -190,15 +190,15 @@ def test_retrieve_instance_pixeldata_png(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
-    result = client.retrieve_instance_frames_rendered(
+    result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, compression='png'
+        frame_numbers, image_format='png'
     )
     assert result == [parsed_content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_list}/rendered'.format(**locals())
+        '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
     )
     assert request.path == expected_path
     assert request.accept_mimetypes == [(headers['content-type'], 1)]
