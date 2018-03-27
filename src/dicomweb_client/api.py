@@ -564,9 +564,9 @@ class DICOMWebClient(object):
         data = self._encode_multipart_message(encoded_datasets, content_type)
         self._http_post(url, data, headers={'Content-Type': content_type})
 
-    def search_studies(self, fuzzymatching=None, limit=None, offset=None,
-                       fields=None, search_filters={}):
-        '''Searches DICOM studies.
+    def search_for_studies(self, fuzzymatching=None, limit=None, offset=None,
+                           fields=None, search_filters={}):
+        '''Searches for DICOM studies.
 
         Parameters
         ----------
@@ -641,9 +641,10 @@ class DICOMWebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
-    def search_series(self, study_instance_uid=None, fuzzymatching=None,
-                      limit=None, offset=None, fields=None, search_filters={}):
-        '''Searches DICOM series.
+    def search_for_series(self, study_instance_uid=None, fuzzymatching=None,
+                          limit=None, offset=None, fields=None,
+                          search_filters={}):
+        '''Searches for DICOM series.
 
         Parameters
         ----------
@@ -730,11 +731,11 @@ class DICOMWebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
-    def search_instances(self, study_instance_uid=None,
-                         series_instance_uid=None, fuzzymatching=None,
-                         limit=None, offset=None, fields=None,
-                         search_filters={}):
-        '''Searches DICOM instances.
+    def search_for_instances(self, study_instance_uid=None,
+                             series_instance_uid=None, fuzzymatching=None,
+                             limit=None, offset=None, fields=None,
+                             search_filters={}):
+        '''Searches for DICOM instances.
 
         Parameters
         ----------

@@ -155,15 +155,15 @@ def _get_parser():
     search_subparsers.required = True
 
     # QIDO - Studies
-    search_studies_parser = search_subparsers.add_parser(
+    search_for_studies_parser = search_subparsers.add_parser(
         'studies',
         description='Search for DICOM studies.',
         parents=[abstract_search_parser, abstract_fmt_parser]
     )
-    search_studies_parser.set_defaults(func=_search_studies)
+    search_for_studies_parser.set_defaults(func=_search_for_studies)
 
     # QUIDO - Series
-    search_series_parser = search_subparsers.add_parser(
+    search_for_series_parser = search_subparsers.add_parser(
         'series',
         description='Search for DICOM series.',
         parents=[
@@ -171,17 +171,17 @@ def _get_parser():
             abstract_optional_study_parser
         ]
     )
-    search_series_parser.set_defaults(func=_search_series)
+    search_for_series_parser.set_defaults(func=_search_for_series)
 
     # QIDO - Instances
-    search_instances_parser = search_subparsers.add_parser(
+    search_for_instances_parser = search_subparsers.add_parser(
         'instances', description='Search for DICOM instances.',
         parents=[
             abstract_fmt_parser, abstract_search_parser,
             abstract_optional_study_parser, abstract_optional_series_parser
         ]
     )
-    search_instances_parser.set_defaults(func=_search_instances)
+    search_for_instances_parser.set_defaults(func=_search_for_instances)
 
     # WADO
     retrieve_parser = subparsers.add_parser(
@@ -429,27 +429,27 @@ def _print_pixeldata(image):
     print('\n')
 
 
-def _search_studies(args):
+def _search_for_studies(args):
     '''Searches for *Studies* and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
     client = DICOMWebClient(args.url, args.username, args.password)
-    studies = client.search_studies(**params)
+    studies = client.search_for_studies(**params)
     _print_metadata(studies, args.prettify, args.dicomize)
 
 
-def _search_series(args):
+def _search_for_series(args):
     '''Searches for Series and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
     client = DICOMWebClient(args.url, args.username, args.password)
-    series = client.search_series(args.study_instance_uid, **params)
+    series = client.search_for_series(args.study_instance_uid, **params)
     _print_metadata(series, args.prettify, args.dicomize)
 
 
-def _search_instances(args):
+def _search_for_instances(args):
     '''Searches for Instances and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
     client = DICOMWebClient(args.url, args.username, args.password)
-    instances = client.search_instances(
+    instances = client.search_for_instances(
         args.study_instance_uid, args.series_instance_uid, **params
     )
     _print_metadata(instances, args.prettify, args.dicomize)

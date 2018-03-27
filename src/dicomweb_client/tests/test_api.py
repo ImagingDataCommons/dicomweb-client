@@ -6,21 +6,21 @@ import pydicom
 from PIL import Image
 
 
-def test_search_studies(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'search_studies.json')
+def test_search_for_studies(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'search_for_studies.json')
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    assert client.search_studies() == parsed_content
+    assert client.search_for_studies() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/studies'
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
-def test_search_studies_limit_offset(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'search_studies.json')
+def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'search_for_studies.json')
     with open(cache_filename, 'r') as f:
         data = json.loads(f.read())
     # We will limit the search to 2 studies starting with the 2nd.
@@ -28,7 +28,7 @@ def test_search_studies_limit_offset(httpserver, client, cache_dir):
     parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    assert client.search_studies(limit=2, offset=1) == parsed_content
+    assert client.search_for_studies(limit=2, offset=1) == parsed_content
     request = httpserver.requests[0]
     assert (
         request.query_string.decode() == 'limit=2&offset=1' or
@@ -38,28 +38,28 @@ def test_search_studies_limit_offset(httpserver, client, cache_dir):
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
-def test_search_series(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'search_series.json')
+def test_search_for_series(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'search_for_series.json')
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    assert client.search_series() == parsed_content
+    assert client.search_for_series() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/series'
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
-def test_search_series_limit_offset(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'search_series.json')
+def test_search_for_series_limit_offset(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'search_for_series.json')
     with open(cache_filename, 'r') as f:
         data = json.loads(f.read())
     content = json.dumps(data[1:3])
     parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    assert client.search_studies(limit=2, offset=1) == parsed_content
+    assert client.search_for_studies(limit=2, offset=1) == parsed_content
     request = httpserver.requests[0]
     assert (
         request.query_string.decode() == 'limit=2&offset=1' or
@@ -69,27 +69,27 @@ def test_search_series_limit_offset(httpserver, client, cache_dir):
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
-def test_search_instances(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'search_instances.json')
+def test_search_for_instances(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'search_for_instances.json')
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    assert client.search_instances() == parsed_content
+    assert client.search_for_instances() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/instances'
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
-def test_search_instances_limit_offset(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'search_instances.json')
+def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'search_for_instances.json')
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    assert client.search_instances(limit=2, offset=1) == parsed_content
+    assert client.search_for_instances(limit=2, offset=1) == parsed_content
     request = httpserver.requests[0]
     assert (
         request.query_string.decode() == 'limit=2&offset=1' or
@@ -99,12 +99,12 @@ def test_search_instances_limit_offset(httpserver, client, cache_dir):
     assert request.accept_mimetypes == [('application/dicom+json', 1)]
 
 
-def test_search_instances_includefields(httpserver, client, cache_dir):
+def test_search_for_instances_includefields(httpserver, client, cache_dir):
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content='', code=200, headers=headers)
     f1 = 'StudyInstanceUID'
     f2 = 'SeriesInstanceUID'
-    client.search_instances(fields={f1, f2})
+    client.search_for_instances(fields={f1, f2})
     request = httpserver.requests[0]
     query_string_opt_1 = 'includefield={}&includefield={}'.format(f1, f2)
     query_string_opt_2 = 'includefield={}&includefield={}'.format(f2, f1)
