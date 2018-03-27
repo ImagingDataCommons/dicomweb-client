@@ -23,7 +23,7 @@ Search for instances:
     from dicomweb_client.api import DICOMWebClient
 
     qidors = DICOMWebClient(url="https://dicomcloud.azurewebsites.net/qidors")
-    instances = qidors.search_instances()
+    instances = qidors.search_for_instances()
     print(instances)
 
 
