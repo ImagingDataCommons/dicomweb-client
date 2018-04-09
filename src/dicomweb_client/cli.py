@@ -6,6 +6,7 @@ import logging
 import argparse
 import tempfile
 import traceback
+import getpass
 from io import BytesIO
 
 import pydicom
@@ -594,6 +595,11 @@ def main():
     '''Main entry point for the ``dicomweb_client`` command line program.'''
     parser = _get_parser()
     args = parser.parse_args()
+
+    if args.username:
+        if not args.password:
+            message = 'Enter password for user "{0}": '.format(args.username)
+            args.password = getpass.getpass(message)
 
     configure_logging(args.logging_verbosity)
     try:

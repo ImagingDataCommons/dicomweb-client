@@ -229,8 +229,10 @@ class DICOMWebClient(object):
             self.prefix = ''
         self._session.headers.update({'Host': self.host})
         if username is not None:
-            if password is None:
-                logger.warn('no password provided')
+            if not password:
+                raise ValueError(
+                    'No password provided for user "{0}".'.format(username)
+                )
             self._session.auth = (username, password)
 
     def _parse_query_parameters(self, fuzzymatching, limit, offset,
