@@ -65,7 +65,7 @@ def configure_logging(verbosity):
     root_logger = logging.getLogger()
     root_logger.addHandler(stderr_handler)
     level = _map_logging_verbosity(verbosity)
-    root_logger.setLevel(level)
+    root_logger.setLevel(logging.ERROR)
 
     pkg_name = __name__.split('.')[0]
     pkg_logger = logging.getLogger(pkg_name)
