@@ -602,6 +602,32 @@ class DICOMWebClient(object):
             studies = [studies]
         return studies
 
+    def retrieve_bulkdata(self, url, image_format=None):
+        '''Retrieves bulk data from a given location.
+
+        Parameters
+        ----------
+        url: str
+        image_format: str, optional
+            name of the image format for media type ``"image/{image_format}"``;
+            if ``None`` data will be requested uncompressed using
+            ``"application/octet-stream"`` media type
+
+        Returns
+        -------
+        List[Union[PIL.Image.Image, bytes]]
+            bulk data items; type depends on `image_format`
+            (returned as ``PIL.Image.Image`` if frames are requested as
+            compressed image and as ``bytes`` if requested as uncompressed
+            byte stream)
+
+        '''
+        if image_format is None:
+            return self._http_get_multipart_application_octet_stream(url)
+        else:
+            data = self._http_get_multipart_image(url, image_format)
+            return [Image.open(BytesIO(d)) for d in data]
+
     def retrieve_study(self, study_instance_uid):
         '''Retrieves instances of a given DICOM study.
 

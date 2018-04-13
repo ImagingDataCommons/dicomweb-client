@@ -129,7 +129,7 @@ def _get_parser():
         help='whether downloaded data should be saved'
     )
     abstract_save_parser.add_argument(
-        '--directory', metavar='PATH', dest='directory',
+        '--output-dir', metavar='PATH', dest='output_dir',
         default=tempfile.gettempdir(),
         help='path to directory where downloaded data should be saved'
     )
@@ -313,6 +313,29 @@ def _get_parser():
         func=_retrieve_instance_pixeldata
     )
 
+    # WADO - bulkdata
+    retrieve_bulkdata_parser = retrieve_subparsers.add_parser(
+        'bulkdata', help='retrieve bulk data from a known location',
+        description=(
+            'Retrieve bulk data of a DICOM object from a known location.'
+        )
+    )
+    retrieve_bulkdata_parser.add_argument(
+        '--uri', metavar='URI', dest='bulkdata_uri', required=True,
+        help='unique resource identifier of bulk data element'
+    )
+    retrieve_bulkdata_parser.add_argument(
+        '--image-format', metavar='NAME', dest='image_format',
+        choices=['jpeg', 'png'],
+        help=(
+            'name of image format in case bulk data should be requested '
+            'as image media-type (choices: jpeg, png)'
+        )
+    )
+    retrieve_bulkdata_parser.set_defaults(
+        func=_retrieve_bulkdata
+    )
+
     # STOW
     store_parser = subparsers.add_parser(
         'store',
@@ -399,7 +422,7 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
                 json.dump(data, f, sort_keys=True)
 
 
-def _save_pixeldata(image, directory, sop_instance_uid, frame_number):
+def _save_frame(image, directory, sop_instance_uid, frame_number):
     if image.format == 'JPEG':
         extension = 'jpg'
     elif image.format == 'PNG':
@@ -414,8 +437,12 @@ def _save_pixeldata(image, directory, sop_instance_uid, frame_number):
         )
     )
     filepath = os.path.join(directory, filename)
-    logger.info('save pixel data to file: {}'.format(filepath))
-    image.save(filepath)
+    _save_pixeldata(image, filepath)
+
+
+def _save_pixeldata(image, filename):
+    logger.info('save pixel data to file "{}"'.format(filename))
+    image.save(filename)
 
 
 def _show_pixeldata(image):
@@ -465,7 +492,7 @@ def _retrieve_study(args):
     for inst in instances:
         sop_instance_uid = inst.SOPInstanceUID
         if args.save:
-            _save_instance(inst, args.directory, sop_instance_uid)
+            _save_instance(inst, args.output_dir, sop_instance_uid)
         else:
             _print_instance(inst)
 
@@ -481,7 +508,7 @@ def _retrieve_series(args):
     for inst in instances:
         sop_instance_uid = inst.SOPInstanceUID
         if args.save:
-            _save_instance(inst, args.directory, sop_instance_uid)
+            _save_instance(inst, args.output_dir, sop_instance_uid)
         else:
             _print_instance(inst)
 
@@ -496,7 +523,7 @@ def _retrieve_instance(args):
         args.sop_instance_uid
     )
     if args.save:
-        _save_instance(instance, args.directory, args.sop_instance_uid)
+        _save_instance(instance, args.output_dir, args.sop_instance_uid)
     else:
         _print_instance(instance)
 
@@ -512,7 +539,7 @@ def _retrieve_study_metadata(args):
             tag = client.lookup_tag('SOPInstanceUID')
             sop_instance_uid = md[tag]['Value'][0]
             _save_metadata(
-                md, args.directory, sop_instance_uid, args.prettify,
+                md, args.output_dir, sop_instance_uid, args.prettify,
                 args.dicomize
             )
     else:
@@ -532,7 +559,7 @@ def _retrieve_series_metadata(args):
             tag = client.lookup_tag('SOPInstanceUID')
             sop_instance_uid = md[tag]['Value'][0]
             _save_metadata(
-                md, args.directory, sop_instance_uid, args.prettify,
+                md, args.output_dir, sop_instance_uid, args.prettify,
                 args.dicomize
             )
     else:
@@ -550,7 +577,7 @@ def _retrieve_instance_metadata(args):
     )
     if args.save:
         _save_metadata(
-            metadata, args.directory, args.sop_instance_uid, args.prettify,
+            metadata, args.output_dir, args.sop_instance_uid, args.prettify,
             args.dicomize
         )
     else:
@@ -571,14 +598,24 @@ def _retrieve_instance_pixeldata(args):
 
     for i, data in enumerate(pixeldata):
         if args.save:
-            _save_pixeldata(
-                data, args.directory, args.sop_instance_uid,
+            _save_frame(
+                data, args.output_dir, args.sop_instance_uid,
                 args.frame_numbers[i]
             )
         elif args.show:
             _show_pixeldata(data)
         else:
             _print_pixeldata(data)
+
+
+def _retrieve_bulkdata(args):
+    '''Retrieves bulk data and either writes them to standard output or to a
+    file on disk.
+    '''
+    client = DICOMWebClient(args.url, args.username, args.password)
+    data = client.retrieve_bulkdata(args.bulkdata_uri, args.image_format)
+    print(data)
+    print('\n')
 
 
 def _store_instances(args):
