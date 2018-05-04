@@ -9,6 +9,7 @@ import traceback
 import getpass
 from io import BytesIO
 
+from PIL import Image
 import pydicom
 
 from dicomweb_client.api import DICOMWebClient, load_json_dataset
@@ -306,11 +307,11 @@ def _get_parser():
         help='display retrieved images'
     )
     retrieve_instance_frames_parser.add_argument(
-        '--compression', metavar='NAME', dest='compression', default='jpeg',
+        '--compression', metavar='NAME', dest='compression', default=None,
         help='image compression format'
     )
     retrieve_instance_frames_parser.set_defaults(
-        func=_retrieve_instance_pixeldata
+        func=_retrieve_instance_frames
     )
 
     # WADO - bulkdata
@@ -423,37 +424,30 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
 
 
 def _save_frame(image, directory, sop_instance_uid, frame_number):
-    if image.format == 'JPEG':
-        extension = 'jpg'
-    elif image.format == 'PNG':
-        extension = 'png'
-    else:
-        raise ValueError('Unexpected image format "{}".'.format(image.format))
     filename = (
         '{sop_instance_uid}_frame_{frame_number}.{extension}'.format(
             sop_instance_uid=sop_instance_uid,
             frame_number=frame_number,
-            extension=extension
+            extension=image_format.lower()
         )
     )
     filepath = os.path.join(directory, filename)
-    _save_pixeldata(image, filepath)
+    _save_image(image, filepath)
 
 
-def _save_pixeldata(image, filename):
+def _save_image(image, filename):
     logger.info('save pixel data to file "{}"'.format(filename))
     image.save(filename)
 
 
-def _show_pixeldata(image):
+def _show_image(image):
     logger.info('show pixel data')
     image.show()
 
 
-def _print_pixeldata(image):
+def _print_pixeldata(pixels):
     logger.info('print pixel data')
-    content = image.tobytes()
-    print(content)
+    print(pixels)
     print('\n')
 
 
@@ -584,26 +578,30 @@ def _retrieve_instance_metadata(args):
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_instance_pixeldata(args):
-    '''Retrieves pixel data for an individual Instances and either
-    writes it to standard output or to a file on disk or displays it in a
-    viewer.
+def _retrieve_instance_frames(args):
+    '''Retrieves frames for an individual Instances and either
+    writes it to standard output or to a file on disk or displays it
+    (depending on the requested content type).
     '''
     client = DICOMWebClient(args.url, args.username, args.password)
-    pixeldata = client.retrieve_instance_frames_rendered(
+    pixeldata = client.retrieve_instance_frames(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid, args.frame_numbers,
         args.compression
     )
 
     for i, data in enumerate(pixeldata):
-        if args.save:
-            _save_frame(
-                data, args.output_dir, args.sop_instance_uid,
-                args.frame_numbers[i]
-            )
-        elif args.show:
-            _show_pixeldata(data)
+        if args.save or args.show:
+            # Pixeldata was returned uncompressed. Cannot be converted into
+            # an Image object without additional metadata information.
+            image = Image.open(BytesIO(data))
+            if args.save:
+                _save_frame(
+                    image, args.output_dir, args.sop_instance_uid,
+                    args.frame_numbers[i]
+                )
+            elif args.show:
+                _show_image(image)
         else:
             _print_pixeldata(data)
 

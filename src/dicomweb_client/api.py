@@ -7,7 +7,6 @@ import six
 from io import BytesIO
 from collections import OrderedDict
 
-from PIL import Image
 import requests
 import pydicom
 
@@ -615,18 +614,14 @@ class DICOMWebClient(object):
 
         Returns
         -------
-        List[Union[PIL.Image.Image, bytes]]
-            bulk data items; type depends on `image_format`
-            (returned as ``PIL.Image.Image`` if frames are requested as
-            compressed image and as ``bytes`` if requested as uncompressed
-            byte stream)
+        List[bytes]
+            bulk data items
 
         '''
         if image_format is None:
             return self._http_get_multipart_application_octet_stream(url)
         else:
-            data = self._http_get_multipart_image(url, image_format)
-            return [Image.open(BytesIO(d)) for d in data]
+            return self._http_get_multipart_image(url, image_format)
 
     def retrieve_study(self, study_instance_uid):
         '''Retrieves instances of a given DICOM study.
@@ -909,17 +904,14 @@ class DICOMWebClient(object):
         image_format: str, optional
             name of the image format; if ``None`` pixel data will be requested
             uncompressed as ``"application/octet-stream"``
-            (default:``None``, options: ``{"jpeg", "png"}``)
+            (default:``None``, options: ``{"jpeg", "x-jls", "jp2"}``)
         image_params: Dict[str], optional
             additional parameters relevant for a given `image_format`
 
         Returns
         -------
-        List[Union[PIL.Image.Image, bytes]]
-            pixel data for each frame; type depends on `image_format`
-            (returned as ``PIL.Image.Image`` if frames are requested as
-            compressed image and as ``bytes`` if requested as uncompressed
-            byte stream)
+        List[bytes]
+            pixel data for each frame
 
         '''
         if study_instance_uid is None:
@@ -935,7 +927,7 @@ class DICOMWebClient(object):
                 'Instance UID is required for retrieval of instance frames.'
             )
         if image_format is not None:
-            if image_format not in {'jpeg', 'png'}:
+            if image_format not in {'jpeg', 'x-jls', 'jp2'}:
                 raise ValueError(
                     'Image format "{}" is not supported.'.format(image_format)
                 )
@@ -951,10 +943,9 @@ class DICOMWebClient(object):
             # photometric interpretation.
             return pixeldata
         else:
-            pixeldata = self._http_get_multipart_image(
+            return self._http_get_multipart_image(
                 url, image_format, **image_params
             )
-            return [Image.open(BytesIO(d)) for d in pixeldata]
 
     @staticmethod
     def lookup_keyword(tag):
