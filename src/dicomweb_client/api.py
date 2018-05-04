@@ -607,6 +607,8 @@ class DICOMWebClient(object):
         Parameters
         ----------
         url: str
+            unique resource location of bulk data as obtained from a metadata
+            request, for example
         image_format: str, optional
             name of the image format for media type ``"image/{image_format}"``;
             if ``None`` data will be requested uncompressed using
