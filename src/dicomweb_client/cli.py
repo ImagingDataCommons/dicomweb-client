@@ -307,8 +307,12 @@ def _get_parser():
         help='display retrieved images'
     )
     retrieve_instance_frames_parser.add_argument(
-        '--compression', metavar='NAME', dest='compression', default=None,
-        help='image compression format'
+        '--image-format', metavar='NAME', dest='image_format', default=None,
+        choices=['jpeg', 'jp2', 'x-jls'],
+        help=(
+            'name of image format in case frames should be requested '
+            'as image media-type (choices: jpeg, jp2, x-jls)'
+        )
     )
     retrieve_instance_frames_parser.set_defaults(
         func=_retrieve_instance_frames
@@ -327,10 +331,10 @@ def _get_parser():
     )
     retrieve_bulkdata_parser.add_argument(
         '--image-format', metavar='NAME', dest='image_format',
-        choices=['jpeg', 'png'],
+        choices=['jpeg', 'x-jls', 'jp2'],
         help=(
             'name of image format in case bulk data should be requested '
-            'as image media-type (choices: jpeg, png)'
+            'as image media-type (choices: jpeg, jp2, x-jls)'
         )
     )
     retrieve_bulkdata_parser.set_defaults(
@@ -428,7 +432,7 @@ def _save_frame(image, directory, sop_instance_uid, frame_number):
         '{sop_instance_uid}_frame_{frame_number}.{extension}'.format(
             sop_instance_uid=sop_instance_uid,
             frame_number=frame_number,
-            extension=image_format.lower()
+            extension=image.format.lower()
         )
     )
     filepath = os.path.join(directory, filename)
@@ -587,7 +591,7 @@ def _retrieve_instance_frames(args):
     pixeldata = client.retrieve_instance_frames(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid, args.frame_numbers,
-        args.compression
+        args.image_format
     )
 
     for i, data in enumerate(pixeldata):
