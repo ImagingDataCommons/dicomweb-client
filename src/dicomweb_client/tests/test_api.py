@@ -173,7 +173,6 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
     with open(cache_filename, 'rb') as f:
         content = f.read()
-    parsed_content = Image.open(BytesIO(content))
     headers = {'content-type': 'multipart/related; type="image/jpeg"'}
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -185,7 +184,7 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, image_format='jpeg'
     )
-    assert result == [parsed_content]
+    assert result == [content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
@@ -195,12 +194,11 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
     assert request.accept_mimetypes == [(headers['content-type'], 1)]
 
 
-def test_retrieve_instance_pixeldata_png(httpserver, client, cache_dir):
-    cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.png')
+def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jp2')
     with open(cache_filename, 'rb') as f:
         content = f.read()
-    parsed_content = Image.open(BytesIO(content))
-    headers = {'content-type': 'multipart/related; type="image/png"'}
+    headers = {'content-type': 'multipart/related; type="image/jp2"'}
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
@@ -209,9 +207,9 @@ def test_retrieve_instance_pixeldata_png(httpserver, client, cache_dir):
     frame_list = ','.join([str(n) for n in frame_numbers])
     result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, image_format='png'
+        frame_numbers, image_format='jp2'
     )
-    assert result == [parsed_content]
+    assert result == [content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'

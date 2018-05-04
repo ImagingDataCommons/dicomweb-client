@@ -6,8 +6,10 @@ import logging
 import argparse
 import tempfile
 import traceback
+import getpass
 from io import BytesIO
 
+from PIL import Image
 import pydicom
 
 from dicomweb_client.api import DICOMWebClient, load_json_dataset
@@ -128,7 +130,7 @@ def _get_parser():
         help='whether downloaded data should be saved'
     )
     abstract_save_parser.add_argument(
-        '--directory', metavar='PATH', dest='directory',
+        '--output-dir', metavar='PATH', dest='output_dir',
         default=tempfile.gettempdir(),
         help='path to directory where downloaded data should be saved'
     )
@@ -305,11 +307,38 @@ def _get_parser():
         help='display retrieved images'
     )
     retrieve_instance_frames_parser.add_argument(
-        '--compression', metavar='NAME', dest='compression', default='jpeg',
-        help='image compression format'
+        '--image-format', metavar='NAME', dest='image_format', default=None,
+        choices=['jpeg', 'jp2', 'x-jls'],
+        help=(
+            'name of image format in case frames should be requested '
+            'as image media-type (choices: jpeg, jp2, x-jls)'
+        )
     )
     retrieve_instance_frames_parser.set_defaults(
-        func=_retrieve_instance_pixeldata
+        func=_retrieve_instance_frames
+    )
+
+    # WADO - bulkdata
+    retrieve_bulkdata_parser = retrieve_subparsers.add_parser(
+        'bulkdata', help='retrieve bulk data from a known location',
+        description=(
+            'Retrieve bulk data of a DICOM object from a known location.'
+        )
+    )
+    retrieve_bulkdata_parser.add_argument(
+        '--uri', metavar='URI', dest='bulkdata_uri', required=True,
+        help='unique resource identifier of bulk data element'
+    )
+    retrieve_bulkdata_parser.add_argument(
+        '--image-format', metavar='NAME', dest='image_format',
+        choices=['jpeg', 'x-jls', 'jp2'],
+        help=(
+            'name of image format in case bulk data should be requested '
+            'as image media-type (choices: jpeg, jp2, x-jls)'
+        )
+    )
+    retrieve_bulkdata_parser.set_defaults(
+        func=_retrieve_bulkdata
     )
 
     # STOW
@@ -398,34 +427,31 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
                 json.dump(data, f, sort_keys=True)
 
 
-def _save_pixeldata(image, directory, sop_instance_uid, frame_number):
-    if image.format == 'JPEG':
-        extension = 'jpg'
-    elif image.format == 'PNG':
-        extension = 'png'
-    else:
-        raise ValueError('Unexpected image format "{}".'.format(image.format))
+def _save_frame(image, directory, sop_instance_uid, frame_number):
     filename = (
         '{sop_instance_uid}_frame_{frame_number}.{extension}'.format(
             sop_instance_uid=sop_instance_uid,
             frame_number=frame_number,
-            extension=extension
+            extension=image.format.lower()
         )
     )
     filepath = os.path.join(directory, filename)
-    logger.info('save pixel data to file: {}'.format(filepath))
-    image.save(filepath)
+    _save_image(image, filepath)
 
 
-def _show_pixeldata(image):
+def _save_image(image, filename):
+    logger.info('save pixel data to file "{}"'.format(filename))
+    image.save(filename)
+
+
+def _show_image(image):
     logger.info('show pixel data')
     image.show()
 
 
-def _print_pixeldata(image):
+def _print_pixeldata(pixels):
     logger.info('print pixel data')
-    content = image.tobytes()
-    print(content)
+    print(pixels)
     print('\n')
 
 
@@ -464,7 +490,7 @@ def _retrieve_study(args):
     for inst in instances:
         sop_instance_uid = inst.SOPInstanceUID
         if args.save:
-            _save_instance(inst, args.directory, sop_instance_uid)
+            _save_instance(inst, args.output_dir, sop_instance_uid)
         else:
             _print_instance(inst)
 
@@ -480,7 +506,7 @@ def _retrieve_series(args):
     for inst in instances:
         sop_instance_uid = inst.SOPInstanceUID
         if args.save:
-            _save_instance(inst, args.directory, sop_instance_uid)
+            _save_instance(inst, args.output_dir, sop_instance_uid)
         else:
             _print_instance(inst)
 
@@ -495,7 +521,7 @@ def _retrieve_instance(args):
         args.sop_instance_uid
     )
     if args.save:
-        _save_instance(instance, args.directory, args.sop_instance_uid)
+        _save_instance(instance, args.output_dir, args.sop_instance_uid)
     else:
         _print_instance(instance)
 
@@ -511,7 +537,7 @@ def _retrieve_study_metadata(args):
             tag = client.lookup_tag('SOPInstanceUID')
             sop_instance_uid = md[tag]['Value'][0]
             _save_metadata(
-                md, args.directory, sop_instance_uid, args.prettify,
+                md, args.output_dir, sop_instance_uid, args.prettify,
                 args.dicomize
             )
     else:
@@ -531,7 +557,7 @@ def _retrieve_series_metadata(args):
             tag = client.lookup_tag('SOPInstanceUID')
             sop_instance_uid = md[tag]['Value'][0]
             _save_metadata(
-                md, args.directory, sop_instance_uid, args.prettify,
+                md, args.output_dir, sop_instance_uid, args.prettify,
                 args.dicomize
             )
     else:
@@ -549,35 +575,49 @@ def _retrieve_instance_metadata(args):
     )
     if args.save:
         _save_metadata(
-            metadata, args.directory, args.sop_instance_uid, args.prettify,
+            metadata, args.output_dir, args.sop_instance_uid, args.prettify,
             args.dicomize
         )
     else:
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_instance_pixeldata(args):
-    '''Retrieves pixel data for an individual Instances and either
-    writes it to standard output or to a file on disk or displays it in a
-    viewer.
+def _retrieve_instance_frames(args):
+    '''Retrieves frames for an individual Instances and either
+    writes it to standard output or to a file on disk or displays it
+    (depending on the requested content type).
     '''
     client = DICOMWebClient(args.url, args.username, args.password)
-    pixeldata = client.retrieve_instance_frames_rendered(
+    pixeldata = client.retrieve_instance_frames(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid, args.frame_numbers,
-        args.compression
+        args.image_format
     )
 
     for i, data in enumerate(pixeldata):
-        if args.save:
-            _save_pixeldata(
-                data, args.directory, args.sop_instance_uid,
-                args.frame_numbers[i]
-            )
-        elif args.show:
-            _show_pixeldata(data)
+        if args.save or args.show:
+            # Pixeldata was returned uncompressed. Cannot be converted into
+            # an Image object without additional metadata information.
+            image = Image.open(BytesIO(data))
+            if args.save:
+                _save_frame(
+                    image, args.output_dir, args.sop_instance_uid,
+                    args.frame_numbers[i]
+                )
+            elif args.show:
+                _show_image(image)
         else:
             _print_pixeldata(data)
+
+
+def _retrieve_bulkdata(args):
+    '''Retrieves bulk data and either writes them to standard output or to a
+    file on disk.
+    '''
+    client = DICOMWebClient(args.url, args.username, args.password)
+    data = client.retrieve_bulkdata(args.bulkdata_uri, args.image_format)
+    print(data)
+    print('\n')
 
 
 def _store_instances(args):
@@ -594,6 +634,11 @@ def main():
     '''Main entry point for the ``dicomweb_client`` command line program.'''
     parser = _get_parser()
     args = parser.parse_args()
+
+    if args.username:
+        if not args.password:
+            message = 'Enter password for user "{0}": '.format(args.username)
+            args.password = getpass.getpass(message)
 
     configure_logging(args.logging_verbosity)
     try:

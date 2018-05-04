@@ -172,7 +172,7 @@ def test_parse_retrieve_study_save(parser):
     assert getattr(args, 'studies_resource') == 'full'
     assert getattr(args, 'study_instance_uid') == '1.2.3'
     assert getattr(args, 'save') is True
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
 def test_parse_retrieve_study_metadata(parser):
@@ -230,17 +230,17 @@ def test_parse_retrieve_series_save(parser):
         '--study', '1.2.3', '--series', '1.2.4', 'full', '--save'
     ])
     assert getattr(args, 'save') is True
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
 def test_parse_retrieve_series_save_directory(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'retrieve', 'series',
         '--study', '1.2.3', '--series', '1.2.4', 'full', '--save',
-        '--directory', '/path/to/dir'
+        '--output-dir', '/path/to/dir'
     ])
     assert getattr(args, 'save') is True
-    assert getattr(args, 'directory') == '/path/to/dir'
+    assert getattr(args, 'output_dir') == '/path/to/dir'
 
 
 def test_parse_retrieve_series_metadata(parser):
@@ -353,7 +353,7 @@ def test_parse_retrieve_instance_metadata(parser):
     assert getattr(args, 'series_instance_uid') == '1.2.4'
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
     assert getattr(args, 'save') is False
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
     assert getattr(args, 'prettify') is False
     assert getattr(args, 'dicomize') is False
 
@@ -395,7 +395,7 @@ def test_parse_retrieve_instance_frames(parser):
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
     assert getattr(args, 'frame_numbers') == [1]
     assert getattr(args, 'save') is False
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
     assert getattr(args, 'show') is False
     with pytest.raises(AttributeError):
         assert getattr(args, 'prettify')
@@ -416,7 +416,7 @@ def test_parse_retrieve_instance_frames_multiple(parser):
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
     assert getattr(args, 'frame_numbers') == [1, 2, 3]
     assert getattr(args, 'save') is False
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
     assert getattr(args, 'show') is False
     with pytest.raises(AttributeError):
         assert getattr(args, 'prettify')
@@ -432,7 +432,7 @@ def test_parse_retrieve_instance_frames_show(parser):
     ])
     assert getattr(args, 'show') is True
     assert getattr(args, 'save') is False
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
 def test_parse_retrieve_instance_frames_save(parser):
@@ -443,7 +443,7 @@ def test_parse_retrieve_instance_frames_save(parser):
     ])
     assert getattr(args, 'show') is False
     assert getattr(args, 'save') is True
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
 def test_parse_retrieve_instance_frames_show_save(parser):
@@ -454,7 +454,7 @@ def test_parse_retrieve_instance_frames_show_save(parser):
     ])
     assert getattr(args, 'show') is True
     assert getattr(args, 'save') is True
-    assert getattr(args, 'directory') == tempfile.gettempdir()
+    assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
 def test_parse_retrieve_instance_frames_save_file(parser):
@@ -462,11 +462,11 @@ def test_parse_retrieve_instance_frames_save_file(parser):
         '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4',
         '--instance', '1.2.5', 'frames', '--numbers', '1', '--save',
-        '--directory', '/tmp'
+        '--output-dir', '/tmp'
     ])
     assert getattr(args, 'show') is False
     assert getattr(args, 'save') is True
-    assert getattr(args, 'directory') == '/tmp'
+    assert getattr(args, 'output_dir') == '/tmp'
 
 
 def test_parse_retrieve_instance_frames_missing_argument(parser):
@@ -480,7 +480,7 @@ def test_parse_retrieve_instance_frames_missing_argument(parser):
 
 # The following resources of WADO-RS are not (yet) implemented
 
-def test_parse_retrieve_study_complete(parser):
+def test_parse_retrieve_study_full(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'studies',
@@ -496,7 +496,7 @@ def test_parse_retrieve_study_frames(parser):
         ])
 
 
-def test_parse_retrieve_series_complete(parser):
+def test_parse_retrieve_series_full(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'series',
@@ -512,10 +512,47 @@ def test_parse_retrieve_series_frames(parser):
         ])
 
 
-def test_parse_retrieve_instance_complete(parser):
+def test_parse_retrieve_instance_full(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'series',
             '--study', '1.2.3', '--series', '1.2.4',
             '--instance', '1.2.5'
+        ])
+
+
+def test_parse_retrieve_bulkdata(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002', 'retrieve', 'bulkdata',
+        '--uri', 'http://localhost:8002/bulk/data'
+    ])
+    assert getattr(args, 'method') == 'retrieve'
+    assert getattr(args, 'wado_ie') == 'bulkdata'
+    assert getattr(args, 'image_format') is None
+    assert getattr(args, 'bulkdata_uri') == 'http://localhost:8002/bulk/data'
+
+
+def test_parse_retrieve_bulkdata_image_format(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002', 'retrieve', 'bulkdata',
+        '--uri', 'http://localhost:8002/bulk/data', '--image-format', 'jpeg'
+    ])
+    assert getattr(args, 'method') == 'retrieve'
+    assert getattr(args, 'wado_ie') == 'bulkdata'
+    assert getattr(args, 'image_format') == 'jpeg'
+    assert getattr(args, 'bulkdata_uri') == 'http://localhost:8002/bulk/data'
+
+
+def test_parse_retrieve_bulkdata_image_format_invalid_choice(parser):
+    with pytest.raises(SystemExit):
+        parser.parse_args([
+            '--url', 'http://localhost:8002', 'retrieve', 'bulkdata',
+            '--uri', 'http://localhost:8002/bulk/data', '--image-format', 'foo'
+        ])
+
+
+def test_parse_retrieve_bulkdata_missing_argument(parser):
+    with pytest.raises(SystemExit):
+        parser.parse_args([
+            '--url', 'http://localhost:8002', 'retrieve', 'bulkdata'
         ])
