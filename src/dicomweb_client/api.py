@@ -511,6 +511,10 @@ class DICOMWebClient(object):
             content of HTTP message body parts
 
         '''
+        if image_format not in {'jpeg', 'x-jls', 'jp2'}:
+            raise ValueError(
+                'Image format "{}" is not supported.'.format(image_format)
+            )
         content_type = 'multipart/related; type="image/{image_format}"'.format(
             image_format=image_format
         )
@@ -601,7 +605,8 @@ class DICOMWebClient(object):
             studies = [studies]
         return studies
 
-    def retrieve_bulkdata(self, url, image_format=None):
+    def retrieve_bulkdata(self, url, image_format=None,
+                          image_params={'quality': 95}):
         '''Retrieves bulk data from a given location.
 
         Parameters
@@ -613,6 +618,8 @@ class DICOMWebClient(object):
             name of the image format for media type ``"image/{image_format}"``;
             if ``None`` data will be requested uncompressed using
             ``"application/octet-stream"`` media type
+        image_params: Dict[str], optional
+            additional parameters relevant for `image_format`
 
         Returns
         -------
@@ -623,7 +630,9 @@ class DICOMWebClient(object):
         if image_format is None:
             return self._http_get_multipart_application_octet_stream(url)
         else:
-            return self._http_get_multipart_image(url, image_format)
+            return self._http_get_multipart_image(
+                url, image_format, **image_params
+            )
 
     def retrieve_study(self, study_instance_uid):
         '''Retrieves instances of a given DICOM study.
@@ -908,7 +917,7 @@ class DICOMWebClient(object):
             uncompressed as ``"application/octet-stream"``
             (default:``None``, options: ``{"jpeg", "x-jls", "jp2"}``)
         image_params: Dict[str], optional
-            additional parameters relevant for a given `image_format`
+            additional parameters relevant for `image_format`
 
         Returns
         -------
@@ -928,11 +937,6 @@ class DICOMWebClient(object):
             raise ValueError(
                 'Instance UID is required for retrieval of instance frames.'
             )
-        if image_format is not None:
-            if image_format not in {'jpeg', 'x-jls', 'jp2'}:
-                raise ValueError(
-                    'Image format "{}" is not supported.'.format(image_format)
-                )
         url = self._get_instances_url(
             study_instance_uid, series_instance_uid, sop_instance_uid
         )
