@@ -11,10 +11,11 @@ Requirements
 * `Python <https://www.python.org/>`_ (version 2.7 or higher)
 * Python package manager `pip <https://pip.pypa.io/en/stable/>`_
 
-For support of standard web image formats:
+For support of image formats:
 
-* JPEG (`Libjpeg <http://ijg.org/>`_ or `libjpeg-turbo <https://www.libjpeg-turbo.org/>`_)
-* PNG (`Libpng <http://libpng.org/pub/png/libpng.html>`_)
+* JPEG (`libjpeg <http://ijg.org/>`_ or `libjpeg-turbo <https://www.libjpeg-turbo.org/>`_)
+* JPEG2000 (`openjpeg <http://www.openjpeg.org/>`_)
+* PNG (`libpng <http://libpng.org/pub/png/libpng.html>`_)
 
 .. _installation:
 
