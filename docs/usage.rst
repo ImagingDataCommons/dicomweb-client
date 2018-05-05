@@ -10,7 +10,7 @@ The client can be used with any DICOMweb server, such as `dcm4che <http://www.dc
 Examples
 --------
 
-For the examples below, we will use the publicly accessible `RESTful DICOM services provided by DICOMweb Cloud <https://dicomcloud.azurewebsites.net>`_.
+For the examples below, we will use the publicly accessible `RESTful DICOM services provided by DICOMweb Cloud <https://dicomcloud.azurewebsites.net>`_ (note that URLs and UIDs may be subject to change).
 
 
 Active Programming Interface (API)
@@ -34,9 +34,31 @@ Retrieve metadata for all instances of a given study:
     from dicomweb_client.api import DICOMWebClient
 
     wadors = DICOMWebClient(url="https://dicomcloud.azurewebsites.net/wadors")
-    study_uid = '1.2.392.200036.9116.2.5.1.37.2427178992.1440120482.32628'
-    study_metadata = wadors.retrieve_study_metadata(study_uid)
+    study_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+    study_metadata = wadors.retrieve_study_metadata(study_instance_uid)
     print(study_metadata)
+
+
+Retrieve a single frame of a given instances as JPEG compressed image and show it:
+
+.. code-block:: python
+
+    from PIL import Image
+    from io import BytesIO
+
+    from dicomweb_client.api import DICOMWebClient
+
+    wadors = DICOMWebClient(url="https://dicomcloud.azurewebsites.net/wadors")
+    study_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+    series_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+    sop_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+    frames = wadors.retrieve_instance_frames(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        frame_numbers=[1], image_format='jpeg'
+    )
+
+    image = Image.open(BytesIO(frames[0]))
+    image.show()
 
 
 Command Line Interface (CLI)
@@ -52,11 +74,17 @@ Retrieve metadata for all instances of a given study:
 
 .. code-block:: none
 
-    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve studies --study 1.2.392.200036.9116.2.5.1.37.2427178992.1440120482.32628 metadata
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve studies --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 metadata
 
 
 The output can be *dicomized* for human interpretation:
 
 .. code-block:: none
 
-    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve studies --study 1.2.392.200036.9116.2.5.1.37.2427178992.1440120482.32628 metadata --dicomize
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve studies --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 metadata --dicomize
+
+Retrieve a single frame of a given instances as JPEG compressed image and show it:
+
+.. code-block:: none
+
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve instances --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 --series 1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034 --instance 1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534 frames --numbers 1 --image-format jpeg --show
