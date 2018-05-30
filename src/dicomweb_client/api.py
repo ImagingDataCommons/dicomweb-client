@@ -591,7 +591,8 @@ class DICOMWebClient(object):
         Returns
         -------
         List[Dict[str, dict]]
-            matching instances
+            study representations
+            (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
 
         '''
         url = self._get_studies_url()
@@ -700,7 +701,8 @@ class DICOMWebClient(object):
         Returns
         -------
         List[Dict[str, dict]]
-            matching instances
+            series representations
+            (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
         '''
         url = self._get_series_url(study_instance_uid)
@@ -793,7 +795,8 @@ class DICOMWebClient(object):
         Returns
         -------
         List[Dict[str, dict]]
-            matching instances
+            instance representations
+            (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
 
         '''
         url = self._get_instances_url(study_instance_uid, series_instance_uid)
