@@ -594,7 +594,7 @@ class DICOMWebClient(object):
             study representations
             (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
 
-        '''
+        ''' # noqa
         url = self._get_studies_url()
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
@@ -704,7 +704,7 @@ class DICOMWebClient(object):
             series representations
             (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
-        '''
+        ''' # noqa
         url = self._get_series_url(study_instance_uid)
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
@@ -798,7 +798,7 @@ class DICOMWebClient(object):
             instance representations
             (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
 
-        '''
+        ''' # noqa
         url = self._get_instances_url(study_instance_uid, series_instance_uid)
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters

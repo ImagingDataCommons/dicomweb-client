@@ -3,7 +3,6 @@ import json
 from io import BytesIO
 
 import pydicom
-from PIL import Image
 
 
 def test_search_for_studies(httpserver, client, cache_dir):
