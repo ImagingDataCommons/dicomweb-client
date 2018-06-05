@@ -4,6 +4,7 @@ import os
 import logging
 import email
 import six
+from urllib3.filepost import choose_boundary
 from io import BytesIO
 from collections import OrderedDict
 
@@ -466,7 +467,10 @@ class DICOMWebClient(object):
             DICOM data sets
 
         '''
-        content_type = 'multipart/related; type="application/dicom"'
+        content_type = (
+            'multipart/related; type="application/dicom"; '
+            'boundary="--{boundary}"'.format(boundary=choose_boundary())
+        )
         resp = self._http_get(url, params, {'Accept': content_type})
         datasets = self._decode_multipart_message(resp.content, resp.headers)
         return [pydicom.dcmread(BytesIO(ds)) for ds in datasets]
@@ -488,7 +492,10 @@ class DICOMWebClient(object):
             content of HTTP message body parts
 
         '''
-        content_type = 'multipart/related; type="application/octet-stream"'
+        content_type = (
+            'multipart/related; type="application/octet-stream"; '
+            'boundary="--{boundary}"'.format(boundary=choose_boundary())
+        )
         resp = self._http_get(url, params, {'Accept': content_type})
         return self._decode_multipart_message(resp.content, resp.headers)
 
@@ -515,8 +522,11 @@ class DICOMWebClient(object):
             raise ValueError(
                 'Image format "{}" is not supported.'.format(image_format)
             )
-        content_type = 'multipart/related; type="image/{image_format}"'.format(
-            image_format=image_format
+        content_type = (
+            'multipart/related; type="image/{image_format}"; '
+            'boundary="--{boundary}"'.format(
+                image_format=image_format, boundary=choose_boundary()
+            )
         )
         resp = self._http_get(url, params, {'Accept': content_type})
         return self._decode_multipart_message(resp.content, resp.headers)

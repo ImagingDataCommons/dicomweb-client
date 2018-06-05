@@ -15,7 +15,7 @@ def test_search_for_studies(httpserver, client, cache_dir):
     assert client.search_for_studies() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/studies'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
@@ -34,7 +34,7 @@ def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
         request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/studies'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_search_for_series(httpserver, client, cache_dir):
@@ -47,7 +47,7 @@ def test_search_for_series(httpserver, client, cache_dir):
     assert client.search_for_series() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/series'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_search_for_series_limit_offset(httpserver, client, cache_dir):
@@ -65,7 +65,7 @@ def test_search_for_series_limit_offset(httpserver, client, cache_dir):
         request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/studies'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_search_for_instances(httpserver, client, cache_dir):
@@ -78,7 +78,7 @@ def test_search_for_instances(httpserver, client, cache_dir):
     assert client.search_for_instances() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/instances'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
@@ -95,7 +95,7 @@ def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
         request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/instances'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_search_for_instances_includefields(httpserver, client, cache_dir):
@@ -112,7 +112,7 @@ def test_search_for_instances_includefields(httpserver, client, cache_dir):
         request.query_string.decode() == query_string_opt_2
     )
     assert request.path == '/instances'
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_retrieve_instance_metadata(httpserver, client, cache_dir):
@@ -135,7 +135,7 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
         '/{sop_instance_uid}/metadata'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes == [('application/dicom+json', 1)]
+    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
 def test_retrieve_instance(httpserver, client, cache_dir):
@@ -163,16 +163,17 @@ def test_retrieve_instance(httpserver, client, cache_dir):
         '/{sop_instance_uid}'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes == [
-        ('multipart/related; type="application/dicom"', 1)
-    ]
+    assert request.accept_mimetypes[0][0][:45] == headers['content-type'][:45]
 
 
 def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
     with open(cache_filename, 'rb') as f:
         content = f.read()
-    headers = {'content-type': 'multipart/related; type="image/jpeg"'}
+    headers = {
+        'content-type':
+            'multipart/related; type="image/jpeg"; boundary="boundary"'
+    }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
@@ -190,14 +191,17 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
         '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes == [(headers['content-type'], 1)]
+    assert request.accept_mimetypes[0][0][:38] == headers['content-type'][:38]
 
 
 def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jp2')
     with open(cache_filename, 'rb') as f:
         content = f.read()
-    headers = {'content-type': 'multipart/related; type="image/jp2"'}
+    headers = {
+        'content-type':
+            'multipart/related; type="image/jp2"; boundary="boundary"'
+    }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
@@ -215,4 +219,4 @@ def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
         '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes == [(headers['content-type'], 1)]
+    assert request.accept_mimetypes[0][0][:37] == headers['content-type'][:37]
