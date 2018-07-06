@@ -1,12 +1,17 @@
 '''Active Programming Interface (API).'''
 import re
 import os
+import sys
 import logging
 import email
 import six
 from urllib3.filepost import choose_boundary
 from io import BytesIO
 from collections import OrderedDict
+if sys.version_info.major < 3:
+    from urllib import quote_plus
+else:
+    from urllib.parse import quote_plus
 
 import requests
 import pydicom
@@ -316,6 +321,19 @@ class DICOMWebClient(object):
             service=self.base_url, sop_instance_uid=sop_instance_uid
         )
 
+    @staticmethod
+    def _build_query_string(params):
+        components = []
+        for key, value in params.items():
+            if isinstance(value, (list, tuple, set)):
+                for v in value:
+                    c = '='.join([key, quote_plus(str(v))])
+                    components.append(c)
+            else:
+                c = '='.join([key, quote_plus(str(value))])
+                components.append(c)
+        return '?{}'.format('&'.join(components))
+
     def _http_get(self, url, params, headers):
         '''Performs a HTTP GET request.
 
@@ -334,8 +352,9 @@ class DICOMWebClient(object):
             HTTP response message
 
         '''
+        url += self._build_query_string(params)
         logger.debug('GET: {}'.format(url))
-        resp = self._session.get(url=url, params=params, headers=headers)
+        resp = self._session.get(url=url, headers=headers)
         resp.raise_for_status()
         return resp
 
@@ -554,13 +573,15 @@ class DICOMWebClient(object):
         response.raise_for_status()
         return response
 
-    def _http_post_multipart_application_dicom(self, url, datasets):
+    def _http_post_multipart_application_dicom(self, url, data):
         '''Performs a HTTP POST request
 
         Parameters
         ----------
         url: str
             unique resource locator
+        data: List[bytes]
+            DICOM data sets that should be posted
         datasets: List[pydicom.dataset.Dataset]
             DICOM data sets that should be posted
 
@@ -570,14 +591,8 @@ class DICOMWebClient(object):
             'type="application/dicom"; '
             'boundary="boundary"'
         )
-        encoded_datasets = list()
-        # TODO: can we do this more memory efficient? Concatenations?
-        for ds in datasets:
-            with BytesIO() as b:
-                pydicom.dcmwrite(b, ds)
-                encoded_datasets.append(b.getvalue())
-        data = self._encode_multipart_message(encoded_datasets, content_type)
-        self._http_post(url, data, headers={'Content-Type': content_type})
+        content = self._encode_multipart_message(data, content_type)
+        self._http_post(url, content, headers={'Content-Type': content_type})
 
     def search_for_studies(self, fuzzymatching=None, limit=None, offset=None,
                            fields=None, search_filters={}):
@@ -869,7 +884,13 @@ class DICOMWebClient(object):
 
         '''
         url = self._get_studies_url(study_instance_uid)
-        self._http_post_multipart_application_dicom(url, datasets)
+        encoded_datasets = list()
+        # TODO: can we do this more memory efficient? Concatenations?
+        for ds in datasets:
+            with BytesIO() as b:
+                pydicom.dcmwrite(b, ds)
+                encoded_datasets.append(b.getvalue())
+        self._http_post_multipart_application_dicom(url, encoded_datasets)
 
     def retrieve_instance_metadata(self, study_instance_uid,
                                    series_instance_uid, sop_instance_uid):
