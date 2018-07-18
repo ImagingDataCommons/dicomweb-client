@@ -2,6 +2,7 @@ import os
 import json
 from io import BytesIO
 
+import pytest
 import pydicom
 
 
@@ -48,6 +49,18 @@ def test_search_for_series(httpserver, client, cache_dir):
     request = httpserver.requests[0]
     assert request.path == '/series'
     assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+
+
+def test_search_for_series_wrong_uid_type(httpserver, client, cache_dir):
+    study_instance_uid = ['1.2.3.4']
+    with pytest.raises(TypeError):
+        client.search_for_series(study_instance_uid=study_instance_uid)
+
+
+def test_search_for_series_wrong_uid_value(httpserver, client, cache_dir):
+    study_instance_uid = '1_2_3_4'
+    with pytest.raises(ValueError):
+        client.search_for_series(study_instance_uid=study_instance_uid)
 
 
 def test_search_for_series_limit_offset(httpserver, client, cache_dir):

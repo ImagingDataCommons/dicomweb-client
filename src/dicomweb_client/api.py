@@ -675,7 +675,9 @@ class DICOMwebClient(object):
 
         '''
         if study_instance_uid is None:
-            raise ValueError('Study UID is required for retrieval of study.')
+            raise ValueError(
+                'Study Instance UID is required for retrieval of study.'
+            )
         url = self._get_studies_url(study_instance_uid)
         return self._http_get_multipart_application_dicom(url)
 
@@ -695,11 +697,35 @@ class DICOMwebClient(object):
         '''
         if study_instance_uid is None:
             raise ValueError(
-                'Study UID is required for retrieval of study metadata.'
+                'Study Instance UID is required for retrieval of '
+                'study metadata.'
             )
         url = self._get_studies_url(study_instance_uid)
         url += '/metadata'
         return self._http_get_application_json(url)
+
+    def _check_uid_format(self, uid):
+        '''Checks whether a DICOM UID has the correct format.
+
+        Parameters
+        ----------
+        uid: str
+            DICOM UID
+
+        Raises
+        ------
+        TypeError
+            when `uid` is not a string
+        ValueError
+            when `uid` doesn't match the regular expression pattern
+            ``"^[.0-9]+$"``
+
+        '''
+        if not isinstance(uid, six.string_types):
+            raise TypeError('DICOM UID must be a string.')
+        pattern = re.compile('^[.0-9]+$')
+        if not pattern.search(uid):
+            raise ValueError('DICOM UID has invalid format.')
 
     def search_for_series(self, study_instance_uid=None, fuzzymatching=None,
                           limit=None, offset=None, fields=None,
@@ -730,6 +756,8 @@ class DICOMwebClient(object):
             (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
         ''' # noqa
+        if study_instance_uid is not None:
+            self._check_uid_format(study_instance_uid)
         url = self._get_series_url(study_instance_uid)
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
@@ -758,9 +786,15 @@ class DICOMwebClient(object):
 
         '''
         if study_instance_uid is None:
-            raise ValueError('Study UID is required for retrieval of series.')
+            raise ValueError(
+                'Study Instance UID is required for retrieval of series.'
+            )
+        self._check_uid_format(study_instance_uid)
         if series_instance_uid is None:
-            raise ValueError('Series UID is required for retrieval of series.')
+            raise ValueError(
+                'Series Instance UID is required for retrieval of series.'
+            )
+        self._check_uid_format(series_instance_uid)
         url = self._get_series_url(study_instance_uid, series_instance_uid)
         return self._http_get_multipart_application_dicom(url)
 
@@ -782,12 +816,16 @@ class DICOMwebClient(object):
         '''
         if study_instance_uid is None:
             raise ValueError(
-                'Study UID is required for retrieval of series metadata.'
+                'Study Instance UID is required for retrieval of '
+                'series metadata.'
             )
+        self._check_uid_format(study_instance_uid)
         if series_instance_uid is None:
             raise ValueError(
-                'Series UID is required for retrieval of series metadata.'
+                'Series Instance UID is required for retrieval of '
+                'series metadata.'
             )
+        self._check_uid_format(series_instance_uid)
         url = self._get_series_url(study_instance_uid, series_instance_uid)
         url += '/metadata'
         return self._http_get_application_json(url)
@@ -824,6 +862,8 @@ class DICOMwebClient(object):
             (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
 
         ''' # noqa
+        if study_instance_uid is not None:
+            self._check_uid_format(study_instance_uid)
         url = self._get_instances_url(study_instance_uid, series_instance_uid)
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
@@ -857,16 +897,19 @@ class DICOMwebClient(object):
 
         if study_instance_uid is None:
             raise ValueError(
-                'Study UID is required for retrieval of instance.'
+                'Study Instance UID is required for retrieval of instance.'
             )
+        self._check_uid_format(study_instance_uid)
         if series_instance_uid is None:
             raise ValueError(
-                'Series UID is required for retrieval of instance.'
+                'Series Instance UID is required for retrieval of instance.'
             )
+        self._check_uid_format(series_instance_uid)
         if sop_instance_uid is None:
             raise ValueError(
-                'Instance UID is required for retrieval of instance.'
+                'SOP Instance UID is required for retrieval of instance.'
             )
+        self._check_uid_format(sop_instance_uid)
         url = self._get_instances_url(
             study_instance_uid, series_instance_uid, sop_instance_uid
         )
@@ -913,15 +956,18 @@ class DICOMwebClient(object):
         '''
         if study_instance_uid is None:
             raise ValueError(
-                'Study UID is required for retrieval of instance metadata.'
+                'Study Instance UID is required for retrieval of '
+                'instance metadata.'
             )
         if series_instance_uid is None:
             raise ValueError(
-                'Series UID is required for retrieval of instance metadata.'
+                'Series Instance UID is required for retrieval of '
+                'instance metadata.'
             )
         if sop_instance_uid is None:
             raise ValueError(
-                'Instance UID is required for retrieval of instance metadata.'
+                'SOP Instance UID is required for retrieval of '
+                'instance metadata.'
             )
         url = self._get_instances_url(
             study_instance_uid, series_instance_uid, sop_instance_uid
@@ -961,15 +1007,15 @@ class DICOMwebClient(object):
         '''
         if study_instance_uid is None:
             raise ValueError(
-                'Study UID is required for retrieval of instance frames.'
+                'Study Instance UID is required for retrieval of frames.'
             )
         if series_instance_uid is None:
             raise ValueError(
-                'Series UID is required for retrieval of instance frames.'
+                'Series Instance UID is required for retrieval of frames.'
             )
         if sop_instance_uid is None:
             raise ValueError(
-                'Instance UID is required for retrieval of instance frames.'
+                'SOP Instance UID is required for retrieval of frames.'
             )
         url = self._get_instances_url(
             study_instance_uid, series_instance_uid, sop_instance_uid
