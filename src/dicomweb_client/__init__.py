@@ -1,3 +1,3 @@
-__version__ = '0.3.1'
+__version__ = '0.9.0rc'
 
-from dicomweb_client.api import DICOMWebClient
+from dicomweb_client.api import DICOMwebClient

@@ -20,9 +20,9 @@ Search for instances:
 
 .. code-block:: python
 
-    from dicomweb_client.api import DICOMWebClient
+    from dicomweb_client.api import DICOMwebClient
 
-    qidors = DICOMWebClient(url="https://dicomcloud.azurewebsites.net/qidors")
+    qidors = DICOMwebClient(url="https://dicomcloud.azurewebsites.net/qidors")
     instances = qidors.search_for_instances()
     print(instances)
 
@@ -31,9 +31,9 @@ Retrieve metadata for all instances of a given study:
 
 .. code-block:: python
 
-    from dicomweb_client.api import DICOMWebClient
+    from dicomweb_client.api import DICOMwebClient
 
-    wadors = DICOMWebClient(url="https://dicomcloud.azurewebsites.net/wadors")
+    wadors = DICOMwebClient(url="https://dicomcloud.azurewebsites.net/wadors")
     study_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
     study_metadata = wadors.retrieve_study_metadata(study_instance_uid)
     print(study_metadata)
@@ -46,9 +46,9 @@ Retrieve a single frame of a given instances as JPEG compressed image and show i
     from PIL import Image
     from io import BytesIO
 
-    from dicomweb_client.api import DICOMWebClient
+    from dicomweb_client.api import DICOMwebClient
 
-    wadors = DICOMWebClient(url="https://dicomcloud.azurewebsites.net/wadors")
+    wadors = DICOMwebClient(url="https://dicomcloud.azurewebsites.net/wadors")
     study_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
     series_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
     sop_instance_uid = '1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'

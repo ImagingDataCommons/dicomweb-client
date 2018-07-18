@@ -3,7 +3,7 @@ from pkg_resources import resource_filename
 import pytest
 
 from dicomweb_client.cli import _get_parser
-from dicomweb_client.api import DICOMWebClient
+from dicomweb_client.api import DICOMwebClient
 
 
 @pytest.fixture
@@ -20,5 +20,5 @@ def cache_dir():
 
 @pytest.fixture
 def client(httpserver):
-    '''Instance of `dicomweb_client.api.DICOMWebClient`.'''
-    return DICOMWebClient(httpserver.url)
+    '''Instance of `dicomweb_client.api.DICOMwebClient`.'''
+    return DICOMwebClient(httpserver.url)

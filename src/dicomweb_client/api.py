@@ -155,7 +155,7 @@ def load_json_dataset(dataset):
     return ds
 
 
-class DICOMWebClient(object):
+class DICOMwebClient(object):
 
     '''Class for connecting to and interacting with a DICOMweb RESTful service.
 
