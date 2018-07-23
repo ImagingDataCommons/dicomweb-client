@@ -28,12 +28,12 @@ Instantiate the client:
         stow_url_prefix="stowrs"
     )
 
-Search for instances:
+Search for studies:
 
 .. code-block:: python
 
-    instances = client.search_for_instances()
-    print(instances)
+    studies = client.search_for_studies()
+    print(studies)
 
 
 Retrieve metadata for all instances of a given study:
