@@ -24,10 +24,9 @@ def test_search_for_studies_qido_prefix(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'search_for_studies.json')
     with open(cache_filename, 'r') as f:
         content = f.read()
-    parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    studies = client.search_for_studies()
+    client.search_for_studies()
     request = httpserver.requests[0]
     assert request.path == '/qidors/studies'
 
