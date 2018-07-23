@@ -11,6 +11,7 @@ from io import BytesIO
 
 from PIL import Image
 import pydicom
+import numpy as np
 
 from dicomweb_client.api import DICOMwebClient, load_json_dataset
 from dicomweb_client.log import configure_logging
@@ -596,9 +597,34 @@ def _retrieve_instance_frames(args):
 
     for i, data in enumerate(pixeldata):
         if args.save or args.show:
-            # Pixeldata was returned uncompressed. Cannot be converted into
-            # an Image object without additional metadata information.
-            image = Image.open(BytesIO(data))
+            if args.image_format is None:
+                # Pixeldata was returned uncompressed and cannot be converted
+                # to an image without additional metadata
+                # (Rows, Columns, PixelRepresentation, BitsAllocated).
+                raise ValueError(
+                    'Cannot load image from uncompressed pixel data without '
+                    'additional metadata.'
+                )
+                # TODO: Retrieve metadata and load pixel data into numpy array
+                # https://github.com/pydicom/pydicom/blob/master/pydicom/pixel_data_handlers/numpy_handler.py
+
+                # metadata = client.retrieve_instance_metadata(
+                #     args.study_instance_uid, args.series_instance_uid,
+                #     args.sop_instance_uid
+                # )
+                # ds = load_json_dataset(metadata[0])
+
+            elif args.image_format == 'x-jls':
+                try:
+                    import jpeg_ls
+                except ImportError:
+                    raise ImportError(
+                        'Cannot load image from JPEG-LS compressed pixel data '
+                        'because PyCharLS package is not installed.'
+                    )
+                image = jpeg_ls.decode(np.fromstring(data, dtype=np.uint8))
+            else:
+                image = Image.open(BytesIO(data))
             if args.save:
                 _save_frame(
                     image, args.output_dir, args.sop_instance_uid,
