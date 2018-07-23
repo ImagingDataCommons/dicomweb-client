@@ -123,7 +123,14 @@ def _create_dataelement(tag, vr, value):
     if value is None:
         # TODO: check if mandatory
         logger.warn('missing value for data element "{}"'.format(tag))
-    return pydicom.dataelem.DataElement(tag=tag, value=elem_value, VR=vr)
+    try:
+        return pydicom.dataelem.DataElement(tag=tag, value=elem_value, VR=vr)
+    except Exception as e:
+        raise ValueError(
+            'Data element "{}" could not be loaded from JSON: {}'.format(
+                tag, elem_value
+            )
+        )
 
 
 def load_json_dataset(dataset):
@@ -169,12 +176,20 @@ class DICOMwebClient(object):
         IP address or DNS name of the machine that hosts the server
     port: int
         number of the port to which the server listens
-    prefix: str
-        URL prefix
+    url_prefix: str
+        URL path prefix for DICOMweb services (part of `base_url`)
+    qido_url_prefix: Union[str, NoneType]
+        URL path prefix for QIDO-RS (not part of `base_url`)
+    wado_url_prefix: Union[str, NoneType]
+        URL path prefix for WADO-RS (not part of `base_url`)
+    stow_url_prefix: Union[str, NoneType]
+        URL path prefix for STOW-RS (not part of `base_url`)
 
     '''
 
-    def __init__(self, url, username=None, password=None, ca_bundle=None):
+    def __init__(self, url, username=None, password=None, ca_bundle=None,
+                 qido_url_prefix=None, wado_url_prefix=None,
+                 stow_url_prefix=None):
         '''
         Parameters
         ----------
@@ -182,17 +197,26 @@ class DICOMwebClient(object):
             base unique resource locator consisting of protocol, hostname
             (IP address or DNS name) of the machine that hosts the server and
             optionally port number and path prefix
-        username: str
-            username for authentication with the server
-        password: str
-            password for authentication with the server
+        username: str, optional
+            username for authentication with services
+        password: str, optional
+            password for authentication with services
         ca_bundle: str, optional
             path to CA bundle file in Privacy Enhanced Mail (PEM) format
+        qido_url_prefix: str, optional
+            URL path prefix for QIDO RESTful services
+        wado_url_prefix: str, optional
+            URL path prefix for WADO RESTful services
+        stow_url_prefix: str, optional
+            URL path prefix for STOW RESTful services
 
         '''
         logger.debug('initialize HTTP session')
         self._session = requests.Session()
         self.base_url = url
+        self.qido_url_prefix = qido_url_prefix
+        self.wado_url_prefix = wado_url_prefix
+        self.stow_url_prefix = stow_url_prefix
         if self.base_url.startswith('https'):
             if ca_bundle is not None:
                 ca_bundle = os.path.expanduser(os.path.expandvars(ca_bundle))
@@ -229,9 +253,9 @@ class DICOMwebClient(object):
                 raise ValueError(
                     'URL scheme "{}" is not supported.'.format(self.protocol)
                 )
-        self.prefix = match.group('prefix')
-        if self.prefix is None:
-            self.prefix = ''
+        self.url_prefix = match.group('prefix')
+        if self.url_prefix is None:
+            self.url_prefix = ''
         self._session.headers.update({'Host': self.host})
         if username is not None:
             if not password:
@@ -276,19 +300,37 @@ class DICOMwebClient(object):
         # Sort query parameters to facilitate unit testing
         return OrderedDict(sorted(params.items()))
 
-    def _get_studies_url(self, study_instance_uid=None):
-        if study_instance_uid is not None:
-            url = '{service}/studies/{study_instance_uid}'
+    def _get_service_url(self, service):
+        service_url = self.base_url
+        if service == 'qido':
+            if self.qido_url_prefix is not None:
+                service_url += '/{}'.format(self.qido_url_prefix)
+        elif service == 'wado':
+            if self.wado_url_prefix is not None:
+                service_url += '/{}'.format(self.wado_url_prefix)
+        elif service == 'stow':
+            if self.stow_url_prefix is not None:
+                service_url += '/{}'.format(self.stow_url_prefix)
         else:
-            url = '{service}/studies'
+            raise ValueError(
+                'Unsupported DICOMweb service "{}".'.format(service)
+            )
+        return service_url
+
+    def _get_studies_url(self, service, study_instance_uid=None):
+        if study_instance_uid is not None:
+            url = '{service_url}/studies/{study_instance_uid}'
+        else:
+            url = '{service_url}/studies'
+        service_url = self._get_service_url(service)
         return url.format(
-            service=self.base_url, study_instance_uid=study_instance_uid
+            service_url=service_url, study_instance_uid=study_instance_uid
         )
 
-    def _get_series_url(self, study_instance_uid=None,
+    def _get_series_url(self, service, study_instance_uid=None,
                         series_instance_uid=None):
         if study_instance_uid is not None:
-            url = self._get_studies_url(study_instance_uid)
+            url = self._get_studies_url(service, study_instance_uid)
             if series_instance_uid is not None:
                 url += '/series/{series_instance_uid}'
             else:
@@ -298,27 +340,31 @@ class DICOMwebClient(object):
                 logger.warn(
                     'series UID is ignored because study UID is undefined'
                 )
-            url = '{service}/series'
+            url = '{service_url}/series'
+        service_url = self._get_service_url(service)
         return url.format(
-            service=self.base_url, series_instance_uid=series_instance_uid
+            service_url=service_url, series_instance_uid=series_instance_uid
         )
 
-    def _get_instances_url(self, study_instance_uid=None,
+    def _get_instances_url(self, service, study_instance_uid=None,
                            series_instance_uid=None, sop_instance_uid=None):
         if study_instance_uid is not None and series_instance_uid is not None:
-            url = self._get_series_url(study_instance_uid, series_instance_uid)
+            url = self._get_series_url(
+                service, study_instance_uid, series_instance_uid
+            )
             url += '/instances'
             if sop_instance_uid is not None:
                 url += '/{sop_instance_uid}'
         else:
             if sop_instance_uid is not None:
                 logger.warn(
-                    'instance UID is ignored because study and/or instance '
-                    'UID are undefined'
+                    'SOP Instance UID is ignored because Study/Series '
+                    'Instance UID are undefined'
                 )
-            url = '{service}/instances'
+            url = '{service_url}/instances'
+        service_url = self._get_service_url(service)
         return url.format(
-            service=self.base_url, sop_instance_uid=sop_instance_uid
+            service_url=service_url, sop_instance_uid=sop_instance_uid
         )
 
     @staticmethod
@@ -620,7 +666,7 @@ class DICOMwebClient(object):
             (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
 
         ''' # noqa
-        url = self._get_studies_url()
+        url = self._get_studies_url('qido')
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
         )
@@ -678,7 +724,7 @@ class DICOMwebClient(object):
             raise ValueError(
                 'Study Instance UID is required for retrieval of study.'
             )
-        url = self._get_studies_url(study_instance_uid)
+        url = self._get_studies_url('wado', study_instance_uid)
         return self._http_get_multipart_application_dicom(url)
 
     def retrieve_study_metadata(self, study_instance_uid):
@@ -700,7 +746,7 @@ class DICOMwebClient(object):
                 'Study Instance UID is required for retrieval of '
                 'study metadata.'
             )
-        url = self._get_studies_url(study_instance_uid)
+        url = self._get_studies_url('wado', study_instance_uid)
         url += '/metadata'
         return self._http_get_application_json(url)
 
@@ -758,7 +804,7 @@ class DICOMwebClient(object):
         ''' # noqa
         if study_instance_uid is not None:
             self._check_uid_format(study_instance_uid)
-        url = self._get_series_url(study_instance_uid)
+        url = self._get_series_url('qido', study_instance_uid)
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
         )
@@ -795,7 +841,9 @@ class DICOMwebClient(object):
                 'Series Instance UID is required for retrieval of series.'
             )
         self._check_uid_format(series_instance_uid)
-        url = self._get_series_url(study_instance_uid, series_instance_uid)
+        url = self._get_series_url(
+            'wado', study_instance_uid, series_instance_uid
+        )
         return self._http_get_multipart_application_dicom(url)
 
     def retrieve_series_metadata(self, study_instance_uid, series_instance_uid):
@@ -826,7 +874,9 @@ class DICOMwebClient(object):
                 'series metadata.'
             )
         self._check_uid_format(series_instance_uid)
-        url = self._get_series_url(study_instance_uid, series_instance_uid)
+        url = self._get_series_url(
+            'wado', study_instance_uid, series_instance_uid
+        )
         url += '/metadata'
         return self._http_get_application_json(url)
 
@@ -864,7 +914,9 @@ class DICOMwebClient(object):
         ''' # noqa
         if study_instance_uid is not None:
             self._check_uid_format(study_instance_uid)
-        url = self._get_instances_url(study_instance_uid, series_instance_uid)
+        url = self._get_instances_url(
+            'qido', study_instance_uid, series_instance_uid
+        )
         params = self._parse_query_parameters(
             fuzzymatching, limit, offset, fields, **search_filters
         )
@@ -911,7 +963,7 @@ class DICOMwebClient(object):
             )
         self._check_uid_format(sop_instance_uid)
         url = self._get_instances_url(
-            study_instance_uid, series_instance_uid, sop_instance_uid
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
         return self._http_get_multipart_application_dicom(url)[0]
 
@@ -926,7 +978,7 @@ class DICOMwebClient(object):
             unique study identifier
 
         '''
-        url = self._get_studies_url(study_instance_uid)
+        url = self._get_studies_url('stow', study_instance_uid)
         encoded_datasets = list()
         # TODO: can we do this more memory efficient? Concatenations?
         for ds in datasets:
@@ -970,7 +1022,7 @@ class DICOMwebClient(object):
                 'instance metadata.'
             )
         url = self._get_instances_url(
-            study_instance_uid, series_instance_uid, sop_instance_uid
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
         url += '/metadata'
         return self._http_get_application_json(url)
@@ -1018,7 +1070,7 @@ class DICOMwebClient(object):
                 'SOP Instance UID is required for retrieval of frames.'
             )
         url = self._get_instances_url(
-            study_instance_uid, series_instance_uid, sop_instance_uid
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += '/frames/{frame_list}'.format(frame_list=frame_list)

@@ -19,6 +19,19 @@ def test_search_for_studies(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0] == 'application/dicom+json'
 
 
+def test_search_for_studies_qido_prefix(httpserver, client, cache_dir):
+    client.qido_url_prefix = 'qidors'
+    cache_filename = os.path.join(cache_dir, 'search_for_studies.json')
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    studies = client.search_for_studies()
+    request = httpserver.requests[0]
+    assert request.path == '/qidors/studies'
+
+
 def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'search_for_studies.json')
     with open(cache_filename, 'r') as f:
@@ -149,6 +162,29 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+
+
+def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
+    client.wado_url_prefix = 'wadors'
+    cache_filename = os.path.join(cache_dir, 'retrieve_instance_metadata.json')
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    result = client.retrieve_instance_metadata(
+        study_instance_uid, series_instance_uid, sop_instance_uid
+    )
+    request = httpserver.requests[0]
+    expected_path = (
+        '/wadors/studies/{study_instance_uid}'
+        '/series/{series_instance_uid}'
+        '/instances/{sop_instance_uid}/metadata'.format(**locals())
+    )
+    assert request.path == expected_path
 
 
 def test_retrieve_instance(httpserver, client, cache_dir):
