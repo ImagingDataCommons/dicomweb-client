@@ -5,7 +5,6 @@ import sys
 import logging
 import email
 import six
-from urllib3.filepost import choose_boundary
 from io import BytesIO
 from collections import OrderedDict
 if sys.version_info.major < 3:
@@ -400,9 +399,9 @@ class DICOMwebClient(object):
         '''
         url += self._build_query_string(params)
         logger.debug('GET: {}'.format(url))
-        resp = self._session.get(url=url, headers=headers)
-        resp.raise_for_status()
-        return resp
+        response = self._session.get(url=url, headers=headers)
+        response.raise_for_status()
+        return response
 
     def _http_get_application_json(self, url, **params):
         '''Performs a HTTP GET request that accepts "applicaton/dicom+json"
@@ -532,10 +531,7 @@ class DICOMwebClient(object):
             DICOM data sets
 
         '''
-        content_type = (
-            'multipart/related; type="application/dicom"; '
-            'boundary="--{boundary}"'.format(boundary=choose_boundary())
-        )
+        content_type = 'multipart/related; type="application/dicom"'
         resp = self._http_get(url, params, {'Accept': content_type})
         datasets = self._decode_multipart_message(resp.content, resp.headers)
         return [pydicom.dcmread(BytesIO(ds)) for ds in datasets]
@@ -557,10 +553,7 @@ class DICOMwebClient(object):
             content of HTTP message body parts
 
         '''
-        content_type = (
-            'multipart/related; type="application/octet-stream"; '
-            'boundary="--{boundary}"'.format(boundary=choose_boundary())
-        )
+        content_type = 'multipart/related; type="application/octet-stream"'
         resp = self._http_get(url, params, {'Accept': content_type})
         return self._decode_multipart_message(resp.content, resp.headers)
 
@@ -587,11 +580,8 @@ class DICOMwebClient(object):
             raise ValueError(
                 'Image format "{}" is not supported.'.format(image_format)
             )
-        content_type = (
-            'multipart/related; type="image/{image_format}"; '
-            'boundary="--{boundary}"'.format(
-                image_format=image_format, boundary=choose_boundary()
-            )
+        content_type = 'multipart/related; type="image/{image_format}"'.format(
+            image_format=image_format
         )
         resp = self._http_get(url, params, {'Accept': content_type})
         return self._decode_multipart_message(resp.content, resp.headers)

@@ -211,7 +211,7 @@ def test_retrieve_instance(httpserver, client, cache_dir):
         '/{sop_instance_uid}'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:45] == headers['content-type'][:45]
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
 
 
 def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
@@ -239,7 +239,7 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
         '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:38] == headers['content-type'][:38]
+    assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
 
 
 def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
@@ -267,4 +267,4 @@ def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
         '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:37] == headers['content-type'][:37]
+    assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
