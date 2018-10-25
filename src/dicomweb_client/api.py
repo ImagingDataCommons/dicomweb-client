@@ -124,7 +124,7 @@ def _create_dataelement(tag, vr, value):
         logger.warn('missing value for data element "{}"'.format(tag))
     try:
         return pydicom.dataelem.DataElement(tag=tag, value=elem_value, VR=vr)
-    except Exception as e:
+    except Exception:
         raise ValueError(
             'Data element "{}" could not be loaded from JSON: {}'.format(
                 tag, elem_value
@@ -225,14 +225,23 @@ class DICOMwebClient(object):
                     )
                 logger.debug('use CA bundle file: {}'.format(ca_bundle))
                 self._session.verify = ca_bundle
+            if cert is not None:
+                cert = os.path.expanduser(os.path.expandvars(cert))
+                if not os.path.exists(cert):
+                    raise OSError(
+                        'Certificate file does not exist: {}'.format(cert)
+                    )
+                logger.debug('use certificate file: {}'.format(cert))
+                self._session.cert = cert
+
         # This regular expressin extracts the scheme and host name from the URL
         # and optionally the port number and prefix:
         # <scheme>://<host>(:<port>)(/<prefix>)
         # For example: "https://mydomain.com:80/wado-rs", where
         # scheme="https", host="mydomain.com", port=80, prefix="wado-rs"
         pattern = re.compile(
-            '(?P<scheme>[https]+)://(?P<host>[^/:]+)'
-            '(?::(?P<port>\d+))?(?:(?P<prefix>/\w+))?'
+            r'(?P<scheme>[https]+)://(?P<host>[^/:]+)'
+            r'(?::(?P<port>\d+))?(?:(?P<prefix>/\w+))?'
         )
         match = re.match(pattern, self.base_url)
         try:
@@ -484,7 +493,7 @@ class DICOMwebClient(object):
 
     @staticmethod
     def _encode_multipart_message(data, content_type):
-        '''Extracts parts of a HTTP multipart response message.
+        '''Encodes the payload of a HTTP multipart response message.
 
         Parameters
         ----------
