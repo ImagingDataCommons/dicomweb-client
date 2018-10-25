@@ -73,6 +73,6 @@ Build documentation in *HTML* format:
 .. code-block:: none
 
     cd ~/dicomweb-client
-    sphinx-build -b html docs/source/ docs/build/
+    sphinx-build -b html docs/ docs/build/
 
 The built ``index.html`` file will be located in ``docs/build``.
