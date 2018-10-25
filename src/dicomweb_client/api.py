@@ -187,7 +187,7 @@ class DICOMwebClient(object):
     '''
 
     def __init__(self, url, username=None, password=None, ca_bundle=None,
-                 qido_url_prefix=None, wado_url_prefix=None,
+                 cert=None, qido_url_prefix=None, wado_url_prefix=None,
                  stow_url_prefix=None):
         '''
         Parameters
@@ -201,7 +201,10 @@ class DICOMwebClient(object):
         password: str, optional
             password for authentication with services
         ca_bundle: str, optional
-            path to CA bundle file in Privacy Enhanced Mail (PEM) format
+            path to CA bundle file
+        cert: str, optional
+            path to client certificate file in Privacy Enhanced Mail (PEM)
+            format
         qido_url_prefix: str, optional
             URL path prefix for QIDO RESTful services
         wado_url_prefix: str, optional
