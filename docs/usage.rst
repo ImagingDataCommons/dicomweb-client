@@ -321,28 +321,51 @@ Retrieve bulk data given a URL:
 Command Line Interface (CLI)
 ----------------------------
 
-Search for instances:
+Search for studies:
 
 .. code-block:: none
 
-    dicomweb_client --url https://dicomcloud.azurewebsites.net/qidors search instances
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/qidors search studies
 
 Retrieve metadata for all instances of a given study:
 
 .. code-block:: none
 
-    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve studies --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 metadata
-
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors \
+        retrieve studies \
+        --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 \
+        metadata
 
 The output can be *dicomized* for human interpretation:
 
 .. code-block:: none
 
-    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve studies --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 metadata --dicomize
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors \
+        retrieve studies \
+        --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 \
+        metadata \
+        --dicomize
 
-Retrieve a single frame of a given instances as JPEG compressed image and show it:
+Retrieve the full Part 3.10 files for all instances of a given study:
 
 .. code-block:: none
 
-    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors retrieve instances --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 --series 1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034 --instance 1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534 frames --numbers 1 --image-format jpeg --show
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors \
+        retrieve studies \
+        --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 \
+        full
+
+
+Retrieve a single frame of a given instances as JPEG compressed image:
+
+.. code-block:: none
+
+    dicomweb_client --url https://dicomcloud.azurewebsites.net/wadors \
+        retrieve instances \
+        --study 1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639 \
+        --series 1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034 \
+        --instance 1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534 \
+        frames \
+        --numbers 1 \
+        --image-format jpeg
 
