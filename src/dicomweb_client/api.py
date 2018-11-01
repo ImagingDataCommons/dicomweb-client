@@ -413,6 +413,11 @@ class DICOMwebClient(object):
         logger.debug('GET: {}'.format(url))
         response = self._session.get(url=url, headers=headers)
         response.raise_for_status()
+        # The server may not return all results, but rather include a warning
+        # header to notify that client that there are remaining results.
+        # (see DICOM Part 3.18 Section 6.7.1.2)
+        if 'Warning' in response.headers:
+            logger.warn(response.headers['Warning'])
         return response
 
     def _http_get_application_json(self, url, **params):
@@ -665,7 +670,14 @@ class DICOMwebClient(object):
         -------
         List[Dict[str, dict]]
             study representations
-            (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
+            (see `Study Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
+
+        Note
+        ----
+        The server may only return a subset of search results. In this case,
+        a warning will notify the client that there are remaining results.
+        Remaining results can be requested via repeated calls using the
+        `offset` parameter.
 
         ''' # noqa
         url = self._get_studies_url('qido')
@@ -801,7 +813,14 @@ class DICOMwebClient(object):
         -------
         List[Dict[str, dict]]
             series representations
-            (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
+            (see `Series Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
+
+        Note
+        ----
+        The server may only return a subset of search results. In this case,
+        a warning will notify the client that there are remaining results.
+        Remaining results can be requested via repeated calls using the
+        `offset` parameter.
 
         ''' # noqa
         if study_instance_uid is not None:
@@ -911,7 +930,14 @@ class DICOMwebClient(object):
         -------
         List[Dict[str, dict]]
             instance representations
-            (see `returned attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
+            (see `Instance Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
+
+        Note
+        ----
+        The server may only return a subset of search results. In this case,
+        a warning will notify the client that there are remaining results.
+        Remaining results can be requested via repeated calls using the
+        `offset` parameter.
 
         ''' # noqa
         if study_instance_uid is not None:

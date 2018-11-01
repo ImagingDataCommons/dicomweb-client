@@ -86,6 +86,28 @@ Note that attributes can be specified in ``search_filters`` using either the key
 
     studies = client.search_for_studies(search_filters={'00100020': 'ABC123'})
 
+Search for all studies but limit the number of returned results using the ``limit`` parameter.
+
+.. code-block:: python
+
+    studies_subset = client.search_for_studies(limit=100)
+
+A server may also automatically limit the number of results that it returns per search request.
+In this case, the method can be called repeatedly to request remaining results using the ``offset`` parameter.
+
+.. code-block:: python
+
+    studies = client.search_for_studies()
+    batch_size = len(studies)
+    count = 1
+    while True:
+        offset = batch_size * count
+        try:
+            subset = client.search_for_studies(offset=offset)
+        except requests.exceptions.HTTPError:
+            break
+        studies.extend(subset)
+        count += 1
 
 .. _searchforseries:
 
