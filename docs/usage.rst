@@ -97,17 +97,15 @@ In this case, the method can be called repeatedly to request remaining results u
 
 .. code-block:: python
 
-    studies = client.search_for_studies()
-    batch_size = len(studies)
-    count = 1
+    studies = []
+    offset = 0
     while True:
-        offset = batch_size * count
-        try:
-            subset = client.search_for_studies(offset=offset)
-        except requests.exceptions.HTTPError:
+        subset = client.search_for_studies(offset=offset)
+        if len(subset) == 0:
             break
         studies.extend(subset)
-        count += 1
+        offset += len(subset)
+
 
 .. _searchforseries:
 
