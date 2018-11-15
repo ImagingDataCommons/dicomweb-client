@@ -15,7 +15,7 @@ else:
 import requests
 import pydicom
 
-from dicomweb_client.error import DICOMJSONError
+from dicomweb_client.error import DICOMJSONError, HTTPError
 
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ def load_json_dataset(dataset):
         try:
             value = mapping['Value']
         except KeyError:
-            logger.warn(
+            logger.debug(
                 'mapping for data element "{}" has no "Value" key'.format(tag)
             )
             value = [None]
@@ -412,7 +412,12 @@ class DICOMwebClient(object):
         url += self._build_query_string(params)
         logger.debug('GET: {}'.format(url))
         response = self._session.get(url=url, headers=headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as error:
+            raise HTTPError(error)
+        if response.status_code == 204:
+            logger.warn('empty response')
         # The server may not return all results, but rather include a warning
         # header to notify that client that there are remaining results.
         # (see DICOM Part 3.18 Section 6.7.1.2)
@@ -1147,4 +1152,4 @@ class DICOMwebClient(object):
         '''
         tag = pydicom.datadict.tag_for_keyword(keyword)
         tag = pydicom.tag.Tag(tag)
-        return '{0:04x}{1:04x}'.format(tag.group, tag.element)
+        return '{0:04x}{1:04x}'.format(tag.group, tag.element).upper()

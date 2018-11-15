@@ -6,6 +6,20 @@ import pytest
 import pydicom
 
 
+def test_lookup_tag(httpserver, client):
+    assert client.lookup_tag('StudyInstanceUID') == '0020000D'
+    assert client.lookup_tag('SeriesInstanceUID') == '0020000E'
+    assert client.lookup_tag('SOPInstanceUID') == '00080018'
+    assert client.lookup_tag('PixelData') == '7FE00010'
+
+
+def test_lookup_keyword(httpserver, client):
+    assert client.lookup_keyword('0020000D') == 'StudyInstanceUID'
+    assert client.lookup_keyword('0020000E') == 'SeriesInstanceUID'
+    assert client.lookup_keyword('00080018') == 'SOPInstanceUID'
+    assert client.lookup_keyword('7FE00010') == 'PixelData'
+
+
 def test_search_for_studies(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'search_for_studies.json')
     with open(cache_filename, 'r') as f:
