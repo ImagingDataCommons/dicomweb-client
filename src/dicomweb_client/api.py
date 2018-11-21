@@ -104,6 +104,8 @@ def _create_dataelement(tag, vr, value):
             else:
                 # TODO: How to handle "Ideographic" and "Phonetic"?
                 elem_value.append(v['Alphabetic'])
+        if vm == '1':
+            elem_value = elem_value[0]
     else:
         if vm == '1':
             if vr in binary_representations:
