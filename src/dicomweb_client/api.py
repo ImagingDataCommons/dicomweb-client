@@ -91,13 +91,12 @@ def _create_dataelement(tag, vr, value):
             elem_value.append(ds)
     elif vr == 'PN':
         # Special case, see DICOM Part 18 Annex F2.2
-        # http://dicom.nema.org/medical/dicom/current/output/html/part18.html#sect_F.2.2
         elem_value = []
         for v in value:
             if not isinstance(v, dict):
                 # Some DICOMweb services get this wrong, so we workaround it
                 # and issue a warning rather than raising an error.
-                logger.warn(
+                logger.warning(
                     'attribute with VR Person Name (PN) is not '
                     'formatted correctly'
                 )
@@ -120,8 +119,7 @@ def _create_dataelement(tag, vr, value):
             else:
                 elem_value = value
     if value is None:
-        # TODO: check if mandatory
-        logger.warn('missing value for data element "{}"'.format(tag))
+        logger.warning('missing value for data element "{}"'.format(tag))
     try:
         return pydicom.dataelem.DataElement(tag=tag, value=elem_value, VR=vr)
     except Exception:
@@ -348,7 +346,7 @@ class DICOMwebClient(object):
                 url += '/series'
         else:
             if series_instance_uid is not None:
-                logger.warn(
+                logger.warning(
                     'series UID is ignored because study UID is undefined'
                 )
             url = '{service_url}/series'
@@ -368,7 +366,7 @@ class DICOMwebClient(object):
                 url += '/{sop_instance_uid}'
         else:
             if sop_instance_uid is not None:
-                logger.warn(
+                logger.warning(
                     'SOP Instance UID is ignored because Study/Series '
                     'Instance UID are undefined'
                 )
@@ -417,12 +415,12 @@ class DICOMwebClient(object):
         except requests.exceptions.HTTPError as error:
             raise HTTPError(error)
         if response.status_code == 204:
-            logger.warn('empty response')
+            logger.warning('empty response')
         # The server may not return all results, but rather include a warning
         # header to notify that client that there are remaining results.
         # (see DICOM Part 3.18 Section 6.7.1.2)
         if 'Warning' in response.headers:
-            logger.warn(response.headers['Warning'])
+            logger.warning(response.headers['Warning'])
         return response
 
     def _http_get_application_json(self, url, **params):
