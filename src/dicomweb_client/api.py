@@ -77,7 +77,7 @@ def _create_dataelement(tag, vr, value):
                             val_key = k
                             break
                     if val_key is None:
-                        logger.warn(
+                        logger.debug(
                             'data element has neither key "{}".'.format(
                                 '" nor "'.join(supported_keys)
                             )
