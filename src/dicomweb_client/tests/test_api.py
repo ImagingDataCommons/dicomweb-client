@@ -5,6 +5,8 @@ from io import BytesIO
 import pytest
 import pydicom
 
+from dicomweb_client.api import load_json_dataset
+
 
 def test_lookup_tag(httpserver, client):
     assert client.lookup_tag('StudyInstanceUID') == '0020000D'
@@ -282,3 +284,51 @@ def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
+
+
+def test_load_json_dataset_da(httpserver, client, cache_dir):
+    value = ['2018-11-21']
+    dicom_json = {
+        '00080020': {
+            'vr': 'DA',
+            'Value': value
+        }
+    }
+    dataset = load_json_dataset(dicom_json)
+    assert dataset.StudyDate == value[0]
+
+
+def test_load_json_dataset_tm(httpserver, client, cache_dir):
+    value = ['113924']
+    dicom_json = {
+        '00080030': {
+            'vr': 'TM',
+            'Value': value,
+        },
+    }
+    dataset = load_json_dataset(dicom_json)
+    assert dataset.StudyTime == value[0]
+
+
+def test_load_json_dataset_pn_vm1(httpserver, client, cache_dir):
+    value = ['Only^Person']
+    dicom_json = {
+        '00080090': {
+            'vr': 'PN',
+            'Value': value,
+        },
+    }
+    dataset = load_json_dataset(dicom_json)
+    assert dataset.ReferringPhysicianName == value[0]
+
+
+def test_load_json_dataset_pn_vm2(httpserver, client, cache_dir):
+    value = ['First^Person', 'Second^Person']
+    dicom_json = {
+        '0008009C': {
+            'vr': 'PN',
+            'Value': value,
+        },
+    }
+    dataset = load_json_dataset(dicom_json)
+    assert dataset.ConsultingPhysicianName == value
