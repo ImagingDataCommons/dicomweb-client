@@ -311,7 +311,8 @@ def test_load_json_dataset_tm(httpserver, client, cache_dir):
 
 
 def test_load_json_dataset_pn_vm1(httpserver, client, cache_dir):
-    value = ['Only^Person']
+    name = 'Only^Person'
+    value = [{'Alphabetic': name}]
     dicom_json = {
         '00080090': {
             'vr': 'PN',
@@ -319,11 +320,12 @@ def test_load_json_dataset_pn_vm1(httpserver, client, cache_dir):
         },
     }
     dataset = load_json_dataset(dicom_json)
-    assert dataset.ReferringPhysicianName == value[0]
+    assert dataset.ReferringPhysicianName == name
 
 
 def test_load_json_dataset_pn_vm2(httpserver, client, cache_dir):
-    value = ['First^Person', 'Second^Person']
+    names = ['First^Person', 'Second^Person']
+    value = [{'Alphabetic': names[0]}, {'Alphabetic': names[1]}]
     dicom_json = {
         '0008009C': {
             'vr': 'PN',
@@ -331,4 +333,28 @@ def test_load_json_dataset_pn_vm2(httpserver, client, cache_dir):
         },
     }
     dataset = load_json_dataset(dicom_json)
-    assert dataset.ConsultingPhysicianName == value
+    assert dataset.ConsultingPhysicianName == names
+
+
+def test_load_json_dataset_pn_vm1_empty(httpserver, client, cache_dir):
+    value = [{}]
+    dicom_json = {
+        '00080090': {
+            'vr': 'PN',
+            'Value': value,
+        },
+    }
+    dataset = load_json_dataset(dicom_json)
+    assert dataset.ReferringPhysicianName == ''
+
+
+def test_load_json_dataset_pn_vm2_empty(httpserver, client, cache_dir):
+    value = [{}]
+    dicom_json = {
+        '0008009C': {
+            'vr': 'PN',
+            'Value': value,
+        },
+    }
+    dataset = load_json_dataset(dicom_json)
+    assert dataset.ConsultingPhysicianName == []

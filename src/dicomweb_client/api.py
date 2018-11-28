@@ -94,18 +94,20 @@ def _create_dataelement(tag, vr, value):
         elem_value = []
         for v in value:
             if not isinstance(v, dict):
-                # Some DICOMweb services get this wrong, so we workaround it
-                # and issue a warning rather than raising an error.
+                # Some DICOMweb services get this wrong, so we workaround the
+                # the issue and warn the user rather than raising an error.
                 logger.warning(
                     'attribute with VR Person Name (PN) is not '
                     'formatted correctly'
                 )
                 elem_value.append(v)
             else:
-                # TODO: How to handle "Ideographic" and "Phonetic"?
-                elem_value.append(v['Alphabetic'])
+                elem_value.extend(list(v.values()))
         if vm == '1':
-            elem_value = elem_value[0]
+            try:
+                elem_value = elem_value[0]
+            except IndexError:
+                elem_value = None
     else:
         if vm == '1':
             if vr in binary_representations:
