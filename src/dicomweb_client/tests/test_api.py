@@ -345,7 +345,8 @@ def test_load_json_dataset_pn_vm1_empty(httpserver, client, cache_dir):
         },
     }
     dataset = load_json_dataset(dicom_json)
-    assert dataset.ReferringPhysicianName == ''
+    # This returns different results for Python2 (None) and Python3 ("")
+    assert dataset.ReferringPhysicianName in (None, '')
 
 
 def test_load_json_dataset_pn_vm2_empty(httpserver, client, cache_dir):
