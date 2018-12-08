@@ -7,7 +7,7 @@ The client can be used with any DICOMweb server, such as `dcm4che <http://www.dc
 
 .. _api:
 
-Active Programming Interface (API)
+Application Programming Interface (API)
 ----------------------------------
 
 To interact with a publicly accessible server, you only need to provide the ``url`` for the server address.
