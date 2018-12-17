@@ -5,7 +5,59 @@ from io import BytesIO
 import pytest
 import pydicom
 
-from dicomweb_client.api import load_json_dataset
+from dicomweb_client.api import load_json_dataset, DICOMwebClient
+
+
+def test_url(httpserver):
+    protocol = 'http'
+    host = 'localhost'
+    port = 8080
+    path = '/dcm4chee-arc/aets/DCM4CHEE/rs'
+    url = '{protocol}://{host}:{port}{path}'.format(
+        protocol=protocol, host=host, port=port, path=path
+    )
+    client = DICOMwebClient(url)
+    assert client.protocol == protocol
+    assert client.host == host
+    assert client.port == port
+    assert client.url_prefix == path
+    assert client.qido_url_prefix is None
+    assert client.wado_url_prefix is None
+    assert client.stow_url_prefix is None
+
+
+def test_url_prefixes(httpserver):
+    wado_url_prefix = 'wado'
+    qido_url_prefix = 'qido'
+    stow_url_prefix = 'stow'
+    client = DICOMwebClient(
+        httpserver.url,
+        wado_url_prefix=wado_url_prefix,
+        qido_url_prefix=qido_url_prefix,
+        stow_url_prefix=stow_url_prefix,
+    )
+    assert client.url_prefix == ''
+    assert client.qido_url_prefix == qido_url_prefix
+    assert client.wado_url_prefix == wado_url_prefix
+    assert client.stow_url_prefix == stow_url_prefix
+
+
+def test_proxies(httpserver):
+    protocol = 'http'
+    address = 'foo.com'
+    proxies = {protocol: address}
+    client = DICOMwebClient(httpserver.url, proxies=proxies)
+    assert client._session.proxies[protocol] == address
+
+
+def test_headers(httpserver):
+    name = 'my-token'
+    value = 'topsecret'
+    headers = {name: value}
+    client = DICOMwebClient(httpserver.url, headers=headers)
+    client.store_instances([])
+    request = httpserver.requests[0]
+    assert request.headers[name] == value
 
 
 def test_lookup_tag(httpserver, client):

@@ -8,9 +8,9 @@ import six
 from io import BytesIO
 from collections import OrderedDict
 if sys.version_info.major < 3:
-    from urllib import quote_plus
+    from urllib import quote_plus, urlparse
 else:
-    from urllib.parse import quote_plus
+    from urllib.parse import quote_plus, urlparse
 
 import requests
 import pydicom
@@ -190,7 +190,8 @@ class DICOMwebClient(object):
 
     def __init__(self, url, username=None, password=None, ca_bundle=None,
                  cert=None, qido_url_prefix=None, wado_url_prefix=None,
-                 stow_url_prefix=None):
+                 stow_url_prefix=None, proxies=None, headers=None,
+                 callback=None):
         '''
         Parameters
         ----------
@@ -213,8 +214,16 @@ class DICOMwebClient(object):
             URL path prefix for WADO RESTful services
         stow_url_prefix: str, optional
             URL path prefix for STOW RESTful services
+        proxies: dict, optional
+            mapping of protocol or protocol + host to the URL of a proxy server
+        headers: dict, optional
+            custom headers that should be included in request messages,
+            e.g., authentication tokens
+        callback: Callable, optional
+            callback function to manipulate responses generated from requests
+            (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
 
-        '''
+        '''  # noqa
         logger.debug('initialize HTTP session')
         self._session = requests.Session()
         self.base_url = url
@@ -242,11 +251,11 @@ class DICOMwebClient(object):
         # This regular expressin extracts the scheme and host name from the URL
         # and optionally the port number and prefix:
         # <scheme>://<host>(:<port>)(/<prefix>)
-        # For example: "https://mydomain.com:80/wado-rs", where
-        # scheme="https", host="mydomain.com", port=80, prefix="wado-rs"
+        # For example: "https://mydomain.com:443/wado-rs", where
+        # scheme="https", host="mydomain.com", port=443, prefix="wado-rs"
         pattern = re.compile(
             r'(?P<scheme>[https]+)://(?P<host>[^/:]+)'
-            r'(?::(?P<port>\d+))?(?:(?P<prefix>/\w+))?'
+            r'(?::(?P<port>\d+))?(?:(?P<prefix>/[\w/]+))?'
         )
         match = re.match(pattern, self.base_url)
         try:
@@ -266,16 +275,23 @@ class DICOMwebClient(object):
                 raise ValueError(
                     'URL scheme "{}" is not supported.'.format(self.protocol)
                 )
-        self.url_prefix = match.group('prefix')
-        if self.url_prefix is None:
-            self.url_prefix = ''
+        url_components = urlparse(url)
+        self.url_prefix = url_components.path
         self._session.headers.update({'Host': self.host})
+        if headers is not None:
+            self._session.headers.update(headers)
+        self._session.proxies = proxies
+        if callback is not None:
+            self._session.hooks = {'response': callback}
         if username is not None:
             if not password:
                 raise ValueError(
                     'No password provided for user "{0}".'.format(username)
                 )
             self._session.auth = (username, password)
+        # TODO: other authentication methods, specifically:
+        # - Kerberos: https://github.com/requests/requests-kerberos
+        # - OAuth2: https://github.com/requests/requests-oauthlib
 
     def _parse_query_parameters(self, fuzzymatching, limit, offset,
                                 fields, **search_filters):
@@ -393,16 +409,16 @@ class DICOMwebClient(object):
                 components.append(c)
         return '?{}'.format('&'.join(components))
 
-    def _http_get(self, url, params, headers):
+    def _http_get(self, url, params={}, headers={}):
         '''Performs a HTTP GET request.
 
         Parameters
         ----------
         url: str
             unique resource locator
-        params: Dict[str]
+        params: Dict[str], optional
             query parameters
-        headers: Dict[str]
+        headers: Dict[str], optional
             HTTP request message headers
 
         Returns
