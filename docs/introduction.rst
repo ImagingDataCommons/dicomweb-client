@@ -8,5 +8,5 @@ The ``dicomweb-client`` build distribution provides client intefaces for DICOMwe
 
 The :mod:`dicomweb_client` Python package exposes
 
-* Active Programming Interface (API) (see :mod:`api <dicomweb_client.api>` module)
+* Application Programming Interface (API) (see :mod:`api <dicomweb_client.api>` module)
 * Command Line Interface (CLI) (see :mod:`cli <dicomweb_client.cli>` module)

@@ -1,4 +1,4 @@
-'''Active Programming Interface (API).'''
+'''Application Programming Interface (API).'''
 import re
 import os
 import sys
