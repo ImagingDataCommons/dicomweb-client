@@ -1903,8 +1903,9 @@ class DICOMwebClient(object):
                 'retrieval of rendered instance.'.format(common_media_type)
             )
 
-    def retrieve_frames(self, study_instance_uid, series_instance_uid,
-                        sop_instance_uid, frame_numbers, media_types=None):
+    def retrieve_instance_frames(self, study_instance_uid, series_instance_uid,
+                                 sop_instance_uid, frame_numbers,
+                                 media_types=None):
         '''Retrieves one or more frames of an individual DICOM instance.
 
         Parameters
@@ -1961,9 +1962,12 @@ class DICOMwebClient(object):
                 'retrieval of frames.'.format(common_media_type)
             )
 
-    def retrieve_frames_rendered(self, study_instance_uid,
-                                 series_instance_uid, sop_instance_uid,
-                                 frame_number, media_types=None, params=None):
+    def retrieve_instance_frames_rendered(self, study_instance_uid,
+                                          series_instance_uid,
+                                          sop_instance_uid,
+                                          frame_number,
+                                          media_types=None,
+                                          params=None):
         '''Retrieves one or more server-side rendered frames of an
         individual DICOM instance.
 

@@ -311,26 +311,22 @@ def _get_parser():
     )
     retrieve_instance_full_parser.set_defaults(func=_retrieve_instance)
 
-    retrieve_frames_parser = retrieve_subparsers.add_parser(
+    retrieve_instance_frames_parser = retrieve_instance_subparsers.add_parser(
         'frames', description=(
             'Retrieve one or more frames of the pixel data element of an '
             'invidividual DICOM instance.'
         ),
-        parents=[
-            abstract_required_study_parser, abstract_required_series_parser,
-            abstract_required_instance_parser,
-            abstract_save_parser, abstract_retrieve_parser
-        ]
+        parents=[abstract_save_parser, abstract_retrieve_parser]
     )
-    retrieve_frames_parser.add_argument(
+    retrieve_instance_frames_parser.add_argument(
         '--numbers', metavar='NUM', type=int, nargs='+', dest='frame_numbers',
         help='frame numbers'
     )
-    retrieve_frames_parser.add_argument(
+    retrieve_instance_frames_parser.add_argument(
         '--show', action='store_true',
         help='display retrieved images'
     )
-    retrieve_frames_parser.set_defaults(func=_retrieve_frames)
+    retrieve_instance_frames_parser.set_defaults(func=_retrieve_instance_frames)
 
     # WADO - bulkdata
     retrieve_bulkdata_parser = retrieve_subparsers.add_parser(
@@ -634,7 +630,7 @@ def _retrieve_instance_metadata(args):
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_frames(args):
+def _retrieve_instance_frames(args):
     '''Retrieves frames for an individual instances and either
     writes them to standard output or files on disk or displays them in a GUI
     (depending on the requested content type).
@@ -648,7 +644,7 @@ def _retrieve_frames(args):
         ca_bundle=args.ca_bundle,
         cert=args.cert
     )
-    pixel_data = client.retrieve_frames(
+    pixel_data = client.retrieve_instance_frames(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid, args.frame_numbers,
         media_types=args.media_types,

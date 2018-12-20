@@ -367,7 +367,7 @@ def test_retrieve_instance_wrong_mime_type(httpserver, client, cache_dir):
         )
 
 
-def test_retrieve_frames_jpeg(httpserver, client, cache_dir):
+def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -380,7 +380,7 @@ def test_retrieve_frames_jpeg(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
-    result = client.retrieve_frames(
+    result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/jpeg', )
     )
@@ -394,8 +394,9 @@ def test_retrieve_frames_jpeg(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
 
 
-def test_retrieve_frames_jpeg_default_transfer_syntax(httpserver, client,
-                                                      cache_dir):
+def test_retrieve_instance_frames_jpeg_default_transfer_syntax(httpserver,
+                                                               client,
+                                                               cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -407,7 +408,7 @@ def test_retrieve_frames_jpeg_default_transfer_syntax(httpserver, client,
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
-    client.retrieve_frames(
+    client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=(
             ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
@@ -417,7 +418,7 @@ def test_retrieve_frames_jpeg_default_transfer_syntax(httpserver, client,
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
 
 
-def test_retrieve_frames_jp2(httpserver, client, cache_dir):
+def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jp2')
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -430,7 +431,7 @@ def test_retrieve_frames_jp2(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
-    result = client.retrieve_frames(
+    result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/jp2', )
     )
@@ -444,7 +445,7 @@ def test_retrieve_frames_jp2(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
 
 
-def test_retrieve_frames_rendered_jpeg(httpserver, client, cache_dir):
+def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -456,7 +457,7 @@ def test_retrieve_frames_rendered_jpeg(httpserver, client, cache_dir):
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     frame_numbers = [1]
-    result = client.retrieve_frames_rendered(
+    result = client.retrieve_instance_frames_rendered(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/jpeg', )
     )
@@ -472,13 +473,14 @@ def test_retrieve_frames_rendered_jpeg(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:11] == headers['content-type'][:11]
 
 
-def test_retrieve_frames_rendered_jpeg_transfer_syntax(httpserver, client):
+def test_retrieve_instance_frames_rendered_jpeg_transfer_syntax(httpserver,
+                                                                client):
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     frame_numbers = [1]
     with pytest.raises(TypeError):
-        client.retrieve_frames_rendered(
+        client.retrieve_instance_frames_rendered(
             study_instance_uid, series_instance_uid, sop_instance_uid,
             frame_numbers, media_types=(
                 ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
@@ -486,7 +488,7 @@ def test_retrieve_frames_rendered_jpeg_transfer_syntax(httpserver, client):
         )
 
 
-def test_retrieve_frames_rendered_png(httpserver, client, cache_dir):
+def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.png')
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -498,7 +500,7 @@ def test_retrieve_frames_rendered_png(httpserver, client, cache_dir):
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     frame_numbers = [1]
-    result = client.retrieve_frames_rendered(
+    result = client.retrieve_instance_frames_rendered(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/png', )
     )

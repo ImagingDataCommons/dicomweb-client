@@ -425,14 +425,14 @@ def test_parse_retrieve_instance_metadata_missing_argument_3(parser):
         ])
 
 
-def test_parse_retrieve_frames(parser):
+def test_parse_retrieve_instance_frames(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-        '--numbers', '1'
+        'frames', '--numbers', '1',
     ])
     assert getattr(args, 'method') == 'retrieve'
-    assert getattr(args, 'wado_ie') == 'frames'
+    assert getattr(args, 'wado_ie') == 'instances'
     assert getattr(args, 'study_instance_uid') == '1.2.3'
     assert getattr(args, 'series_instance_uid') == '1.2.4'
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
@@ -446,14 +446,14 @@ def test_parse_retrieve_frames(parser):
         assert getattr(args, 'dicomize')
 
 
-def test_parse_retrieve_frames_multiple(parser):
+def test_parse_retrieve_instance_frames_multiple(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-        '--numbers', '1', '2', '3'
+        'frames', '--numbers', '1', '2', '3',
     ])
     assert getattr(args, 'method') == 'retrieve'
-    assert getattr(args, 'wado_ie') == 'frames'
+    assert getattr(args, 'wado_ie') == 'instances'
     assert getattr(args, 'study_instance_uid') == '1.2.3'
     assert getattr(args, 'series_instance_uid') == '1.2.4'
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
@@ -467,56 +467,56 @@ def test_parse_retrieve_frames_multiple(parser):
         assert getattr(args, 'dicomize')
 
 
-def test_parse_retrieve_frames_show(parser):
+def test_parse_retrieve_instance_frames_show(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-        '--numbers', '1', '--show'
+        'frames', '--numbers', '1', '--show',
     ])
     assert getattr(args, 'show') is True
     assert getattr(args, 'save') is False
     assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
-def test_parse_retrieve_frames_save(parser):
+def test_parse_retrieve_instance_frames_save(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-        '--numbers', '1', '--save'
+        'frames', '--numbers', '1', '--save',
     ])
     assert getattr(args, 'show') is False
     assert getattr(args, 'save') is True
     assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
-def test_parse_retrieve_frames_show_save(parser):
+def test_parse_retrieve_instance_frames_show_save(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-        '--numbers', '1', '--save', '--show'
+        'frames', '--numbers', '1', '--save', '--show'
     ])
     assert getattr(args, 'show') is True
     assert getattr(args, 'save') is True
     assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
-def test_parse_retrieve_frames_save_file(parser):
+def test_parse_retrieve_instance_frames_save_file(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
         '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-        '--numbers', '1', '--save', '--output-dir', '/tmp'
+        'frames', '--numbers', '1', '--save', '--output-dir', '/tmp',
     ])
     assert getattr(args, 'show') is False
     assert getattr(args, 'save') is True
     assert getattr(args, 'output_dir') == '/tmp'
 
 
-def test_parse_retrieve_frames_missing_argument(parser):
+def test_parse_retrieve_instance_frames_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
-            '--url', 'http://localhost:8002', 'retrieve', 'frames',
+            '--url', 'http://localhost:8002', 'retrieve', 'instances',
             '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
-            '--numbers'
+            'frames', '--numbers',
         ])
 
 

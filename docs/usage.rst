@@ -321,7 +321,7 @@ Retrieve a set of frames with default transfer syntax ("application/octet-stream
 
 .. code-block:: python
 
-    frames = client.retrieve_frames(
+    frames = client.retrieve_instance_frames(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
@@ -332,7 +332,7 @@ Retrieve a set of frames of a given instances as JPEG compressed image:
 
 .. code-block:: python
 
-    frames = client.retrieve_frames(
+    frames = client.retrieve_instance_frames(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
@@ -344,7 +344,7 @@ Retrieve a set of frames of a given instances as compressed image in any availab
 
 .. code-block:: python
 
-    frames = client.retrieve_frames(
+    frames = client.retrieve_instance_frames(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
@@ -356,7 +356,7 @@ Retrieve a set of frames of a given instances as either JPEG 2000 or JPEG-LS com
 
 .. code-block:: python
 
-    frames = client.retrieve_frames(
+    frames = client.retrieve_instance_frames(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
@@ -368,7 +368,7 @@ Retrieve a set of frames of a given instances as either JPEG, JPEG 2000 or JPEG-
 
 .. code-block:: python
 
-    frames = client.retrieve_frames(
+    frames = client.retrieve_instance_frames(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
@@ -412,7 +412,7 @@ Retrieve a single frame of a multi-frame image instance rendered as a high-quali
 
 .. code-block:: python
 
-    frames = client.retrieve_frames_rendered(
+    frames = client.retrieve_instance_frames_rendered(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
