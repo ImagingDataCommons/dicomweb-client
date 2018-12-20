@@ -192,6 +192,14 @@ def test_parse_retrieve_study_metadata(parser):
         getattr(args, 'sop_instance_uid')
 
 
+def test_parse_retrieve_study_metadata_unsupported_argument_media_type(parser):
+    with pytest.raises(SystemExit):
+        parser.parse_args([
+            '--url', 'http://localhost:8002', 'retrieve', 'studies',
+            '--study', '1.2.3', 'metadata', '--media-type', 'application/dicom'
+        ])
+
+
 def test_parse_retrieve_study_metadata_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
@@ -271,14 +279,14 @@ def test_parse_retrieve_series_metadata_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'series',
-            '--study', '1.2.3', 'metadata'
+            '--study', '1.2.3', 'metadata',
         ])
 
 
 def test_parse_store_instances_single_file(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'store', 'instances',
-        '/path/to/file.dcm'
+        '/path/to/file.dcm',
     ])
     assert getattr(args, 'method') == 'store'
     assert getattr(args, 'stow_ie') == 'instances'
@@ -289,7 +297,7 @@ def test_parse_store_instances_single_file(parser):
 def test_parse_store_instances_single_file_study_instance_uid(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'store', 'instances',
-        '/path/to/file.dcm', '--study', '1.2.3'
+        '/path/to/file.dcm', '--study', '1.2.3',
     ])
     assert getattr(args, 'method') == 'store'
     assert getattr(args, 'stow_ie') == 'instances'
@@ -300,7 +308,7 @@ def test_parse_store_instances_single_file_study_instance_uid(parser):
 def test_parse_store_instances_multiple_files(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'store', 'instances',
-        '/path/to/f1.dcm', '/path/to/f2.dcm'
+        '/path/to/f1.dcm', '/path/to/f2.dcm',
     ])
     assert getattr(args, 'method') == 'store'
     assert getattr(args, 'stow_ie') == 'instances'
@@ -312,7 +320,7 @@ def test_parse_store_studies(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'store', 'studies',
-            '/path/to/file.dcm'
+            '/path/to/file.dcm',
         ])
 
 
@@ -320,14 +328,14 @@ def test_parse_store_series(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'store', 'series',
-            '/path/to/file.dcm'
+            '/path/to/file.dcm',
         ])
 
 
 def test_parse_retrieve_instance(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5', 'full'
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5', 'full',
     ])
     assert getattr(args, 'method') == 'retrieve'
     assert getattr(args, 'wado_ie') == 'instances'
@@ -340,6 +348,41 @@ def test_parse_retrieve_instance(parser):
         getattr(args, 'prettify')
     with pytest.raises(AttributeError):
         getattr(args, 'dicomize')
+
+
+def test_parse_retrieve_instance_media_types(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5', 'full',
+        '--media-type', 'application/dicom',
+    ])
+    assert getattr(args, 'media_types') == [
+        ['application/dicom', ],
+    ]
+
+
+def test_parse_retrieve_instance_media_types_transfer_syntax(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5', 'full',
+        '--media-type', 'application/dicom', '1.2.840.10008.1.2.1',
+    ])
+    assert getattr(args, 'media_types') == [
+        ['application/dicom', '1.2.840.10008.1.2.1', ],
+    ]
+
+
+def test_parse_retrieve_instance_media_types_transfer_syntax_multiple(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002', 'retrieve', 'instances',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5', 'full',
+        '--media-type', 'application/dicom', '1.2.840.10008.1.2.1',
+        '--media-type', 'application/dicom', '1.2.840.10008.1.2.4.90',
+    ])
+    assert getattr(args, 'media_types') == [
+        ['application/dicom', '1.2.840.10008.1.2.1', ],
+        ['application/dicom', '1.2.840.10008.1.2.4.90', ],
+    ]
 
 
 def test_parse_retrieve_instance_metadata(parser):
@@ -382,14 +425,14 @@ def test_parse_retrieve_instance_metadata_missing_argument_3(parser):
         ])
 
 
-def test_parse_retrieve_instance_frames(parser):
+def test_parse_retrieve_frames(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4',
-        '--instance', '1.2.5', 'frames', '--numbers', '1'
+        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+        '--numbers', '1'
     ])
     assert getattr(args, 'method') == 'retrieve'
-    assert getattr(args, 'wado_ie') == 'instances'
+    assert getattr(args, 'wado_ie') == 'frames'
     assert getattr(args, 'study_instance_uid') == '1.2.3'
     assert getattr(args, 'series_instance_uid') == '1.2.4'
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
@@ -403,14 +446,14 @@ def test_parse_retrieve_instance_frames(parser):
         assert getattr(args, 'dicomize')
 
 
-def test_parse_retrieve_instance_frames_multiple(parser):
+def test_parse_retrieve_frames_multiple(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4',
-        '--instance', '1.2.5', 'frames', '--numbers', '1', '2', '3'
+        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+        '--numbers', '1', '2', '3'
     ])
     assert getattr(args, 'method') == 'retrieve'
-    assert getattr(args, 'wado_ie') == 'instances'
+    assert getattr(args, 'wado_ie') == 'frames'
     assert getattr(args, 'study_instance_uid') == '1.2.3'
     assert getattr(args, 'series_instance_uid') == '1.2.4'
     assert getattr(args, 'sop_instance_uid') == '1.2.5'
@@ -424,63 +467,60 @@ def test_parse_retrieve_instance_frames_multiple(parser):
         assert getattr(args, 'dicomize')
 
 
-def test_parse_retrieve_instance_frames_show(parser):
+def test_parse_retrieve_frames_show(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4',
-        '--instance', '1.2.5', 'frames', '--numbers', '1', '--show'
+        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+        '--numbers', '1', '--show'
     ])
     assert getattr(args, 'show') is True
     assert getattr(args, 'save') is False
     assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
-def test_parse_retrieve_instance_frames_save(parser):
+def test_parse_retrieve_frames_save(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4',
-        '--instance', '1.2.5', 'frames', '--numbers', '1', '--save'
+        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+        '--numbers', '1', '--save'
     ])
     assert getattr(args, 'show') is False
     assert getattr(args, 'save') is True
     assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
-def test_parse_retrieve_instance_frames_show_save(parser):
+def test_parse_retrieve_frames_show_save(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4',
-        '--instance', '1.2.5', 'frames', '--numbers', '1', '--save', '--show'
+        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+        '--numbers', '1', '--save', '--show'
     ])
     assert getattr(args, 'show') is True
     assert getattr(args, 'save') is True
     assert getattr(args, 'output_dir') == tempfile.gettempdir()
 
 
-def test_parse_retrieve_instance_frames_save_file(parser):
+def test_parse_retrieve_frames_save_file(parser):
     args = parser.parse_args([
-        '--url', 'http://localhost:8002', 'retrieve', 'instances',
-        '--study', '1.2.3', '--series', '1.2.4',
-        '--instance', '1.2.5', 'frames', '--numbers', '1', '--save',
-        '--output-dir', '/tmp'
+        '--url', 'http://localhost:8002', 'retrieve', 'frames',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+        '--numbers', '1', '--save', '--output-dir', '/tmp'
     ])
     assert getattr(args, 'show') is False
     assert getattr(args, 'save') is True
     assert getattr(args, 'output_dir') == '/tmp'
 
 
-def test_parse_retrieve_instance_frames_missing_argument(parser):
+def test_parse_retrieve_frames_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
-            '--url', 'http://localhost:8002', 'retrieve', 'instances',
-            '--study', '1.2.3', '--series', '1.2.4',
-            '--instance', '1.2.5', 'frames', '--numbers'
+            '--url', 'http://localhost:8002', 'retrieve', 'frames',
+            '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5',
+            '--numbers'
         ])
 
 
-# The following resources of WADO-RS are not (yet) implemented
-
-def test_parse_retrieve_study_full(parser):
+def test_parse_retrieve_study_full_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'studies',
@@ -488,15 +528,7 @@ def test_parse_retrieve_study_full(parser):
         ])
 
 
-def test_parse_retrieve_study_frames(parser):
-    with pytest.raises(SystemExit):
-        parser.parse_args([
-            '--url', 'http://localhost:8002', 'retrieve', 'studies',
-            '--study', '1.2.3', 'frames'
-        ])
-
-
-def test_parse_retrieve_series_full(parser):
+def test_parse_retrieve_series_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'series',
@@ -504,20 +536,11 @@ def test_parse_retrieve_series_full(parser):
         ])
 
 
-def test_parse_retrieve_series_frames(parser):
+def test_parse_retrieve_instance_missing_argument(parser):
     with pytest.raises(SystemExit):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'series',
-            '--study', '1.2.3', '--series', '1.2.4', 'frames'
-        ])
-
-
-def test_parse_retrieve_instance_full(parser):
-    with pytest.raises(SystemExit):
-        parser.parse_args([
-            '--url', 'http://localhost:8002', 'retrieve', 'series',
-            '--study', '1.2.3', '--series', '1.2.4',
-            '--instance', '1.2.5'
+            '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5'
         ])
 
 
@@ -528,27 +551,20 @@ def test_parse_retrieve_bulkdata(parser):
     ])
     assert getattr(args, 'method') == 'retrieve'
     assert getattr(args, 'wado_ie') == 'bulkdata'
-    assert getattr(args, 'image_format') is None
+    assert getattr(args, 'media_types') is None
     assert getattr(args, 'bulkdata_uri') == 'http://localhost:8002/bulk/data'
 
 
-def test_parse_retrieve_bulkdata_image_format(parser):
+def test_parse_retrieve_bulkdata_media_type(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'retrieve', 'bulkdata',
-        '--uri', 'http://localhost:8002/bulk/data', '--image-format', 'jpeg'
+        '--uri', 'http://localhost:8002/bulk/data',
+        '--media-type', 'image/jpeg'
     ])
     assert getattr(args, 'method') == 'retrieve'
     assert getattr(args, 'wado_ie') == 'bulkdata'
-    assert getattr(args, 'image_format') == 'jpeg'
+    assert getattr(args, 'media_types') == [['image/jpeg', ], ]
     assert getattr(args, 'bulkdata_uri') == 'http://localhost:8002/bulk/data'
-
-
-def test_parse_retrieve_bulkdata_image_format_invalid_choice(parser):
-    with pytest.raises(SystemExit):
-        parser.parse_args([
-            '--url', 'http://localhost:8002', 'retrieve', 'bulkdata',
-            '--uri', 'http://localhost:8002/bulk/data', '--image-format', 'foo'
-        ])
 
 
 def test_parse_retrieve_bulkdata_missing_argument(parser):

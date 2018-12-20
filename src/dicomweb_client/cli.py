@@ -122,6 +122,17 @@ def _get_parser():
         help='perform fuzzy matching'
     )
 
+    abstract_retrieve_parser = argparse.ArgumentParser(add_help=False)
+    abstract_retrieve_parser.add_argument(
+        '--media-type', metavar='MEDIATYPE', action='append', default=None,
+        nargs='+', dest='media_types',
+        help=(
+            'acceptable media type and the optionally the UID of a '
+            'corresponding tranfer syntax separted by a whitespace'
+            '(e.g., "image/jpeg" or "image/jpeg 1.2.840.10008.1.2.4.50")'
+        )
+    )
+
     abstract_fmt_parser = argparse.ArgumentParser(add_help=False)
     abstract_fmt_group = abstract_fmt_parser.add_mutually_exclusive_group()
     abstract_fmt_group.add_argument(
@@ -231,7 +242,7 @@ def _get_parser():
         'full', description=(
             'Retrieve DICOM instances of a given DICOM study.'
         ),
-        parents=[abstract_save_parser]
+        parents=[abstract_save_parser, abstract_retrieve_parser]
     )
     retrieve_studies_full_parser.set_defaults(func=_retrieve_study)
 
@@ -242,7 +253,7 @@ def _get_parser():
             'Retrieve data for all DICOM instances of a given DICOM series.'
         ),
         parents=[
-            abstract_required_study_parser, abstract_required_series_parser
+            abstract_required_study_parser, abstract_required_series_parser,
         ]
     )
     retrieve_series_subparsers = retrieve_series_parser.add_subparsers(
@@ -264,7 +275,7 @@ def _get_parser():
         'full', description=(
             'Retrieve DICOM instances of a given DICOM series.'
         ),
-        parents=[abstract_save_parser]
+        parents=[abstract_save_parser, abstract_retrieve_parser]
     )
     retrieve_series_full_parser.set_defaults(func=_retrieve_series)
 
@@ -296,59 +307,44 @@ def _get_parser():
 
     retrieve_instance_full_parser = retrieve_instance_subparsers.add_parser(
         'full', description=('Retrieve a DICOM instance.'),
-        parents=[abstract_save_parser]
+        parents=[abstract_save_parser, abstract_retrieve_parser]
     )
     retrieve_instance_full_parser.set_defaults(func=_retrieve_instance)
 
-    retrieve_instance_frames_parser = retrieve_instance_subparsers.add_parser(
+    retrieve_frames_parser = retrieve_subparsers.add_parser(
         'frames', description=(
             'Retrieve one or more frames of the pixel data element of an '
             'invidividual DICOM instance.'
         ),
-        parents=[abstract_save_parser]
+        parents=[
+            abstract_required_study_parser, abstract_required_series_parser,
+            abstract_required_instance_parser,
+            abstract_save_parser, abstract_retrieve_parser
+        ]
     )
-    retrieve_instance_frames_parser.add_argument(
+    retrieve_frames_parser.add_argument(
         '--numbers', metavar='NUM', type=int, nargs='+', dest='frame_numbers',
         help='frame numbers'
     )
-    retrieve_instance_frames_parser.add_argument(
+    retrieve_frames_parser.add_argument(
         '--show', action='store_true',
         help='display retrieved images'
     )
-    retrieve_instance_frames_parser.add_argument(
-        '--image-format', metavar='NAME', dest='image_format', default=None,
-        choices=['jpeg', 'jp2', 'x-jls'],
-        help=(
-            'name of image format in case frames should be requested '
-            'as image media-type (choices: jpeg, jp2, x-jls)'
-        )
-    )
-    retrieve_instance_frames_parser.set_defaults(
-        func=_retrieve_instance_frames
-    )
+    retrieve_frames_parser.set_defaults(func=_retrieve_frames)
 
     # WADO - bulkdata
     retrieve_bulkdata_parser = retrieve_subparsers.add_parser(
         'bulkdata', help='retrieve bulk data from a known location',
         description=(
             'Retrieve bulk data of a DICOM object from a known location.'
-        )
+        ),
+        parents=[abstract_retrieve_parser]
     )
     retrieve_bulkdata_parser.add_argument(
         '--uri', metavar='URI', dest='bulkdata_uri', required=True,
         help='unique resource identifier of bulk data element'
     )
-    retrieve_bulkdata_parser.add_argument(
-        '--image-format', metavar='NAME', dest='image_format',
-        choices=['jpeg', 'x-jls', 'jp2'],
-        help=(
-            'name of image format in case bulk data should be requested '
-            'as image media-type (choices: jpeg, jp2, x-jls)'
-        )
-    )
-    retrieve_bulkdata_parser.set_defaults(
-        func=_retrieve_bulkdata
-    )
+    retrieve_bulkdata_parser.set_defaults(func=_retrieve_bulkdata)
 
     # STOW
     store_parser = subparsers.add_parser(
@@ -436,18 +432,6 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
                 json.dump(data, f, sort_keys=True)
 
 
-def _save_frame(image, directory, sop_instance_uid, frame_number):
-    filename = (
-        '{sop_instance_uid}_frame_{frame_number}.{extension}'.format(
-            sop_instance_uid=sop_instance_uid,
-            frame_number=frame_number,
-            extension=image.format.lower()
-        )
-    )
-    filepath = os.path.join(directory, filename)
-    _save_image(image, filepath)
-
-
 def _save_image(image, filename):
     logger.info('save pixel data to file "{}"'.format(filename))
     image.save(filename)
@@ -458,7 +442,7 @@ def _show_image(image):
     image.show()
 
 
-def _print_pixeldata(pixels):
+def _print_pixel_data(pixels):
     logger.info('print pixel data')
     print(pixels)
     print('\n')
@@ -519,7 +503,10 @@ def _retrieve_study(args):
         ca_bundle=args.ca_bundle,
         cert=args.cert
     )
-    instances = client.retrieve_study(args.study_instance_uid)
+    instances = client.retrieve_study(
+        args.study_instance_uid,
+        media_types=args.media_types,
+    )
     for inst in instances:
         sop_instance_uid = inst.SOPInstanceUID
         if args.save:
@@ -540,7 +527,8 @@ def _retrieve_series(args):
         cert=args.cert
     )
     instances = client.retrieve_series(
-        args.study_instance_uid, args.series_instance_uid
+        args.study_instance_uid, args.series_instance_uid,
+        media_types=args.media_types,
     )
     for inst in instances:
         sop_instance_uid = inst.SOPInstanceUID
@@ -563,7 +551,8 @@ def _retrieve_instance(args):
     )
     instance = client.retrieve_instance(
         args.study_instance_uid, args.series_instance_uid,
-        args.sop_instance_uid
+        args.sop_instance_uid,
+        media_types=args.media_types,
     )
     if args.save:
         _save_instance(instance, args.output_dir, args.sop_instance_uid)
@@ -645,10 +634,12 @@ def _retrieve_instance_metadata(args):
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_instance_frames(args):
-    '''Retrieves frames for an individual Instances and either
-    writes it to standard output or to a file on disk or displays it
+def _retrieve_frames(args):
+    '''Retrieves frames for an individual instances and either
+    writes them to standard output or files on disk or displays them in a GUI
     (depending on the requested content type).
+    Frames can only be saved and shown if they are retrieved using
+    image media types.
     '''
     client = DICOMwebClient(
         args.url,
@@ -657,51 +648,38 @@ def _retrieve_instance_frames(args):
         ca_bundle=args.ca_bundle,
         cert=args.cert
     )
-    pixeldata = client.retrieve_instance_frames(
+    pixel_data = client.retrieve_frames(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid, args.frame_numbers,
-        args.image_format
+        media_types=args.media_types,
     )
 
-    for i, data in enumerate(pixeldata):
+    for i, data in enumerate(pixel_data):
         if args.save or args.show:
-            if args.image_format is None:
-                # Pixeldata was returned uncompressed and cannot be converted
-                # to an image without additional metadata
-                # (Rows, Columns, PixelRepresentation, BitsAllocated).
-                raise ValueError(
-                    'Cannot load image from uncompressed pixel data without '
-                    'additional metadata.'
-                )
-                # TODO: Retrieve metadata and load pixel data into numpy array
-                # https://github.com/pydicom/pydicom/blob/master/pydicom/pixel_data_handlers/numpy_handler.py
-
-                # metadata = client.retrieve_instance_metadata(
-                #     args.study_instance_uid, args.series_instance_uid,
-                #     args.sop_instance_uid
-                # )
-                # ds = load_json_dataset(metadata[0])
-
-            elif args.image_format == 'x-jls':
+            try:
+                image = Image.open(BytesIO(data))
+            except Exception:
                 try:
                     import jpeg_ls
-                except ImportError:
-                    raise ImportError(
-                        'Cannot load image from JPEG-LS compressed pixel data '
-                        'because PyCharLS package is not installed.'
+                    image = jpeg_ls.decode(np.fromstring(data, dtype=np.uint8))
+                except Exception:
+                    raise IOError(
+                        'Cannot load retrieved frame as an image.'
                     )
-                image = jpeg_ls.decode(np.fromstring(data, dtype=np.uint8))
-            else:
-                image = Image.open(BytesIO(data))
             if args.save:
-                _save_frame(
-                    image, args.output_dir, args.sop_instance_uid,
-                    args.frame_numbers[i]
+                filename = (
+                    '{sop_instance_uid}_{frame_number}.{extension}'.format(
+                        sop_instance_uid=args.sop_instance_uid,
+                        frame_number=args.frame_numbers[i],
+                        extension=image.format.lower()
+                    )
                 )
+                filepath = os.path.join(args.output_dir, filename)
+                _save_image(image, filepath)
             elif args.show:
                 _show_image(image)
         else:
-            _print_pixeldata(data)
+            _print_pixel_data(data)
 
 
 def _retrieve_bulkdata(args):
@@ -715,7 +693,7 @@ def _retrieve_bulkdata(args):
         ca_bundle=args.ca_bundle,
         cert=args.cert
     )
-    data = client.retrieve_bulkdata(args.bulkdata_uri, args.image_format)
+    data = client.retrieve_bulkdata(args.bulkdata_uri, args.media_type)
     print(data)
     print('\n')
 

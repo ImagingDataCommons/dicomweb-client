@@ -216,13 +216,33 @@ Retrieve instances of a given series:
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
     )
 
+Retrieve full instances of a given series using specific JPEG 2000 transfer syntax for encoding of bulk data:
+
+.. code-block:: python
+
+    instance = client.retrieve_instance(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        media_types=(('application/dicom', '1.2.840.10008.1.2.4.90', ), )
+    )
+
+Retrieve bulk data of instances of a given series using specific JPEG 2000 transfer syntax:
+
+.. code-block:: python
+
+    instance = client.retrieve_instance(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        media_types=(('image/jp2', '1.2.840.10008.1.2.4.90', ), )
+    )
+
 
 .. _retrieveinstance:
 
 WADO-RS RetrieveInstance
 ++++++++++++++++++++++++
 
-Retrieve instance:
+Retrieve full instance using default Explicit VR Little Endian transfer syntax for encoding of bulk data:
 
 .. code-block:: python
 
@@ -232,6 +252,28 @@ Retrieve instance:
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
     )
 
+
+Retrieve full instance using specific JPEG 2000 transfer syntax for encoding of bulk data:
+
+.. code-block:: python
+
+    instance = client.retrieve_instance(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
+        media_types=(('application/dicom', '1.2.840.10008.1.2.4.90', ), )
+    )
+
+Retrieve bulk data of instance using specific JPEG 2000 transfer syntax:
+
+.. code-block:: python
+
+    instance = client.retrieve_instance(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
+        media_types=(('image/jp2', '1.2.840.10008.1.2.4.90', ), )
+    )
 
 .. _retrievemetadata:
 
@@ -275,32 +317,68 @@ Retrieve metadata for a particular instance:
 WADO-RS RetrieveFrames
 ++++++++++++++++++++++
 
+Retrieve a set of frames with default transfer syntax ("application/octet-stream"):
+
+.. code-block:: python
+
+    frames = client.retrieve_frames(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        frame_numbers=[1, 2]
+    )
 
 Retrieve a set of frames of a given instances as JPEG compressed image:
 
 .. code-block:: python
 
-    frames = client.retrieve_instance_frames(
+    frames = client.retrieve_frames(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
         frame_numbers=[1, 2],
-        image_format='jpeg'
+        media_types=('image/jpeg', )
     )
 
-
-Frames are returned as bytes. To convert the image into a *NumPy* array you can use the *PIL* module:
+Retrieve a set of frames of a given instances as compressed image in any available format:
 
 .. code-block:: python
 
-    from io import BytesIO
+    frames = client.retrieve_frames(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        frame_numbers=[1, 2],
+        media_types=('image/*', )
+    )
 
-    import numpy as np
-    from PIL import Image
+Retrieve a set of frames of a given instances as either JPEG 2000 or JPEG-LS compressed image:
 
-    image = Image.open(BytesIO(frames[0]))
-    array = np.array(image)
+.. code-block:: python
 
+    frames = client.retrieve_frames(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        frame_numbers=[1, 2],
+        media_types=('image/jp2', 'image/x-jpls', )
+    )
+
+Retrieve a set of frames of a given instances as either JPEG, JPEG 2000 or JPEG-LS lossless compressed image using specific transfer syntaxes:
+
+.. code-block:: python
+
+    frames = client.retrieve_frames(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        frame_numbers=[1, 2],
+        media_types=(
+            ('image/jpeg', '1.2.840.10008.1.2.4.57', ),
+            ('image/jp2', '1.2.840.10008.1.2.4.90', ),
+            ('image/x-jpls', '1.2.840.10008.1.2.4.80', ),
+        )
+    )
 
 .. _retrievebulkdata:
 
@@ -313,6 +391,52 @@ Retrieve bulk data given a URL:
 
     data = client.retrieve_bulkdata('https://mydicomwebserver.com/studies/...')
 
+
+.. _retrieverenderedtransaction:
+
+WADO-RS RetrieveRenderedTransaction
++++++++++++++++++++++++++++++++++++
+
+Retrieve a single-frame image instance rendered as a PNG compressed image:
+
+.. code-block:: python
+
+    frames = client.retrieve_instance_rendered(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        media_types=('image/png', )
+    )
+
+Retrieve a single frame of a multi-frame image instance rendered as a high-quality JPEG compressed image that includes an ICC profile:
+
+.. code-block:: python
+
+    frames = client.retrieve_frames_rendered(
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        frame_numbers=[1],
+        media_types=('image/jpeg', ),
+        params={'quality': 95, 'iccprofile': 'yes'}
+    )
+
+When frames are retrieved in image format, they can be converted into a *NumPy* array using the *PIL* module:
+
+.. code-block:: python
+
+    from io import BytesIO
+
+    import numpy as np
+    from PIL import Image
+
+    image = Image.open(BytesIO(frames[0]))
+    array = np.array(image)
+
+
+.. warning::
+
+    Retrieving images using lossy compression methods may lead to image recompression artifacts if the images have been stored lossy compressed.
 
 .. _cli:
 
@@ -365,5 +489,5 @@ Retrieve a single frame of a given instances as JPEG compressed image:
         --instance 1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534 \
         frames \
         --numbers 1 \
-        --image-format jpeg
+        --media-type image/jpeg
 

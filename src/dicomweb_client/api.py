@@ -8,7 +8,8 @@ import six
 from io import BytesIO
 from collections import OrderedDict
 if sys.version_info.major < 3:
-    from urllib import quote_plus, urlparse
+    from urllib import quote_plus
+    from urlparse import urlparse
 else:
     from urllib.parse import quote_plus, urlparse
 
@@ -289,13 +290,34 @@ class DICOMwebClient(object):
                     'No password provided for user "{0}".'.format(username)
                 )
             self._session.auth = (username, password)
-        # TODO: other authentication methods, specifically:
-        # - Kerberos: https://github.com/requests/requests-kerberos
-        # - OAuth2: https://github.com/requests/requests-oauthlib
 
-    def _parse_query_parameters(self, fuzzymatching, limit, offset,
-                                fields, **search_filters):
-        params = dict()
+    def _parse_qido_query_parameters(self, fuzzymatching, limit, offset,
+                                     fields, search_filters):
+        '''Parses query parameters for inclusion into a HTTP query string
+        of a QIDO-RS request message.
+
+        Parameters
+        ----------
+        fuzzymatching: bool, optional
+            whether fuzzy semantic matching should be performed
+        limit: int, optional
+            maximum number of results that should be returned
+        offset: int, optional
+            number of results that should be skipped
+        fields: List[str], optional
+            names of fields (attributes) that should be included in results
+        search_filters: Dict[str, Any], optional
+            search filter criteria as key-value pairs, where *key* is a keyword
+            or a tag of the attribute and *value* is the expected value that
+            should match
+
+        Returns
+        -------
+        collections.OrderedDict
+            sanitized and sorted query parameters
+
+        '''
+        params = {}
         if limit is not None:
             if not(isinstance(limit, int)):
                 raise TypeError('Parameter "limit" must be an integer.')
@@ -316,20 +338,37 @@ class DICOMwebClient(object):
             else:
                 params['fuzzymatching'] = 'false'
         if fields is not None:
-            params['includefield'] = list()
+            params['includefield'] = []
             for field in set(fields):
                 if not(isinstance(field, str)):
                     raise TypeError('Elements of "fields" must be a string.')
                 params['includefield'].append(field)
-        for field, criterion in search_filters.items():
-            if not(isinstance(field, str)):
-                raise TypeError('Keys of "search_filters" must be strings.')
-            # TODO: datetime?
-            params[field] = criterion
+        if search_filters is not None:
+            for field, criterion in search_filters.items():
+                if not(isinstance(field, str)):
+                    raise TypeError(
+                        'Keys of "search_filters" must be strings.'
+                    )
+                # TODO: datetime?
+                params[field] = criterion
         # Sort query parameters to facilitate unit testing
         return OrderedDict(sorted(params.items()))
 
     def _get_service_url(self, service):
+        '''Constructes the URL of a DICOMweb RESTful services.
+
+        Parameters
+        ----------
+        service: str
+            name of the RESTful service
+            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+
+        Returns
+        -------
+        str
+            full URL for the given service
+
+        '''
         service_url = self.base_url
         if service == 'qido':
             if self.qido_url_prefix is not None:
@@ -347,6 +386,22 @@ class DICOMwebClient(object):
         return service_url
 
     def _get_studies_url(self, service, study_instance_uid=None):
+        '''Constructes the URL for study-level requests.
+
+        Parameters
+        ----------
+        service: str
+            name of the RESTful service
+            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+        study_instance_uid: str, optional
+            unique study identifier
+
+        Returns
+        -------
+        str
+            URL
+
+        '''
         if study_instance_uid is not None:
             url = '{service_url}/studies/{study_instance_uid}'
         else:
@@ -358,6 +413,24 @@ class DICOMwebClient(object):
 
     def _get_series_url(self, service, study_instance_uid=None,
                         series_instance_uid=None):
+        '''Constructes the URL for series-level requests.
+
+        Parameters
+        ----------
+        service: str
+            name of the RESTful service
+            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+        study_instance_uid: str, optional
+            unique study identifier
+        series_instance_uid: str, optional
+            unique series identifier
+
+        Returns
+        -------
+        str
+            URL
+
+        '''
         if study_instance_uid is not None:
             url = self._get_studies_url(service, study_instance_uid)
             if series_instance_uid is not None:
@@ -377,6 +450,26 @@ class DICOMwebClient(object):
 
     def _get_instances_url(self, service, study_instance_uid=None,
                            series_instance_uid=None, sop_instance_uid=None):
+        '''Constructes the URL for instance-level requests.
+
+        Parameters
+        ----------
+        service: str
+            name of the RESTful service
+            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+        study_instance_uid: str, optional
+            unique study identifier
+        series_instance_uid: str, optional
+            unique series identifier
+        sop_instance_uid: str, optional
+            unique instance identifier
+
+        Returns
+        -------
+        str
+            URL
+
+        '''
         if study_instance_uid is not None and series_instance_uid is not None:
             url = self._get_series_url(
                 service, study_instance_uid, series_instance_uid
@@ -396,8 +489,24 @@ class DICOMwebClient(object):
             service_url=service_url, sop_instance_uid=sop_instance_uid
         )
 
-    @staticmethod
-    def _build_query_string(params):
+    def _build_query_string(self, params):
+        '''Builds a HTTP query string for a GET request message.
+
+        Parameters
+        ----------
+        params: dict
+            query parameters as mapping of key-value pairs;
+            in case a key should be included more than once with different
+            values, values need to be provided in form of an iterable (e.g.,
+            ``{"key": ["value1", "value2"]}`` will result in
+            ``"?key=value1&key=value2"``)
+
+        Returns
+        -------
+        str
+            query string
+
+        '''
         components = []
         for key, value in params.items():
             if isinstance(value, (list, tuple, set)):
@@ -407,9 +516,12 @@ class DICOMwebClient(object):
             else:
                 c = '='.join([key, quote_plus(str(value))])
                 components.append(c)
-        return '?{}'.format('&'.join(components))
+        if components:
+            return '?{}'.format('&'.join(components))
+        else:
+            return ''
 
-    def _http_get(self, url, params={}, headers={}):
+    def _http_get(self, url, params=None, headers=None):
         '''Performs a HTTP GET request.
 
         Parameters
@@ -427,13 +539,18 @@ class DICOMwebClient(object):
             HTTP response message
 
         '''
+        if headers is None:
+            headers = {}
+        if params is None:
+            params = {}
         url += self._build_query_string(params)
-        logger.debug('GET: {}'.format(url))
+        logger.debug('GET: {} {}'.format(url, headers))
         response = self._session.get(url=url, headers=headers)
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
             raise HTTPError(error)
+        logger.debug('request status code: {}'.format(response.status_code))
         if response.status_code == 204:
             logger.warning('empty response')
         # The server may not return all results, but rather include a warning
@@ -443,7 +560,7 @@ class DICOMwebClient(object):
             logger.warning(response.headers['Warning'])
         return response
 
-    def _http_get_application_json(self, url, **params):
+    def _http_get_application_json(self, url, params=None):
         '''Performs a HTTP GET request that accepts "applicaton/dicom+json"
         media type.
 
@@ -451,7 +568,7 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        params: Dict[str]
+        params: Dict[str], optional
             query parameters
 
         Returns
@@ -465,29 +582,7 @@ class DICOMwebClient(object):
         if resp.content:
             return resp.json()
 
-    def _http_get_application_dicom(self, url, **params):
-        '''Performs a HTTP GET request that accepts "applicaton/dicom"
-        media type.
-
-        Parameters
-        ----------
-        url: str
-            unique resource locator
-        params: Dict[str]
-            query parameters
-
-        Returns
-        -------
-        pydicom.dataset.Dataset
-            DICOM data set
-
-        '''
-        content_type = 'application/dicom'
-        resp = self._http_get(url, params, {'Accept': content_type})
-        return pydicom.dcmread(BytesIO(resp.content))
-
-    @staticmethod
-    def _decode_multipart_message(body, headers):
+    def _decode_multipart_message(self, body, headers):
         '''Extracts parts of a HTTP multipart response message.
 
         Parameters
@@ -522,8 +617,7 @@ class DICOMwebClient(object):
             elements.append(payload)
         return elements
 
-    @staticmethod
-    def _encode_multipart_message(data, content_type):
+    def _encode_multipart_message(self, data, content_type):
         '''Encodes the payload of a HTTP multipart response message.
 
         Parameters
@@ -554,7 +648,179 @@ class DICOMwebClient(object):
         body += '\r\n--{boundary}--'.format(boundary=boundary).encode('utf-8')
         return body
 
-    def _http_get_multipart_application_dicom(self, url, **params):
+    def _assert_media_type_is_valid(self, media_type):
+        '''Asserts that a given media type is valid.
+
+        Parameters
+        ----------
+        media_type: str
+            media type
+
+        Raises
+        ------
+        ValueError
+            when `media_type` is invalid
+
+        '''
+        error_message = 'Not a valid media type: "{}"'.format(media_type)
+        sep_index = media_type.find('/')
+        if sep_index == -1:
+            raise ValueError(error_message)
+        media_type_type = media_type[:sep_index]
+        if media_type_type not in {'application', 'image', 'text', 'video'}:
+            raise ValueError(error_message)
+        if media_type.find('/', sep_index + 1) > 0:
+            raise ValueError(error_message)
+
+    def _build_range_header_field_value(self, byte_range):
+        '''Builds a range header field value for HTTP GET request messages.
+
+        Parameters
+        ----------
+        byte_range: Tuple[int], optional
+            start and end of byte range
+
+        Returns
+        -------
+        str
+            range header field value
+
+        '''
+        if byte_range is not None:
+            start = str(byte_range[0])
+            try:
+                end = byte_range[1]
+            except IndexError:
+                end = ''
+            range_header_field_value = 'bytes={}-{}'.format(start, end)
+        else:
+            range_header_field_value = 'bytes=0-'
+        return range_header_field_value
+
+    def _build_accept_header_field_value(self, media_types,
+                                         supported_media_types):
+        '''Builds an accept header field value for HTTP GET request messages.
+
+        Parameters
+        ----------
+        media_types: Tuple[str]
+            acceptable media types
+        supported_media_types: Set[str]
+            supported media types
+
+        Returns
+        -------
+        str
+            accept header field value
+
+        '''
+        if not isinstance(media_types, (list, tuple, set)):
+            raise TypeError(
+                'Acceptable media types must be provided as a tuple.'
+            )
+        field_value_parts = []
+        for media_type in media_types:
+            if not isinstance(media_type, six.string_types):
+                raise TypeError(
+                    'Media type "{}" is not supported for '
+                    'requested resource'.format(media_type)
+                )
+            self._assert_media_type_is_valid(media_type)
+            if media_type not in supported_media_types:
+                raise ValueError(
+                    'Media type "{}" is not supported for '
+                    'requested resource'.format(media_type)
+                )
+            field_value_parts.append(media_type)
+        return ', '.join(field_value_parts)
+
+    def _build_multipart_accept_header_field_value(self,
+                                                   media_types,
+                                                   supported_media_types):
+        '''Builds an accept header field value for HTTP GET multipart request
+        messages.
+
+        Parameters
+        ----------
+        media_types: Tuple[Union[str, Tuple[str]]]
+            acceptable media types and optionally the UIDs of the corresponding
+            transfer syntaxes
+        supported_media_types: Union[Dict[str, str], Set[str]]
+            set of supported media types or mapping of transfer syntaxes
+            to their corresponding media types
+
+        Returns
+        -------
+        str
+            accept header field value
+
+        '''
+        if not isinstance(media_types, (list, tuple, set)):
+            raise TypeError(
+                'Acceptable media types must be provided as a tuple.'
+            )
+        field_value_parts = []
+        for item in media_types:
+            if isinstance(item, six.string_types):
+                media_type = item
+                transfer_syntax_uid = None
+            else:
+                media_type = item[0]
+                try:
+                    transfer_syntax_uid = item[1]
+                except IndexError:
+                    transfer_syntax_uid = None
+            self._assert_media_type_is_valid(media_type)
+            field_value = 'multipart/related; type="{}"'.format(media_type)
+            if isinstance(supported_media_types, dict):
+                if media_type not in supported_media_types.values():
+                    if (not media_type.endswith('/*') or
+                            not media_type.endswith('/')):
+                        raise ValueError(
+                            'Media type "{}" is not supported for '
+                            'requested resource.'.format(media_type)
+                        )
+                if transfer_syntax_uid is not None:
+                    if transfer_syntax_uid != '*':
+                        if transfer_syntax_uid not in supported_media_types:
+                            raise ValueError(
+                                'Transfer syntax "{}" is not supported '
+                                'for requested resource.'.format(
+                                    transfer_syntax_uid
+                                )
+                            )
+                        expected_media_type = supported_media_types[
+                            transfer_syntax_uid
+                        ]
+                        if expected_media_type != media_type:
+                            have_same_type = (
+                                self._parse_media_type(media_type)[0] ==
+                                self._parse_media_type(expected_media_type)[0]
+                            )
+                            if (have_same_type and
+                                    (media_type.endswith('/*') or
+                                        media_type.endswith('/'))):
+                                continue
+                            raise ValueError(
+                                'Transfer syntax "{}" is not supported '
+                                'for media type "{}".'.format(
+                                    transfer_syntax_uid, media_type
+                                )
+                            )
+                    field_value += '; transfer-syntax={}'.format(
+                        transfer_syntax_uid
+                    )
+            else:
+                if media_type not in supported_media_types:
+                    raise ValueError(
+                        'Media type "{}" is not supported for '
+                        'requested resource.'.format(media_type)
+                    )
+            field_value_parts.append(field_value)
+        return ', '.join(field_value_parts)
+
+    def _http_get_multipart_application_dicom(self, url, media_types=None,
+                                              params=None):
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/dicom" media type.
 
@@ -562,8 +828,12 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        params: Dict[str]
-            query parameters
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes, (defaults to
+            ``("application/dicom", "1.2.840.10008.1.2.1")``)
+        params: Dict[str], optional
+            additional HTTP GET query parameters
 
         Returns
         -------
@@ -571,12 +841,43 @@ class DICOMwebClient(object):
             DICOM data sets
 
         '''
-        content_type = 'multipart/related; type="application/dicom"'
-        resp = self._http_get(url, params, {'Accept': content_type})
+        default_media_type = 'application/dicom'
+        supported_media_types = {
+            '1.2.840.10008.1.2.1': default_media_type,
+            '1.2.840.10008.1.2.5': default_media_type,
+            '1.2.840.10008.1.2.4.50': default_media_type,
+            '1.2.840.10008.1.2.4.51': default_media_type,
+            '1.2.840.10008.1.2.4.57': default_media_type,
+            '1.2.840.10008.1.2.4.70': default_media_type,
+            '1.2.840.10008.1.2.4.80': default_media_type,
+            '1.2.840.10008.1.2.4.81': default_media_type,
+            '1.2.840.10008.1.2.4.90': default_media_type,
+            '1.2.840.10008.1.2.4.91': default_media_type,
+            '1.2.840.10008.1.2.4.92': default_media_type,
+            '1.2.840.10008.1.2.4.93': default_media_type,
+            '1.2.840.10008.1.2.4.100': default_media_type,
+            '1.2.840.10008.1.2.4.101': default_media_type,
+            '1.2.840.10008.1.2.4.102': default_media_type,
+            '1.2.840.10008.1.2.4.103': default_media_type,
+            '1.2.840.10008.1.2.4.104': default_media_type,
+            '1.2.840.10008.1.2.4.105': default_media_type,
+            '1.2.840.10008.1.2.4.106': default_media_type,
+        }
+        if media_types is None:
+            media_types = (default_media_type, )
+        headers = {
+            'Accept': self._build_multipart_accept_header_field_value(
+                media_types, supported_media_types
+            ),
+        }
+        resp = self._http_get(url, params, headers)
         datasets = self._decode_multipart_message(resp.content, resp.headers)
         return [pydicom.dcmread(BytesIO(ds)) for ds in datasets]
 
-    def _http_get_multipart_application_octet_stream(self, url, **params):
+    def _http_get_multipart_application_octet_stream(self, url,
+                                                     media_types=None,  # noqa
+                                                     byte_range=None,
+                                                     params=None):
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/octet-stream" media type.
 
@@ -584,8 +885,14 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        params: Dict[str]
-            query parameters
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes (defaults to
+            ``("application/octet-stream", "1.2.840.10008.1.2.1")``)
+        byte_range: Tuple[int], optional
+            start and end of byte range
+        params: Dict[str], optional
+            additional HTTP GET query parameters
 
         Returns
         -------
@@ -593,22 +900,41 @@ class DICOMwebClient(object):
             content of HTTP message body parts
 
         '''
-        content_type = 'multipart/related; type="application/octet-stream"'
-        resp = self._http_get(url, params, {'Accept': content_type})
+        default_media_type = 'application/octet-stream'
+        supported_media_types = {
+            '1.2.840.10008.1.2.1': default_media_type,
+        }
+        if media_types is None:
+            media_types = (default_media_type, )
+        headers = {
+            'Accept': self._build_multipart_accept_header_field_value(
+                media_types,
+                supported_media_types
+            ),
+        }
+        if byte_range is not None:
+            headers['Range'] = self._build_range_header_field_value(byte_range)
+        resp = self._http_get(url, params, headers)
         return self._decode_multipart_message(resp.content, resp.headers)
 
-    def _http_get_multipart_image(self, url, image_format, **params):
+    def _http_get_multipart_image(self, url, media_types,
+                                  byte_range=None, params=None, rendered=False):
         '''Performs a HTTP GET request that accepts a multipart message with
-        "image/{image_format}" media type.
+        an image media type.
 
         Parameters
         ----------
         url: str
             unique resource locator
-        image_format: str
-            image format
-        params: Dict[str]
-            query parameters
+        media_types: Tuple[Union[str, Tuple[str, str]]]
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+        byte_range: Tuple[int], optional
+            start and end of byte range
+        params: Dict[str], optional
+            additional HTTP GET query parameters
+        rendered: bool, optional
+            whether resource should be requested using rendered media types
 
         Returns
         -------
@@ -616,15 +942,225 @@ class DICOMwebClient(object):
             content of HTTP message body parts
 
         '''
-        if image_format not in {'jpeg', 'x-jls', 'jp2'}:
-            raise ValueError(
-                'Image format "{}" is not supported.'.format(image_format)
-            )
-        content_type = 'multipart/related; type="image/{image_format}"'.format(
-            image_format=image_format
+        headers = {}
+        if rendered:
+            supported_media_types = {
+                'image/jpeg',
+                'image/gif',
+                'image/png',
+                'image/jp2',
+            }
+        else:
+            supported_media_types = {
+                '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
+                '1.2.840.10008.1.2.4.50': 'image/jpeg',
+                '1.2.840.10008.1.2.4.51': 'image/jpeg',
+                '1.2.840.10008.1.2.4.57': 'image/jpeg',
+                '1.2.840.10008.1.2.4.70': 'image/jpeg',
+                '1.2.840.10008.1.2.4.80': 'image/x-jls',
+                '1.2.840.10008.1.2.4.81': 'image/x-jls',
+                '1.2.840.10008.1.2.4.90': 'image/jp2',
+                '1.2.840.10008.1.2.4.91': 'image/jp2',
+                '1.2.840.10008.1.2.4.92': 'image/jpx',
+                '1.2.840.10008.1.2.4.93': 'image/jpx',
+            }
+            if byte_range is not None:
+                headers['Range'] = self._build_range_header_field_value(
+                    byte_range
+                )
+        headers['Accept'] = self._build_multipart_accept_header_field_value(
+            media_types, supported_media_types
         )
-        resp = self._http_get(url, params, {'Accept': content_type})
+        resp = self._http_get(url, params, headers)
         return self._decode_multipart_message(resp.content, resp.headers)
+
+    def _http_get_multipart_video(self, url, media_types,
+                                  byte_range=None, params=None,
+                                  rendered=False):
+        '''Performs a HTTP GET request that accepts a multipart message with
+        a video media type.
+
+        Parameters
+        ----------
+        url: str
+            unique resource locator
+        media_types: Tuple[Union[str, Tuple[str, str]]]
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+        byte_range: Tuple[int], optional
+            start and end of byte range
+        params: Dict[str], optional
+            additional HTTP GET query parameters
+        rendered: bool, optional
+            whether resource should be requested using rendered media types
+
+        Returns
+        -------
+        List[Union[str, bytes]]
+            content of HTTP message body parts
+
+        '''
+        headers = {}
+        if rendered:
+            supported_media_types = {
+                'video/',
+                'video/*',
+                'video/mpeg2',
+                'video/mp4',
+                'video/H265',
+            }
+        else:
+            supported_media_types = {
+                '1.2.840.10008.1.2.4.100': 'video/mpeg2',
+                '1.2.840.10008.1.2.4.101': 'video/mpeg2',
+                '1.2.840.10008.1.2.4.102': 'video/mp4',
+                '1.2.840.10008.1.2.4.103': 'video/mp4',
+                '1.2.840.10008.1.2.4.104': 'video/mp4',
+                '1.2.840.10008.1.2.4.105': 'video/mp4',
+                '1.2.840.10008.1.2.4.106': 'video/mp4',
+            }
+            if byte_range is not None:
+                headers['Range'] = self._build_range_header_field_value(
+                    byte_range
+                )
+        headers['Accept'] = self._build_multipart_accept_header_field_value(
+            media_types, supported_media_types
+        )
+        resp = self._http_get(url, params, headers)
+        return self._decode_multipart_message(resp.content, resp.headers)
+
+    def _http_get_application_pdf(self, url, params=None):
+        '''Performs a HTTP GET request that accepts a message with
+        "applicaton/pdf" media type.
+
+        Parameters
+        ----------
+        url: str
+            unique resource locator
+        params: Dict[str], optional
+            additional HTTP GET query parameters
+        rendered: bool, optional
+            whether resource should be requested using rendered media types
+
+        Returns
+        -------
+        Union[str, bytes]
+            content of HTTP message body
+
+        '''
+        media_type = 'application/pdf'
+        resp = self._http_get(url, params, {'Accept': media_type})
+        return resp.content
+
+    def _http_get_image(self, url, media_types, params=None):
+        '''Performs a HTTP GET request that accepts a message with an image
+        media type.
+
+        Parameters
+        ----------
+        url: str
+            unique resource locator
+        media_types: Tuple[str]
+            image media type (choices: ``"image/jpeg"``, ``"image/gif"``,
+            ``"image/jp2"``, ``"image/png"``)
+        params: Dict[str], optional
+            additional HTTP GET query parameters
+
+        Returns
+        -------
+        Union[str, bytes]
+            content of HTTP message body
+
+        '''
+        supported_media_types = {
+            'image/',
+            'image/*',
+            'image/jpeg',
+            'image/jp2',
+            'image/gif',
+            'image/png',
+        }
+        accept_header_field_value = self._build_accept_header_field_value(
+            media_types, supported_media_types
+        )
+        headers = {
+            'Accept': accept_header_field_value,
+        }
+        resp = self._http_get(url, params, headers)
+        return resp.content
+
+    def _http_get_video(self, url, media_types, params=None):
+        '''Performs a HTTP GET request that accepts a message with an video
+        media type.
+
+        Parameters
+        ----------
+        url: str
+            unique resource locator
+        media_types: Tuple[str]
+            video media type (choices: ``"video/mpeg"``, ``"video/mp4"``,
+            ``"video/H265"``)
+        params: Dict[str], optional
+            additional HTTP GET query parameters
+
+        Returns
+        -------
+        Union[str, bytes]
+            content of HTTP message body
+
+        '''
+        supported_media_types = {
+            'video/',
+            'video/*',
+            'video/mpeg',
+            'video/mp4',
+            'video/H265',
+        }
+        accept_header_field_value = self._build_accept_header_field_value(
+            media_types, supported_media_types
+        )
+        headers = {
+            'Accept': accept_header_field_value,
+        }
+        resp = self._http_get(url, params, headers)
+        return resp.content
+
+    def _http_get_text(self, url, media_types, params=None):
+        '''Performs a HTTP GET request that accepts a message with an text
+        media type.
+
+        Parameters
+        ----------
+        url: str
+            unique resource locator
+        media_types: Tuple[str]
+            text media type (choices: ``"text/html"``, ``"text/plain"``,
+            ``"text/xml"``, ``"text/rtf"``)
+        params: Dict[str], optional
+            additional HTTP GET query parameters
+
+        Returns
+        -------
+        Union[str, bytes]
+            content of HTTP message body
+
+        '''
+        supported_media_types = {
+            'text/',
+            'text/*',
+            'text/html',
+            'text/plain',
+            'text/rtf',
+            'text/xml',
+        }
+        accept_header_field_value = self._build_accept_header_field_value(
+            media_types, supported_media_types
+        )
+        headers = {
+            'Accept': accept_header_field_value,
+        }
+        resp = self._http_get(url, params, headers)
+        return resp.content
 
     def _http_post(self, url, data, headers):
         '''Performs a HTTP POST request.
@@ -644,21 +1180,21 @@ class DICOMwebClient(object):
             HTTP response message
 
         '''
-        logger.debug('POST: {}'.format(url))
+        logger.debug('POST: {} {}'.format(url, headers))
         response = self._session.post(url=url, data=data, headers=headers)
+        logger.debug('request status code: {}'.format(response.status_code))
         response.raise_for_status()
         return response
 
     def _http_post_multipart_application_dicom(self, url, data):
-        '''Performs a HTTP POST request
+        '''Performs a HTTP POST request with a multipart payload with
+        "application/dicom" media type.
 
         Parameters
         ----------
         url: str
             unique resource locator
         data: List[bytes]
-            DICOM data sets that should be posted
-        datasets: List[pydicom.dataset.Dataset]
             DICOM data sets that should be posted
 
         '''
@@ -671,7 +1207,7 @@ class DICOMwebClient(object):
         self._http_post(url, content, headers={'Content-Type': content_type})
 
     def search_for_studies(self, fuzzymatching=None, limit=None, offset=None,
-                           fields=None, search_filters={}):
+                           fields=None, search_filters=None):
         '''Searches for DICOM studies.
 
         Parameters
@@ -704,31 +1240,95 @@ class DICOMwebClient(object):
 
         ''' # noqa
         url = self._get_studies_url('qido')
-        params = self._parse_query_parameters(
-            fuzzymatching, limit, offset, fields, **search_filters
+        params = self._parse_qido_query_parameters(
+            fuzzymatching, limit, offset, fields, search_filters
         )
-        studies = self._http_get_application_json(url, **params)
+        studies = self._http_get_application_json(url, params)
         if studies is None:
             return []
         if not(isinstance(studies, list)):
             studies = [studies]
         return studies
 
-    def retrieve_bulkdata(self, url, image_format=None,
-                          image_params={'quality': 95}):
+    def _parse_media_type(self, media_type):
+        '''Parses media type and extracts its type and subtype.
+
+        Parameters
+        ----------
+        media_type: str
+            media type, e.g., ``"image/jpeg"``
+
+        Returns
+        -------
+        Tuple[str]
+            type and subtype of media type (``("image", "jpeg")``)
+
+        Raises
+        ------
+        ValueError
+            when `media_type` is invalid
+
+        '''
+        self._assert_media_type_is_valid(media_type)
+        media_type_type, media_type_subtype = media_type.split('/')
+        return media_type_type, media_type_subtype
+
+    def _get_common_media_type(self, media_types):
+        '''Gets common type of acceptable media types and asserts that only
+        one type is specified. For example, ``("image/jpeg", "image/jp2")``
+        will pass, but ``("image/jpeg", "video/mpeg2")`` will raise an
+        exception.
+
+        Parameters
+        ----------
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+
+        Returns
+        -------
+        str
+            type of media type
+
+        Raises
+        ------
+        ValueError
+            when more than one type is specified
+
+        '''
+        if media_types is None:
+            raise ValueError('No acceptable media types provided.')
+        common_media_types = []
+        for item in media_types:
+            if isinstance(item, six.string_types):
+                media_type = item
+            else:
+                media_type = item[0]
+            if media_type.startswith('application'):
+                common_media_types.append(media_type)
+            else:
+                mtype, msubtype = self._parse_media_type(media_type)
+                common_media_types.append('{}/'.format(mtype))
+        if len(set(common_media_types)) == 0:
+            raise ValueError(
+                'No common acceptable media type could be identified.'
+            )
+        elif len(set(common_media_types)) > 1:
+            raise ValueError('Acceptable media types must have the same type.')
+        return common_media_types[0]
+
+    def retrieve_bulkdata(self, url, media_types=None, byte_range=None):
         '''Retrieves bulk data from a given location.
 
         Parameters
         ----------
         url: str
-            unique resource location of bulk data as obtained from a metadata
-            request, for example
-        image_format: str, optional
-            name of the image format for media type ``"image/{image_format}"``;
-            if ``None`` data will be requested uncompressed using
-            ``"application/octet-stream"`` media type
-        image_params: Dict[str], optional
-            additional parameters relevant for `image_format`
+            location of the bulk data
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+        byte_range: Tuple[int], optional
+            start and end of byte range
 
         Returns
         -------
@@ -736,20 +1336,35 @@ class DICOMwebClient(object):
             bulk data items
 
         '''
-        if image_format is None:
-            return self._http_get_multipart_application_octet_stream(url)
-        else:
+        if media_types is None:
+            return self._http_get_multipart_application_octet_stream(
+                url, media_types, byte_range
+            )
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type == 'application/octet-stream':
+            return self._http_get_multipart_application_octet_stream(
+                url, media_types, byte_range
+            )
+        elif common_media_type.startswith('image'):
             return self._http_get_multipart_image(
-                url, image_format, **image_params
+                url, media_types, byte_range
+            )
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for '
+                'retrieval of bulkdata.'.format(common_media_type)
             )
 
-    def retrieve_study(self, study_instance_uid):
+    def retrieve_study(self, study_instance_uid, media_types=None):
         '''Retrieves instances of a given DICOM study.
 
         Parameters
         ----------
         study_instance_uid: str
             unique study identifier
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
 
         Returns
         -------
@@ -762,7 +1377,30 @@ class DICOMwebClient(object):
                 'Study Instance UID is required for retrieval of study.'
             )
         url = self._get_studies_url('wado', study_instance_uid)
-        return self._http_get_multipart_application_dicom(url)
+        if media_types is None:
+            return self._http_get_multipart_application_dicom(url)
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type == 'application/dicom':
+            return self._http_get_multipart_application_dicom(
+                url, media_types
+            )
+        elif common_media_type == 'application/octet-stream':
+            return self._http_get_multipart_application_octet_stream(
+                url, media_types
+            )
+        elif common_media_type.startswith('image'):
+            return self._http_get_multipart_image(
+                url, media_types
+            )
+        elif common_media_type.startswith('video'):
+            return self._http_get_multipart_video(
+                url, media_types
+            )
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for retrieval '
+                'of study.'.format(common_media_type)
+            )
 
     def retrieve_study_metadata(self, study_instance_uid):
         '''Retrieves metadata of instances of a given DICOM study.
@@ -787,7 +1425,7 @@ class DICOMwebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
-    def _check_uid_format(self, uid):
+    def _assert_uid_format(self, uid):
         '''Checks whether a DICOM UID has the correct format.
 
         Parameters
@@ -812,7 +1450,7 @@ class DICOMwebClient(object):
 
     def search_for_series(self, study_instance_uid=None, fuzzymatching=None,
                           limit=None, offset=None, fields=None,
-                          search_filters={}):
+                          search_filters=None):
         '''Searches for DICOM series.
 
         Parameters
@@ -847,19 +1485,20 @@ class DICOMwebClient(object):
 
         ''' # noqa
         if study_instance_uid is not None:
-            self._check_uid_format(study_instance_uid)
+            self._assert_uid_format(study_instance_uid)
         url = self._get_series_url('qido', study_instance_uid)
-        params = self._parse_query_parameters(
-            fuzzymatching, limit, offset, fields, **search_filters
+        params = self._parse_qido_query_parameters(
+            fuzzymatching, limit, offset, fields, search_filters
         )
-        series = self._http_get_application_json(url, **params)
+        series = self._http_get_application_json(url, params)
         if series is None:
             return []
         if not(isinstance(series, list)):
             series = [series]
         return series
 
-    def retrieve_series(self, study_instance_uid, series_instance_uid):
+    def retrieve_series(self, study_instance_uid, series_instance_uid,
+                        media_types=None):
         '''Retrieves instances of a given DICOM series.
 
         Parameters
@@ -868,6 +1507,9 @@ class DICOMwebClient(object):
             unique study identifier
         series_instance_uid: str
             unique series identifier
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
 
         Returns
         -------
@@ -879,16 +1521,39 @@ class DICOMwebClient(object):
             raise ValueError(
                 'Study Instance UID is required for retrieval of series.'
             )
-        self._check_uid_format(study_instance_uid)
+        self._assert_uid_format(study_instance_uid)
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for retrieval of series.'
             )
-        self._check_uid_format(series_instance_uid)
+        self._assert_uid_format(series_instance_uid)
         url = self._get_series_url(
             'wado', study_instance_uid, series_instance_uid
         )
-        return self._http_get_multipart_application_dicom(url)
+        if media_types is None:
+            return self._http_get_multipart_application_dicom(url)
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type == 'application/dicom':
+            return self._http_get_multipart_application_dicom(
+                url, media_types
+            )
+        elif common_media_type == 'application/octet-stream':
+            return self._http_get_multipart_application_octet_stream(
+                url, media_types
+            )
+        elif common_media_type.startswith('image'):
+            return self._http_get_multipart_image(
+                url, media_types
+            )
+        elif common_media_type.startswith('video'):
+            return self._http_get_multipart_video(
+                url, media_types
+            )
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for retrieval '
+                'of series.'.format(common_media_type)
+            )
 
     def retrieve_series_metadata(self, study_instance_uid, series_instance_uid):
         '''Retrieves metadata for instances of a given DICOM series.
@@ -911,23 +1576,82 @@ class DICOMwebClient(object):
                 'Study Instance UID is required for retrieval of '
                 'series metadata.'
             )
-        self._check_uid_format(study_instance_uid)
+        self._assert_uid_format(study_instance_uid)
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for retrieval of '
                 'series metadata.'
             )
-        self._check_uid_format(series_instance_uid)
+        self._assert_uid_format(series_instance_uid)
         url = self._get_series_url(
             'wado', study_instance_uid, series_instance_uid
         )
         url += '/metadata'
         return self._http_get_application_json(url)
 
+    def retrieve_series_rendered(self, study_instance_uid,
+                                 series_instance_uid,
+                                 media_types=None,
+                                 params=None):
+        '''Retrieves an individual, server-side rendered DICOM series.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        media_types: Tuple[Union[str, Tuple[str]]], optional
+            acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
+            ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
+            ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
+        params: Dict[str], optional
+            additional parameters relevant for given `media_type`,
+            e.g., ``{"quality": 95}`` for ``"image/jpeg"``
+
+        Returns
+        -------
+        bytes
+            rendered series
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of '
+                'rendered series.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of '
+                'rendered series.'
+            )
+        url = self._get_series_url(
+            'wado', study_instance_uid, series_instance_uid
+        )
+        url += '/rendered'
+        if media_types is None:
+            response = self._http_get(url, params)
+            return response.content
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type.startswith('image'):
+            return self._http_get_image(url, media_types, params)
+        elif common_media_type.startswith('video'):
+            return self._http_get_video(url, media_types, params)
+        elif common_media_type.startswith('text'):
+            return self._http_get_text(url, media_types, params)
+        elif common_media_type == 'application/pdf':
+            return self._http_get_application_pdf(url, params)
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for '
+                'retrieval of rendered series.'.format(common_media_type)
+            )
+
     def search_for_instances(self, study_instance_uid=None,
                              series_instance_uid=None, fuzzymatching=None,
                              limit=None, offset=None, fields=None,
-                             search_filters={}):
+                             search_filters=None):
         '''Searches for DICOM instances.
 
         Parameters
@@ -964,14 +1688,14 @@ class DICOMwebClient(object):
 
         ''' # noqa
         if study_instance_uid is not None:
-            self._check_uid_format(study_instance_uid)
+            self._assert_uid_format(study_instance_uid)
         url = self._get_instances_url(
             'qido', study_instance_uid, series_instance_uid
         )
-        params = self._parse_query_parameters(
-            fuzzymatching, limit, offset, fields, **search_filters
+        params = self._parse_qido_query_parameters(
+            fuzzymatching, limit, offset, fields, search_filters
         )
-        instances = self._http_get_application_json(url, **params)
+        instances = self._http_get_application_json(url, params)
         if instances is None:
             return []
         if not(isinstance(instances, list)):
@@ -979,7 +1703,7 @@ class DICOMwebClient(object):
         return instances
 
     def retrieve_instance(self, study_instance_uid, series_instance_uid,
-                          sop_instance_uid):
+                          sop_instance_uid, media_types=None):
         '''Retrieves an individual DICOM instance.
 
         Parameters
@@ -990,6 +1714,9 @@ class DICOMwebClient(object):
             unique series identifier
         sop_instance_uid: str
             unique instance identifier
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
 
         Returns
         -------
@@ -1002,21 +1729,52 @@ class DICOMwebClient(object):
             raise ValueError(
                 'Study Instance UID is required for retrieval of instance.'
             )
-        self._check_uid_format(study_instance_uid)
+        self._assert_uid_format(study_instance_uid)
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for retrieval of instance.'
             )
-        self._check_uid_format(series_instance_uid)
+        self._assert_uid_format(series_instance_uid)
         if sop_instance_uid is None:
             raise ValueError(
                 'SOP Instance UID is required for retrieval of instance.'
             )
-        self._check_uid_format(sop_instance_uid)
+        self._assert_uid_format(sop_instance_uid)
         url = self._get_instances_url(
             'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
-        return self._http_get_multipart_application_dicom(url)[0]
+        if media_types is None:
+            return self._http_get_multipart_application_dicom(url)[0]
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type == 'application/dicom':
+            return self._http_get_multipart_application_dicom(
+                url, media_types
+            )[0]
+        elif common_media_type == 'application/octet-stream':
+            return self._http_get_multipart_application_octet_stream(
+                url, media_types
+            )[0]
+        elif common_media_type.startswith('image'):
+            frames = self._http_get_multipart_image(
+                url, media_types
+            )
+            if len(frames) > 1:
+                return frames
+            else:
+                return frames[0]
+        elif common_media_type.startswith('video'):
+            frames = self._http_get_multipart_video(
+                url, media_types
+            )
+            if len(frames) > 1:
+                return frames
+            else:
+                return frames[0]
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for retrieval '
+                'of instance.'.format(common_media_type)
+            )
 
     def store_instances(self, datasets, study_instance_uid=None):
         '''Stores DICOM instances.
@@ -1078,12 +1836,76 @@ class DICOMwebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
-    def retrieve_instance_frames(self, study_instance_uid, series_instance_uid,
-                                 sop_instance_uid, frame_numbers,
-                                 image_format=None,
-                                 image_params={'quality': 95}):
-        '''Retrieves uncompressed frame items of a pixel data element of an
-        individual DICOM image instance.
+    def retrieve_instance_rendered(self, study_instance_uid,
+                                   series_instance_uid,
+                                   sop_instance_uid,
+                                   media_types=None,
+                                   params=None):
+        '''Retrieves an individual, server-side rendered DICOM instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        sop_instance_uid: str
+            unique instance identifier
+        media_types: Tuple[union[str, Tuple[str]]], optional
+            acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
+            ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
+            ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
+        params: Dict[str], optional
+            additional parameters relevant for given `media_type`,
+            e.g., ``{"quality": 95}`` for ``"image/jpeg"``
+
+        Returns
+        -------
+        bytes
+            rendered instance
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of '
+                'rendered instance.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of '
+                'rendered instance.'
+            )
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for retrieval of '
+                'rendered instance.'
+            )
+        url = self._get_instances_url(
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+        )
+        url += '/rendered'
+        if media_types is None:
+            response = self._http_get(url, params)
+            return response.content
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type.startswith('image'):
+            return self._http_get_image(url, media_types, params)
+        elif common_media_type.startswith('video'):
+            return self._http_get_video(url, media_types, params)
+        elif common_media_type.startswith('text'):
+            return self._http_get_text(url, media_types, params)
+        elif common_media_type == 'application/pdf':
+            return self._http_get_application_pdf(url, params)
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for '
+                'retrieval of rendered instance.'.format(common_media_type)
+            )
+
+    def retrieve_frames(self, study_instance_uid, series_instance_uid,
+                        sop_instance_uid, frame_numbers, media_types=None):
+        '''Retrieves one or more frames of an individual DICOM instance.
 
         Parameters
         ----------
@@ -1095,12 +1917,9 @@ class DICOMwebClient(object):
             unique instance identifier
         frame_numbers: List[int]
             one-based positional indices of the frames within the instance
-        image_format: str, optional
-            name of the image format; if ``None`` pixel data will be requested
-            uncompressed as ``"application/octet-stream"``
-            (default:``None``, options: ``{"jpeg", "x-jls", "jp2"}``)
-        image_params: Dict[str], optional
-            additional parameters relevant for `image_format`
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
 
         Returns
         -------
@@ -1125,15 +1944,89 @@ class DICOMwebClient(object):
         )
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += '/frames/{frame_list}'.format(frame_list=frame_list)
-        if image_format is None:
-            pixeldata = self._http_get_multipart_application_octet_stream(url)
-            # To interpret the raw pixel data, one would need additional
-            # metadata, such as the dimensions of the image and its
-            # photometric interpretation.
-            return pixeldata
+        if media_types is None:
+            return self._http_get_multipart_application_octet_stream(url)
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type == 'application/octet-stream':
+            return self._http_get_multipart_application_octet_stream(
+                url, media_types
+            )
+        elif common_media_type.startswith('image'):
+            return self._http_get_multipart_image(url, media_types)
+        elif common_media_type.startswith('video'):
+            return self._http_get_multipart_video(url, media_types)
         else:
-            return self._http_get_multipart_image(
-                url, image_format, **image_params
+            raise ValueError(
+                'Media type "{}" is not supported for '
+                'retrieval of frames.'.format(common_media_type)
+            )
+
+    def retrieve_frames_rendered(self, study_instance_uid,
+                                 series_instance_uid, sop_instance_uid,
+                                 frame_number, media_types=None, params=None):
+        '''Retrieves one or more server-side rendered frames of an
+        individual DICOM instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        sop_instance_uid: str
+            unique instance identifier
+        frame_number: int
+            one-based positional index of the frame within the instance
+        media_types: Tuple[Union[str, Tuple[str]]], optional
+            acceptable media type (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            ``"image/gif"``, ``"image/png"``)
+        params: Dict[str], optional
+            additional parameters relevant for given `media_type`,
+            e.g., ``{"quality": 95}`` for ``"image/jpeg"`` media type
+
+        Returns
+        -------
+        bytes
+            rendered frames
+
+        Note
+        ----
+        Not all media types are compatible with all SOP classes.
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of '
+                'rendered frame.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of '
+                'rendered frame.'
+            )
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for retrieval of rendered frame.'
+            )
+        url = self._get_instances_url(
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+        )
+        url += '/frames/{frame_number}/rendered'.format(
+            frame_number=frame_number
+        )
+        if media_types is None:
+            # Try and hope for the best...
+            response = self._http_get(url, params)
+            return response.content
+        common_media_type = self._get_common_media_type(media_types)
+        if common_media_type.startswith('image'):
+            return self._http_get_image(url, media_types, params)
+        elif common_media_type.startswith('video'):
+            return self._http_get_video(url, media_types, params)
+        else:
+            raise ValueError(
+                'Media type "{}" is not supported for '
+                'retrieval of rendered frame.'.format(common_media_type)
             )
 
     @staticmethod

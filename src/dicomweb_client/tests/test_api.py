@@ -242,7 +242,7 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
-    result = client.retrieve_instance_metadata(
+    client.retrieve_instance_metadata(
         study_instance_uid, series_instance_uid, sop_instance_uid
     )
     request = httpserver.requests[0]
@@ -259,8 +259,10 @@ def test_retrieve_instance(httpserver, client, cache_dir):
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type':
-            'multipart/related; type="application/dicom"; boundary="boundary"',
+        'content-type': (
+            'multipart/related; '
+            'type="application/dicom"'
+        ),
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -282,13 +284,95 @@ def test_retrieve_instance(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
 
 
-def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
+def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'file.dcm')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="application/dicom"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    client.retrieve_instance(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        media_types=(
+            ('application/dicom', '*', ),
+        )
+    )
+    request = httpserver.requests[0]
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+
+
+def test_retrieve_instance_default_transfer_syntax(httpserver, client,
+                                                   cache_dir):
+    cache_filename = os.path.join(cache_dir, 'file.dcm')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="application/dicom"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    client.retrieve_instance(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        media_types=(
+            ('application/dicom', '1.2.840.10008.1.2.1', ),
+        )
+    )
+    request = httpserver.requests[0]
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+
+
+def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'file.dcm')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="application/dicom"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    with pytest.raises(ValueError):
+        client.retrieve_instance(
+            study_instance_uid, series_instance_uid, sop_instance_uid,
+            media_types=(
+                ('application/dicom', '1.2.3', ),
+            )
+        )
+
+
+def test_retrieve_instance_wrong_mime_type(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'file.dcm')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="image/dicom"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    with pytest.raises(ValueError):
+        client.retrieve_instance(
+            study_instance_uid, series_instance_uid, sop_instance_uid,
+            media_types=(
+                ('image/dicom', '1.2.840.10008.1.2.1', ),
+            )
+        )
+
+
+def test_retrieve_frames_jpeg(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type':
-            'multipart/related; type="image/jpeg"; boundary="boundary"'
+        'content-type': 'multipart/related; type="image/jpeg"',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -296,9 +380,9 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
-    result = client.retrieve_instance_frames(
+    result = client.retrieve_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, image_format='jpeg'
+        frame_numbers, media_types=('image/jpeg', )
     )
     assert result == [content]
     request = httpserver.requests[0]
@@ -310,13 +394,35 @@ def test_retrieve_instance_pixeldata_jpeg(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
 
 
-def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
+def test_retrieve_frames_jpeg_default_transfer_syntax(httpserver, client,
+                                                      cache_dir):
+    cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="image/jpeg"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    frame_numbers = [114]
+    client.retrieve_frames(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        frame_numbers, media_types=(
+            ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
+        )
+    )
+    request = httpserver.requests[0]
+    assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
+
+
+def test_retrieve_frames_jp2(httpserver, client, cache_dir):
     cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jp2')
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type':
-            'multipart/related; type="image/jp2"; boundary="boundary"'
+        'content-type': 'multipart/related; type="image/jp2"',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -324,9 +430,9 @@ def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
-    result = client.retrieve_instance_frames(
+    result = client.retrieve_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, image_format='jp2'
+        frame_numbers, media_types=('image/jp2', )
     )
     assert result == [content]
     request = httpserver.requests[0]
@@ -336,6 +442,76 @@ def test_retrieve_instance_pixeldata_jp2(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
+
+
+def test_retrieve_frames_rendered_jpeg(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.jpg')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'image/jpeg',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    frame_numbers = [1]
+    result = client.retrieve_frames_rendered(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        frame_numbers, media_types=('image/jpeg', )
+    )
+    assert result == content
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
+        '/{sop_instance_uid}/frames/{frame_numbers}/rendered'.format(
+            **locals()
+        )
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:11] == headers['content-type'][:11]
+
+
+def test_retrieve_frames_rendered_jpeg_transfer_syntax(httpserver, client):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    frame_numbers = [1]
+    with pytest.raises(TypeError):
+        client.retrieve_frames_rendered(
+            study_instance_uid, series_instance_uid, sop_instance_uid,
+            frame_numbers, media_types=(
+                ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
+            )
+        )
+
+
+def test_retrieve_frames_rendered_png(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'retrieve_instance_pixeldata.png')
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'image/png',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    frame_numbers = [1]
+    result = client.retrieve_frames_rendered(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        frame_numbers, media_types=('image/png', )
+    )
+    assert result == content
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
+        '/{sop_instance_uid}/frames/{frame_numbers}/rendered'.format(
+            **locals()
+        )
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:10] == headers['content-type'][:10]
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):
