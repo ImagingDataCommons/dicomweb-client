@@ -8,7 +8,7 @@ The client can be used with any DICOMweb server, such as `dcm4che <http://www.dc
 .. _api:
 
 Application Programming Interface (API)
-----------------------------------
+---------------------------------------
 
 To interact with a publicly accessible server, you only need to provide the ``url`` for the server address.
 
@@ -59,6 +59,23 @@ To interact with server requiring certificate-based authentication, you can prov
         ca_bundle="/path/to/ca.crt",
         cert="/path/to/cert.pem"
     )
+
+
+.. _storeinstances:
+
+STOW-RS StoreInstances
+++++++++++++++++++++++
+
+Store a single dataset obtained from a PS3.10 file:
+
+.. code-block:: python
+
+    from dicomweb_client.api import DICOMwebClient
+    import pydicom
+
+    filename = "/path/to/file.dcm"
+    dataset = pydicom.dcmread(filename)
+    client.store_instances(datasets=[dataset])
 
 
 .. _searchforstudies:
