@@ -192,7 +192,7 @@ class DICOMwebClient(object):
     def __init__(self, url, username=None, password=None, ca_bundle=None,
                  cert=None, qido_url_prefix=None, wado_url_prefix=None,
                  stow_url_prefix=None, proxies=None, headers=None,
-                 callback=None):
+                 callback=None, auth=None):
         '''
         Parameters
         ----------
@@ -223,6 +223,8 @@ class DICOMwebClient(object):
         callback: Callable, optional
             callback function to manipulate responses generated from requests
             (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
+        auth: requests.auth.AuthBase, optional
+            a subclassed instance of `requests.auth.AuthBase` to be used for authentication with the DICOMweb server
 
         '''  # noqa
         logger.debug('initialize HTTP session')
@@ -249,7 +251,7 @@ class DICOMwebClient(object):
                 logger.debug('use certificate file: {}'.format(cert))
                 self._session.cert = cert
 
-        # This regular expressin extracts the scheme and host name from the URL
+        # This regular expression extracts the scheme and host name from the URL
         # and optionally the port number and prefix:
         # <scheme>://<host>(:<port>)(/<prefix>)
         # For example: "https://mydomain.com:443/wado-rs", where
@@ -289,7 +291,10 @@ class DICOMwebClient(object):
                 raise ValueError(
                     'No password provided for user "{0}".'.format(username)
                 )
+            logger.warning('`username` and `password` fields are deprecated. Use `auth` instead.')
             self._session.auth = (username, password)
+        elif auth is not None:
+            self._session.auth = auth
 
     def _parse_qido_query_parameters(self, fuzzymatching, limit, offset,
                                      fields, search_filters):
