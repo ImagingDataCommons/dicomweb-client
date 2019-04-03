@@ -286,15 +286,19 @@ class DICOMwebClient(object):
         self._session.proxies = proxies
         if callback is not None:
             self._session.hooks = {'response': callback}
+        if auth is not None:
+            self._session.auth = auth
+            if username or password:
+                logger.warning(
+                    'Auth object specified. '
+                    'Username and password ignored.'
+                )
         if username is not None:
             if not password:
                 raise ValueError(
                     'No password provided for user "{0}".'.format(username)
                 )
-            logger.warning('`username` and `password` fields are deprecated. Use `auth` instead.')
             self._session.auth = (username, password)
-        elif auth is not None:
-            self._session.auth = auth
 
     def _parse_qido_query_parameters(self, fuzzymatching, limit, offset,
                                      fields, search_filters):
