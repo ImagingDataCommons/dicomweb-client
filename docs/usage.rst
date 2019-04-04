@@ -35,7 +35,19 @@ You can specify these prefixes using ``qido_url_prefix``, ``wado_url_prefix``, a
     )
 
 
-To interact with server requiring authentication, you can provide your credentials using the ``username`` and ``password`` arguments.
+To interact with servers requiring authentication, ``DICOMwebClient`` accepts arbitrary authentication handlers derived from ``requests.auth.AuthBase`` (see `here <http://docs.python-requests.org/en/master/user/authentication/>`_ for details).
+
+.. code-block:: python
+
+    from requests.auth import HTTPBasicAuth
+    from dicomweb_client.api import DICOMwebClient
+
+    client = DICOMwebClient(
+        url="https://mydicomwebserver.com",
+        auth=HTTPBasicAuth('myusername', 'mypassword')
+    )
+
+To simplify usage for ``HTTPBasicAuth``, you may also directly provide a username and password using the corresponding arguments.
 
 .. code-block:: python
 
