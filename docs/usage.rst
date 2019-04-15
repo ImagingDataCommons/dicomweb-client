@@ -473,11 +473,11 @@ Loading JSON Data To ``pydicom``
 ++++++++++++++++++++++++++++++++
 
 Load metadata from JSON format into a ``pydicom.dataset.Dataset`` object.
-A common use for this is translating metadata received from a ``RetrieveMetadata`` request:
+A common use for this is translating metadata received from a ``RetrieveMetadata`` or a ``SearchFor``-style request:
 
 .. code-block:: python
 
-    from dicomweb_client import load_json_dataset
+    from dicomweb_client.api import load_json_dataset
 
     metadata = client.retrieve_study_metadata('1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639')
     metadata_datasets = [load_json_dataset(ds) for ds in metadata]
