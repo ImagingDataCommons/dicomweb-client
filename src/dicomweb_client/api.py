@@ -192,7 +192,7 @@ class DICOMwebClient(object):
     def __init__(self, url, username=None, password=None, ca_bundle=None,
                  cert=None, qido_url_prefix=None, wado_url_prefix=None,
                  stow_url_prefix=None, proxies=None, headers=None,
-                 callback=None, auth=None):
+                 callback=None, auth=None, gcp_service_account_key_file=None):
         '''
         Parameters
         ----------
@@ -225,10 +225,17 @@ class DICOMwebClient(object):
             (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
         auth: requests.auth.AuthBase, optional
             a subclassed instance of `requests.auth.AuthBase` to be used for authentication with the DICOMweb server
+        gcp_service_account_key_file: str, optional
+            path to a Google Cloud Platform (GCP) service account key file in
+            JSON format
+            (see `Google Cloud Healthcare API authentication <https://cloud.google.com/healthcare/docs/how-tos/authentication>`)
 
         '''  # noqa
         logger.debug('initialize HTTP session')
-        self._session = requests.Session()
+        if gcp_service_account_key_file is not None:
+            self._session = self._get_gcp_session(gcp_service_account_key_file)
+        else:
+            self._session = requests.Session()
         self.base_url = url
         self.qido_url_prefix = qido_url_prefix
         self.wado_url_prefix = wado_url_prefix
@@ -286,19 +293,41 @@ class DICOMwebClient(object):
         self._session.proxies = proxies
         if callback is not None:
             self._session.hooks = {'response': callback}
-        if auth is not None:
-            self._session.auth = auth
-            if username or password:
-                logger.warning(
-                    'Auth object specified. '
-                    'Username and password ignored.'
+        if gcp_service_account_key_file is not None:
+            logger.warning(
+                'GCP service account key file specified. '
+                'Other authentication mechanisms ignored.'
+            )
+        else:
+            if auth is not None:
+                self._session.auth = auth
+                if username or password:
+                    logger.warning(
+                        'Auth object specified. '
+                        'Username and password ignored.'
+                    )
+            if username is not None:
+                if not password:
+                    raise ValueError(
+                        'No password provided for user "{0}".'.format(username)
+                    )
+                self._session.auth = (username, password)
+
+    def _get_gcp_session(self, service_account_key_file):
+        from google.auth.transport import requests
+        from google.oauth2 import service_account
+        if not os.path.exists(service_account_key_file):
+            raise OSError(
+                'Google service account key file does not exist: "{}"'.format(
+                    service_account_key_file
                 )
-        if username is not None:
-            if not password:
-                raise ValueError(
-                    'No password provided for user "{0}".'.format(username)
-                )
-            self._session.auth = (username, password)
+            )
+        credentials = service_account.Credentials.from_service_account_file(
+            service_account_file
+        )
+        scopes = ['https://www.googleapis.com/auth/cloud-platform', ]
+        scoped_credentials = credentials.with_scopes(scopes)
+        return requests.AuthorizedSession(scoped_credentials)
 
     def _parse_qido_query_parameters(self, fuzzymatching, limit, offset,
                                      fields, search_filters):
@@ -1843,7 +1872,7 @@ class DICOMwebClient(object):
             'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
         url += '/metadata'
-        return self._http_get_application_json(url)
+        return self._http_get_application_json(url)[0]
 
     def retrieve_instance_rendered(self, study_instance_uid,
                                    series_instance_uid,

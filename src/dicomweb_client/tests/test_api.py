@@ -221,7 +221,7 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
     result = client.retrieve_instance_metadata(
         study_instance_uid, series_instance_uid, sop_instance_uid
     )
-    assert result == parsed_content
+    assert result == parsed_content[0]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
