@@ -615,7 +615,7 @@ class DICOMwebClient(object):
             content of HTTP message body in DICOM JSON format
 
         '''
-        content_type = 'application/dicom+json'
+        content_type = 'application/dicom+json, application/json'
         resp = self._http_get(url, params, {'Accept': content_type})
         if resp.content:
             return resp.json()
