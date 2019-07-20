@@ -84,7 +84,8 @@ def test_search_for_studies(httpserver, client, cache_dir):
     assert client.search_for_studies() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/studies'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_search_for_studies_qido_prefix(httpserver, client, cache_dir):
@@ -115,7 +116,8 @@ def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
         request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/studies'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_search_for_series(httpserver, client, cache_dir):
@@ -128,7 +130,8 @@ def test_search_for_series(httpserver, client, cache_dir):
     assert client.search_for_series() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/series'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_search_for_series_wrong_uid_type(httpserver, client, cache_dir):
@@ -158,7 +161,8 @@ def test_search_for_series_limit_offset(httpserver, client, cache_dir):
         request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/studies'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_search_for_instances(httpserver, client, cache_dir):
@@ -171,7 +175,8 @@ def test_search_for_instances(httpserver, client, cache_dir):
     assert client.search_for_instances() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/instances'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
@@ -188,7 +193,8 @@ def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
         request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/instances'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_search_for_instances_includefields(httpserver, client, cache_dir):
@@ -205,7 +211,8 @@ def test_search_for_instances_includefields(httpserver, client, cache_dir):
         request.query_string.decode() == query_string_opt_2
     )
     assert request.path == '/instances'
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_retrieve_instance_metadata(httpserver, client, cache_dir):
@@ -228,7 +235,8 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
         '/{sop_instance_uid}/metadata'.format(**locals())
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0] == 'application/dicom+json'
+    assert request.accept_mimetypes[0][0] == 'application/json'
+    assert request.accept_mimetypes[1][0] == 'application/dicom+json'
 
 
 def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
