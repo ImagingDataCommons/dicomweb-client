@@ -95,7 +95,7 @@ Store a single dataset obtained from a PS3.10 file:
 QIDO-RS SeachForStudies
 +++++++++++++++++++++++
 
-Search for all studies:
+Search for all studies (up to server-defined maximum set per call - see below to iteratively get all studies):
 
 .. code-block:: python
 
