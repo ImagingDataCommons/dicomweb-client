@@ -399,7 +399,7 @@ class DICOMwebClient(object):
         ----------
         service: str
             name of the RESTful service
-            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
 
         Returns
         -------
@@ -430,7 +430,7 @@ class DICOMwebClient(object):
         ----------
         service: str
             name of the RESTful service
-            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
         study_instance_uid: str, optional
             unique study identifier
 
@@ -457,7 +457,7 @@ class DICOMwebClient(object):
         ----------
         service: str
             name of the RESTful service
-            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
         study_instance_uid: str, optional
             unique study identifier
         series_instance_uid: str, optional
@@ -494,7 +494,7 @@ class DICOMwebClient(object):
         ----------
         service: str
             name of the RESTful service
-            (choices: ``"quido"``, ``"wado"``, or ``"stow"``)
+            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
         study_instance_uid: str, optional
             unique study identifier
         series_instance_uid: str, optional
