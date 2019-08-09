@@ -671,15 +671,16 @@ class DICOMwebClient(object):
             HTTP request message body
 
         '''
-        multipart, content_type, boundary = content_type.split(';')
-        boundary = boundary[boundary.find('=') + 2:-1]
-        content_type = content_type[content_type.find('=') + 2:-1]
+        multipart, content_type_field, boundary_field = content_type.split(';')
+        boundary = boundary_field.split('=')[1].strip('"')
+        content_type = content_type_field.split('=')[1].strip('"')
         body = b''
         for payload in data:
             body += (
                 '\r\n--{boundary}'
                 '\r\nContent-Type: {content_type}\r\n\r\n'.format(
-                    boundary=boundary, content_type=content_type
+                    boundary=boundary,
+                    content_type=content_type
                 ).encode('utf-8')
             )
             body += payload
@@ -1239,7 +1240,7 @@ class DICOMwebClient(object):
         content_type = (
             'multipart/related; '
             'type="application/dicom"; '
-            'boundary="boundary"'
+            'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
         self._http_post(url, content, headers={'Content-Type': content_type})
