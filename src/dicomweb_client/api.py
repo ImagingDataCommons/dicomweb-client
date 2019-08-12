@@ -672,8 +672,8 @@ class DICOMwebClient(object):
 
         '''
         multipart, content_type_field, boundary_field = content_type.split(';')
-        boundary = boundary_field.split('=')[1].strip('"')
         content_type = content_type_field.split('=')[1].strip('"')
+        boundary = boundary_field.split('=')[1]
         body = b''
         for payload in data:
             body += (
