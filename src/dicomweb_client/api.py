@@ -342,7 +342,7 @@ class DICOMwebClient(object):
             maximum number of results that should be returned
         offset: int, optional
             number of results that should be skipped
-        fields: List[str], optional
+        fields: Sequence[str], optional
             names of fields (attributes) that should be included in results
         search_filters: Dict[str, Any], optional
             search filter criteria as key-value pairs, where *key* is a keyword
@@ -600,7 +600,7 @@ class DICOMwebClient(object):
 
     def _http_get_application_json(self, url, params=None):
         '''Performs a HTTP GET request that accepts "applicaton/dicom+json"
-        media type.
+        or "application/json" media type.
 
         Parameters
         ----------
@@ -632,7 +632,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[Union[str, bytes]]
+        Sequence[Union[str, bytes]]
             data
 
         '''
@@ -660,7 +660,7 @@ class DICOMwebClient(object):
 
         Parameters
         ----------
-        data: List[Union[str, bytes]]
+        data: Sequence[Union[str, bytes]]
             data
         content_type: str
             content type of the multipart HTTP request message
@@ -1233,7 +1233,7 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        data: List[bytes]
+        data: Sequence[bytes]
             DICOM data sets that should be posted
 
         '''
@@ -1257,7 +1257,7 @@ class DICOMwebClient(object):
             maximum number of results that should be returned
         offset: int, optional
             number of results that should be skipped
-        fields: List[str], optional
+        fields: Sequence[str], optional
             names of fields (attributes) that should be included in results
         search_filters: dict, optional
             search filter criteria as key-value pairs, where *key* is a keyword
@@ -1820,7 +1820,7 @@ class DICOMwebClient(object):
 
         Parameters
         ----------
-        datasets: List[pydicom.dataset.Dataset]
+        datasets: Sequence[pydicom.dataset.Dataset]
             instances that should be stored
         study_instance_uid: str, optional
             unique study identifier
@@ -1955,7 +1955,7 @@ class DICOMwebClient(object):
             unique series identifier
         sop_instance_uid: str
             unique instance identifier
-        frame_numbers: List[int]
+        frame_numbers: Sequence[int]
             one-based positional indices of the frames within the instance
         media_types: Tuple[Union[str, Tuple[str, str]]], optional
             acceptable media types and optionally the UIDs of the
