@@ -5,9 +5,15 @@ import sys
 import logging
 import email
 import six
+import warnings
 from io import BytesIO
 from collections import OrderedDict
+
 if sys.version_info.major < 3:
+    warnings.warn(
+        'Python 2 support will be discontinued in dicomweb-client version 1.0',
+        DeprecationWarning
+    )
     from urllib import quote_plus
     from urlparse import urlparse
 else:
