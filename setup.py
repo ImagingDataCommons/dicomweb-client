@@ -53,7 +53,7 @@ setuptools.setup(
         ]
     },
     tests_require=[
-        'pytest>=5.0',
+        'pytest>=4.6',
         'pytest-localserver>=0.5',
         'pytest-flake8>=1.0',
         'tox>=3.13',
