@@ -47,13 +47,16 @@ setuptools.setup(
             'sphinx-pyreverse>=0.0.12',
             'sphinxcontrib-autoprogram>=0.1.4',
             'sphinx_rtd_theme>=0.2.4'
+        ],
+        'gcp': [
+            'google>=2.0',
         ]
     },
     tests_require=[
-        'pytest>=3.3',
-        'pytest-localserver>=0.4',
-        'pytest-flake8>=0.9',
-        'tox>=2.9'
+        'pytest>=5.0',
+        'pytest-localserver>=0.5',
+        'pytest-flake8>=1.0',
+        'tox>=3.13',
     ],
     install_requires=[
         'numpy>=1.13',
