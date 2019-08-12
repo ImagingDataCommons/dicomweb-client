@@ -3,7 +3,7 @@ import sys
 import logging
 
 
-def _map_logging_verbosity(verbosity):
+def _map_logging_verbosity(verbosity: int) -> int:
     '''Maps logging verbosity to logging level.
 
     Parameters
@@ -24,7 +24,7 @@ def _map_logging_verbosity(verbosity):
         return levels[-1]
 
 
-def configure_logging(verbosity):
+def configure_logging(verbosity: int) -> logging.Logger:
     '''Configures the root logger with a "stderr" stream handler that directs
     logging messages to standard error (to allow capturing program standard
     output, e.g. in order to redirect it to a file).
