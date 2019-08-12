@@ -323,7 +323,7 @@ class DICOMwebClient(object):
                 )
             )
         credentials = service_account.Credentials.from_service_account_file(
-            service_account_file
+            service_account_key_file
         )
         scopes = ['https://www.googleapis.com/auth/cloud-platform', ]
         scoped_credentials = credentials.with_scopes(scopes)
