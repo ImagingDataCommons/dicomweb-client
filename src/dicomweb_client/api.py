@@ -684,7 +684,9 @@ class DICOMwebClient(object):
             content of HTTP message body in DICOM JSON format
 
         '''
-        content_type = 'application/dicom+json, application/json'
+        # FIXME: temporary workaround for Orthanc version 1.5.7
+        # content_type = 'application/dicom+json, application/json'
+        content_type = 'application/dicom+json'
         response = self._http_get(url, params, {'Accept': content_type})
         if response.content:
             return response.json()
