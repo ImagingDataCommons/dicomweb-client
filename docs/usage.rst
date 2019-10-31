@@ -60,7 +60,20 @@ To simplify usage for ``HTTPBasicAuth``, you may also directly provide a usernam
     )
 
 
-To interact with server requiring certificate-based authentication, you can provide the CA bundle and client certificate using the ``ca_bundle`` and ``cert`` arguments, respectively.
+To interact with servers supporting token-based authorization, you can provide the access token using the ``headers`` argument (the header will be included in every client request message).
+
+.. code-block:: python
+
+    from dicomweb_client.api import DICOMwebClient
+
+    access_token = "mytoken"
+    client = DICOMwebClient(
+        url="https://mydicomwebserver.com",
+        headers={"Authorization": "Bearer {}".format(access_token)}
+    )
+
+
+To interact with servers requiring certificate-based authentication, you can provide the CA bundle and client certificate using the ``ca_bundle`` and ``cert`` arguments, respectively.
 
 .. code-block:: python
 
