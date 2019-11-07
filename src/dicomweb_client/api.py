@@ -347,7 +347,7 @@ class DICOMwebClient(object):
             service_account_key_file: str
         ) -> requests.sessions.Session:
         try:
-            from google.auth.transport import google_requests
+            from google.auth.transport import requests as google_requests
             from google.oauth2 import service_account
         except ImportError:
             raise ImportError(
