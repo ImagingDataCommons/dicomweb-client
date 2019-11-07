@@ -161,7 +161,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'DICOMwebClient', 'DICOMweb Client Documentation',
-     author, 'DICOMwebClient', 'One line description of project.',
+     author, 'DICOMwebClient', 'Client for DICOMweb services.',
      'Miscellaneous'),
 ]
 
