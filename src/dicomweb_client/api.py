@@ -217,7 +217,8 @@ class DICOMwebClient(object):
         headers: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
         callback: Optional[Callable] = None,
         auth: Optional[requests.auth.AuthBase] = None,
-        gcp_service_account_key_file: Optional[str] = None
+        gcp_service_account_key_file: Optional[str] = None,
+        chunk_size: Optional[int] = None
     ) -> None:
         '''
         Parameters
@@ -257,6 +258,10 @@ class DICOMwebClient(object):
             JSON format to be used for authentication with Google Cloud
             Healthcare services
             (see `Google Cloud Healthcare API authentication <https://cloud.google.com/healthcare/docs/how-tos/authentication>`)
+        chunk_size: int, optional
+            maximum number of bytes per data chunk using chunked transfer
+            encoding (helpful for storing and retrieving large objects or large
+            collections of objects such as studies or series)
 
         '''  # noqa
         logger.debug('initialize HTTP session')
@@ -342,6 +347,7 @@ class DICOMwebClient(object):
                         'No password provided for user "{0}".'.format(username)
                     )
                 self._session.auth = (username, password)
+        self._chunk_size = chunk_size
 
     def _get_gcp_session(
             self,
@@ -649,7 +655,9 @@ class DICOMwebClient(object):
             params = {}
         url += self._build_query_string(params)
         logger.debug('GET: {} {}'.format(url, headers))
-        response = self._session.get(url=url, headers=headers)
+        # Setting stream allows for retrieval of data in chunks using
+        # the iter_content() method
+        response = self._session.get(url=url, headers=headers, stream=True)
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
@@ -711,10 +719,11 @@ class DICOMwebClient(object):
             message parts
 
         '''
-        header = ''
-        for key, value in headers.items():
-            header += '{}: {}\n'.format(key, value)
-        message = email.message_from_bytes(header.encode() + body)
+        header = ''.join([
+            '{}: {}\n'.format(key, value)
+            for key, value in headers.items()
+        ]).encode()
+        message = email.message_from_bytes(header + body)
         elements = []
         for part in message.walk():
             if part.get_content_maintype() == 'multipart':
@@ -998,8 +1007,17 @@ class DICOMwebClient(object):
             ),
         }
         response = self._http_get(url, params, headers)
+        with response as r:
+            if self._chunk_size is not None:
+                logger.info('retrieve data in chunks')
+                content = b''.join([
+                    chunk
+                    for chunk in r.iter_content(chunk_size=self._chunk_size)
+                ])
+            else:
+                content = r.content
         datasets = self._decode_multipart_message(
-            response.content,
+            content,
             response.headers
         )
         return [pydicom.dcmread(BytesIO(ds)) for ds in datasets]
@@ -1358,7 +1376,26 @@ class DICOMwebClient(object):
 
         '''
         logger.debug('POST: {} {}'.format(url, headers))
-        response = self._session.post(url=url, data=data, headers=headers)
+
+        def serve_data_chunks(data):
+            for i, offset in enumerate(range(0, len(data), self._chunk_size)):
+                logger.debug('send data chunk #{}'.format(i+1))
+                yield data[offset:offset+self._chunk_size]
+
+        if self._chunk_size is not None and len(data) > self._chunk_size:
+            logger.info('store data in chunks using chunked transfer encoding')
+            chunked_headers = dict(headers)
+            chunked_headers['Transfer-Encoding'] = 'chunked'
+            chunked_headers['Cache-Control'] = 'no-cache'
+            chunked_headers['Connection'] = 'Keep-Alive'
+            data_chunks = serve_data_chunks(data)
+            response = self._session.post(
+                url=url,
+                data=data_chunks,
+                headers=headers
+            )
+        else:
+            response = self._session.post(url=url, data=data, headers=headers)
         logger.debug('request status code: {}'.format(response.status_code))
         try:
             response.raise_for_status()
@@ -2050,11 +2087,11 @@ class DICOMwebClient(object):
         '''
         url = self._get_studies_url('stow', study_instance_uid)
         encoded_datasets = list()
-        # TODO: can we do this more memory efficient? Concatenations?
         for ds in datasets:
             with BytesIO() as b:
                 pydicom.dcmwrite(b, ds)
-                encoded_datasets.append(b.getvalue())
+                encoded_ds = b.getvalue()
+            encoded_datasets.append(encoded_ds)
         return self._http_post_multipart_application_dicom(
             url,
             encoded_datasets
