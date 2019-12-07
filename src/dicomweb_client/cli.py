@@ -703,10 +703,7 @@ def _store_instances(args):
         ca_bundle=args.ca_bundle,
         cert=args.cert
     )
-    datasets = list()
-    for f in args.files:
-        ds = pydicom.dcmread(f)
-        datasets.append(ds)
+    datasets = [pydicom.dcmread(f) for f in args.files]
     client.store_instances(datasets)
 
 
