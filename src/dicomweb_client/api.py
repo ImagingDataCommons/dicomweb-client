@@ -5,6 +5,7 @@ import sys
 import logging
 import email
 import six
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from io import BytesIO
 from urllib.parse import quote_plus, urlparse
@@ -1359,7 +1360,17 @@ class DICOMwebClient(object):
         logger.debug('POST: {} {}'.format(url, headers))
         response = self._session.post(url=url, data=data, headers=headers)
         logger.debug('request status code: {}'.format(response.status_code))
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as error:
+            payload = response.content
+            root = ET.fromstring(payload)
+            for element in root.findall(".//*[@keyword='FailureReason']"):
+                reason = element.find('Value').text
+                logger.error('Failure Reason: {}'.format(reason))
+            raise HTTPError(error)
+        except requests.exceptions.ConnectionError as error:
+            raise HTTPError(error[0])
         return response
 
     def _http_post_multipart_application_dicom(
