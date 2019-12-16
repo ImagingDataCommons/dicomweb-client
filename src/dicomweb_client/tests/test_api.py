@@ -474,7 +474,10 @@ def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
         '/{sop_instance_uid}/frames/{frame_numbers}/rendered'.format(
-            **locals()
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid,
+            frame_numbers=','.join([str(n) for n in frame_numbers])
         )
     )
     assert request.path == expected_path
@@ -517,7 +520,10 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
         '/{sop_instance_uid}/frames/{frame_numbers}/rendered'.format(
-            **locals()
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid,
+            frame_numbers=','.join([str(n) for n in frame_numbers])
         )
     )
     assert request.path == expected_path

@@ -28,7 +28,6 @@ setuptools.setup(
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Multimedia :: Graphics',
         'Topic :: Scientific/Engineering :: Information Analysis',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Development Status :: 4 - Beta',
     ],
@@ -49,11 +48,13 @@ setuptools.setup(
             'sphinx_rtd_theme>=0.2.4'
         ],
         'gcp': [
-            'google>=2.0',
+            'google-auth>=1.6',
+            'google-oauth>=1.0',
         ]
     },
     tests_require=[
-        'pytest>=4.6',
+        'mypy>=0.7',
+        'pytest>=5.0',
         'pytest-localserver>=0.5',
         'pytest-flake8>=1.0',
         'tox>=3.13',
