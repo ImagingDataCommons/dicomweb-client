@@ -1379,7 +1379,6 @@ class DICOMwebClient(object):
 
         def serve_data_chunks(data):
             for i, offset in enumerate(range(0, len(data), self._chunk_size)):
-                logger.debug('send data chunk #{}'.format(i+1))
                 yield data[offset:offset+self._chunk_size]
 
         if self._chunk_size is not None and len(data) > self._chunk_size:
