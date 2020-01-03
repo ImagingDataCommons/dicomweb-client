@@ -59,6 +59,10 @@ def _get_parser():
         help='path to a client certificate file in PEM format'
     )
     parser.add_argument(
+        '-t', '--token', dest='token', metavar='TOKEN',
+        help='bearer token for authentication with the DICOMweb service'
+    )
+    parser.add_argument(
         '--url', dest='url', metavar='URL',
         help='uniform resource locator of the DICOMweb service'
     )
@@ -443,6 +447,13 @@ def _print_pixel_data(pixels):
     print(pixels)
     print('\n')
 
+def _headers(args):
+    headers = None
+    if hasattr(args, "token"):
+        headers = {
+            "Authorization" : "Bearer %s" % args.token
+        }
+    return headers
 
 def _search_for_studies(args):
     '''Searches for *Studies* and writes metadata to standard output.'''
@@ -452,7 +463,8 @@ def _search_for_studies(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     studies = client.search_for_studies(**params)
     _print_metadata(studies, args.prettify, args.dicomize)
@@ -466,7 +478,8 @@ def _search_for_series(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     series = client.search_for_series(args.study_instance_uid, **params)
     _print_metadata(series, args.prettify, args.dicomize)
@@ -480,7 +493,8 @@ def _search_for_instances(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     instances = client.search_for_instances(
         args.study_instance_uid, args.series_instance_uid, **params
@@ -497,7 +511,8 @@ def _retrieve_study(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     instances = client.retrieve_study(
         args.study_instance_uid,
@@ -520,7 +535,8 @@ def _retrieve_series(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     instances = client.retrieve_series(
         args.study_instance_uid, args.series_instance_uid,
@@ -543,7 +559,8 @@ def _retrieve_instance(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     instance = client.retrieve_instance(
         args.study_instance_uid, args.series_instance_uid,
@@ -565,7 +582,8 @@ def _retrieve_study_metadata(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     metadata = client.retrieve_study_metadata(args.study_instance_uid)
     if args.save:
@@ -589,7 +607,8 @@ def _retrieve_series_metadata(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     metadata = client.retrieve_series_metadata(
         args.study_instance_uid, args.series_instance_uid
@@ -615,7 +634,8 @@ def _retrieve_instance_metadata(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     metadata = client.retrieve_instance_metadata(
         args.study_instance_uid, args.series_instance_uid,
@@ -642,7 +662,8 @@ def _retrieve_instance_frames(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     pixel_data = client.retrieve_instance_frames(
         args.study_instance_uid, args.series_instance_uid,
@@ -687,7 +708,8 @@ def _retrieve_bulkdata(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     data = client.retrieve_bulkdata(args.bulkdata_uri, args.media_type)
     print(data)
@@ -701,7 +723,8 @@ def _store_instances(args):
         username=args.username,
         password=args.password,
         ca_bundle=args.ca_bundle,
-        cert=args.cert
+        cert=args.cert,
+        headers=_headers(args)
     )
     datasets = list()
     for f in args.files:
