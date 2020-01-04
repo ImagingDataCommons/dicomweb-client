@@ -15,7 +15,7 @@ setuptools.setup(
     description='Client for DICOMweb RESTful services.',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/clindatsci/dicomweb-client',
+    url='https://github.com/mghcomputationalpathology/dicomweb-client',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
