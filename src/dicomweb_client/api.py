@@ -1389,13 +1389,18 @@ class DICOMwebClient(object):
             'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
-        response = self._http_post(
+        self._http_post(
             url,
             content,
             headers={'Content-Type': content_type}
         )
         # FIXME: return information
         # http://dicom.nema.org/medical/dicom/current/output/chtml/part18/chapter_I.html
+        # response = self._http_post(
+        #     url,
+        #     content,
+        #     headers={'Content-Type': content_type}
+        # )
         # response.content
         return {}
 
