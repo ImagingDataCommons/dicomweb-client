@@ -62,6 +62,10 @@ def _get_parser():
         '--url', dest='url', metavar='URL',
         help='uniform resource locator of the DICOMweb service'
     )
+    parser.add_argument(
+        '--chunk_size', dest='chunk_size', metavar='CHUNK_SIZE',
+        help='maximum size of a network transfer chunk'
+    )
 
     abstract_optional_study_parser = argparse.ArgumentParser(add_help=False)
     abstract_optional_study_parser.add_argument(
