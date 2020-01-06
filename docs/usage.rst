@@ -534,3 +534,11 @@ Retrieve a single frame of a given instances as JPEG compressed image:
         --numbers 1 \
         --media-type image/jpeg
 
+Store instances to a Google DICOMweb store:
+
+.. code-block:: none
+
+    dicomweb_client --url https://healthcare.googleapis.com/v1beta1/projects/MYPROJECT/locations/us-central1/datasets/MYDATASET/dicomStores/MYDICOMSTORE/dicomWeb \
+        --token $(gcloud auth print-access-token) \
+        store instances \
+        dicomfiles/*
