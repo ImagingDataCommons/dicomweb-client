@@ -62,6 +62,10 @@ def _get_parser():
         '--url', dest='url', metavar='URL',
         help='uniform resource locator of the DICOMweb service'
     )
+    parser.add_argument(
+        '--chunk-size', dest='chunk_size', type=int, metavar='NUM',
+        help='maximum size of a network transfer chunk in bytes'
+    )
 
     abstract_optional_study_parser = argparse.ArgumentParser(add_help=False)
     abstract_optional_study_parser.add_argument(
@@ -444,61 +448,33 @@ def _print_pixel_data(pixels):
     print('\n')
 
 
-def _search_for_studies(args):
+def _search_for_studies(client, args):
     '''Searches for *Studies* and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     studies = client.search_for_studies(**params)
     _print_metadata(studies, args.prettify, args.dicomize)
 
 
-def _search_for_series(args):
+def _search_for_series(client, args):
     '''Searches for Series and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     series = client.search_for_series(args.study_instance_uid, **params)
     _print_metadata(series, args.prettify, args.dicomize)
 
 
-def _search_for_instances(args):
+def _search_for_instances(client, args):
     '''Searches for Instances and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     instances = client.search_for_instances(
         args.study_instance_uid, args.series_instance_uid, **params
     )
     _print_metadata(instances, args.prettify, args.dicomize)
 
 
-def _retrieve_study(args):
+def _retrieve_study(client, args):
     '''Retrieves all Instances of a given Study and either writes them to
     standard output or to files on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     instances = client.retrieve_study(
         args.study_instance_uid,
         media_types=args.media_types,
@@ -511,17 +487,10 @@ def _retrieve_study(args):
             _print_instance(inst)
 
 
-def _retrieve_series(args):
+def _retrieve_series(client, args):
     '''Retrieves all Instances of a given Series and either writes them to
     standard output or to files on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     instances = client.retrieve_series(
         args.study_instance_uid, args.series_instance_uid,
         media_types=args.media_types,
@@ -534,17 +503,10 @@ def _retrieve_series(args):
             _print_instance(inst)
 
 
-def _retrieve_instance(args):
+def _retrieve_instance(client, args):
     '''Retrieves an Instances and either writes it to standard output or to a
     file on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     instance = client.retrieve_instance(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid,
@@ -556,17 +518,10 @@ def _retrieve_instance(args):
         _print_instance(instance)
 
 
-def _retrieve_study_metadata(args):
+def _retrieve_study_metadata(client, args):
     '''Retrieves metadata for all Instances of a given Study and either
     writes it to standard output or to files on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     metadata = client.retrieve_study_metadata(args.study_instance_uid)
     if args.save:
         for md in metadata:
@@ -580,17 +535,10 @@ def _retrieve_study_metadata(args):
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_series_metadata(args):
+def _retrieve_series_metadata(client, args):
     '''Retrieves metadata for all Instances of a given Series and either
     writes it to standard output or to files on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     metadata = client.retrieve_series_metadata(
         args.study_instance_uid, args.series_instance_uid
     )
@@ -606,17 +554,10 @@ def _retrieve_series_metadata(args):
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_instance_metadata(args):
+def _retrieve_instance_metadata(client, args):
     '''Retrieves metadata for an individual Instances and either
     writes it to standard output or to a file on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     metadata = client.retrieve_instance_metadata(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid
@@ -630,20 +571,13 @@ def _retrieve_instance_metadata(args):
         _print_metadata(metadata, args.prettify, args.dicomize)
 
 
-def _retrieve_instance_frames(args):
+def _retrieve_instance_frames(client, args):
     '''Retrieves frames for an individual instances and either
     writes them to standard output or files on disk or displays them in a GUI
     (depending on the requested content type).
     Frames can only be saved and shown if they are retrieved using
     image media types.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     pixel_data = client.retrieve_instance_frames(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid, args.frame_numbers,
@@ -678,35 +612,18 @@ def _retrieve_instance_frames(args):
             _print_pixel_data(data)
 
 
-def _retrieve_bulkdata(args):
+def _retrieve_bulkdata(client, args):
     '''Retrieves bulk data and either writes them to standard output or to a
     file on disk.
     '''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
     data = client.retrieve_bulkdata(args.bulkdata_uri, args.media_type)
     print(data)
     print('\n')
 
 
-def _store_instances(args):
+def _store_instances(client, args):
     '''Loads Instances from files on disk and stores them.'''
-    client = DICOMwebClient(
-        args.url,
-        username=args.username,
-        password=args.password,
-        ca_bundle=args.ca_bundle,
-        cert=args.cert
-    )
-    datasets = list()
-    for f in args.files:
-        ds = pydicom.dcmread(f)
-        datasets.append(ds)
+    datasets = [pydicom.dcmread(f) for f in args.files]
     client.store_instances(datasets)
 
 
@@ -722,7 +639,15 @@ def main():
 
     configure_logging(args.logging_verbosity)
     try:
-        args.func(args)
+        client = DICOMwebClient(
+            args.url,
+            username=args.username,
+            password=args.password,
+            ca_bundle=args.ca_bundle,
+            cert=args.cert,
+            chunk_size=args.chunk_size
+        )
+        args.func(client, args)
         sys.exit(0)
     except Exception as err:
         logger.error(str(err))

@@ -1,11 +1,16 @@
 import os
 import json
+import xml.etree.ElementTree as ET
 from io import BytesIO
 
 import pytest
 import pydicom
 
-from dicomweb_client.api import load_json_dataset, DICOMwebClient
+from dicomweb_client.api import (
+    DICOMwebClient,
+    load_json_dataset,
+    _load_xml_dataset
+)
 
 
 def test_url(httpserver):
@@ -603,3 +608,12 @@ def test_load_json_dataset_pn_vm2_empty(httpserver, client, cache_dir):
     }
     dataset = load_json_dataset(dicom_json)
     assert dataset.ConsultingPhysicianName == []
+
+
+def test_load_xml_response(httpserver, client, cache_dir):
+    cache_filename = os.path.join(cache_dir, 'store.xml')
+    with open(cache_filename, 'rb') as f:
+        tree = ET.fromstring(f.read())
+        dataset = _load_xml_dataset(tree)
+    assert dataset.RetrieveURL.startswith('https://wadors.hospital.com')
+    assert len(dataset.ReferencedSOPSequence) == 2

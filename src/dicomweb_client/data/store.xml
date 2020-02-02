@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<NativeDicomModel xmlns="http://dicom.nema.org/PS3.19/models/NativeDICOM"
+xsi:schemaLocation="http://dicom.nema.org/PS3.19/models/NativeDICOM"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <DicomAttribute tag="00081198" vr="SQ" keyword="FailedSOPSequence">
+    <Item number="1">
+      <DicomAttribute tag="00081150" vr="UI" keyword="ReferencedSOPClassUID">
+        <Value number="1">1.2.840.10008.3.1.2.3.1</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081155" vr="UI"
+      keyword="ReferencedSOPInstanceUID">
+        <Value number="1">
+        2.16.124.113543.6003.1011758472.49886.19426.2085542308</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081197" vr="US" keyword="FailureReason">
+        <Value number="1">290</Value>
+      </DicomAttribute>
+    </Item>
+    <Item number="2">
+      <DicomAttribute tag="00081150" vr="UI" keyword="ReferencedSOPClassUID">
+        <Value number="1">1.2.840.10008.3.1.2.3.1</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081155" vr="UI"
+      keyword="ReferencedSOPInstanceUID">
+        <Value number="1">
+        2.16.124.113543.6003.1011758472.49886.19426.2085542309</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081197" vr="US" keyword="FailureReason">
+        <Value number="1">290</Value>
+      </DicomAttribute>
+    </Item>
+  </DicomAttribute>
+  <DicomAttribute tag="00081199" vr="SQ" keyword="ReferencedSOPSequence">
+    <Item number="1">
+      <DicomAttribute tag="00081150" vr="UI" keyword="ReferencedSOPClassUID">
+        <Value number="1">1.2.840.10008.5.1.4.1.1.2</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081155" vr="UI"
+      keyword="ReferencedSOPInstanceUID">
+        <Value number="1">
+        2.16.124.113543.6003.189642796.63084.16748.2599092903</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081190" vr="UR" keyword="RetrieveURL">
+        <Value number="1">
+        https://wadors.hospital.com/studies/2.16.124.113543.6003.1154777499.30246.19789.3503430045/
+        series/2.16.124.113543.6003.2588828330.45298.17418.2723805630/
+        instances/2.16.124.113543.6003.189642796.63084.16748.2599092903</Value>
+      </DicomAttribute>
+    </Item>
+    <Item number="2">
+      <DicomAttribute tag="00081150" vr="UI" keyword="ReferencedSOPClassUID">
+        <Value number="1">1.2.840.10008.5.1.4.1.1.2</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081155" vr="UI"
+      keyword="ReferencedSOPInstanceUID">
+        <Value number="1">
+        2.16.124.113543.6003.189642796.63084.16748.2599092905</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081196" vr="US" keyword="WarningReason">
+        <Value number="1">45056</Value>
+      </DicomAttribute>
+      <DicomAttribute tag="00081190" vr="UR" keyword="RetrieveURL">
+        <Value number="1">
+        https://wadors.hospital.com/studies/2.16.124.113543.6003.1154777499.30246.19789.3503430045/
+        series/2.16.124.113543.6003.2588828330.45298.17418.2723805630/
+        instances/2.16.124.113543.6003.189642796.63084.16748.2599092905</Value>
+      </DicomAttribute>
+    </Item>
+  </DicomAttribute>
+  <DicomAttribute tag="00081190" vr="UR" keyword="RetrieveURL">
+    <Value number="1">
+    https://wadors.hospital.com/studies/2.16.124.113543.6003.1154777499.30246.19789.3503430045</Value>
+  </DicomAttribute>
+</NativeDicomModel>

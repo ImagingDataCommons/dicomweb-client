@@ -5,6 +5,7 @@ import sys
 import logging
 import email
 import six
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from io import BytesIO
 from urllib.parse import quote_plus, urlparse
@@ -177,6 +178,41 @@ def load_json_dataset(dataset: Dict[str, dict]) -> pydicom.dataset.Dataset:
     return ds
 
 
+def _load_xml_dataset(dataset: ET) -> pydicom.dataset.Dataset:
+    '''Loads DICOM Data Set in DICOM XML format.
+
+    Parameters
+    ----------
+    dataset: xml.etree.ElementTree
+        element tree
+
+    Returns
+    -------
+    pydicom.dataset.Dataset
+        data set
+
+    '''
+    ds = pydicom.Dataset()
+    for element in dataset:
+        keyword = element.attrib['keyword']
+        vr = element.attrib['vr']
+        if vr == 'SQ':
+            value = [
+                _load_xml_dataset(item)
+                for item in element
+            ]
+        else:
+            value = list(element)
+            if len(value) == 1:
+                value = value[0].text.strip()
+            elif len(value) > 1:
+                value = [v.text.strip() for v in value]
+            else:
+                value = None
+        setattr(ds, keyword, value)
+    return ds
+
+
 class DICOMwebClient(object):
 
     '''Class for connecting to and interacting with a DICOMweb RESTful service.
@@ -216,7 +252,8 @@ class DICOMwebClient(object):
         headers: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
         callback: Optional[Callable] = None,
         auth: Optional[requests.auth.AuthBase] = None,
-        gcp_service_account_key_file: Optional[str] = None
+        gcp_service_account_key_file: Optional[str] = None,
+        chunk_size: Optional[int] = None
     ) -> None:
         '''
         Parameters
@@ -256,6 +293,10 @@ class DICOMwebClient(object):
             JSON format to be used for authentication with Google Cloud
             Healthcare services
             (see `Google Cloud Healthcare API authentication <https://cloud.google.com/healthcare/docs/how-tos/authentication>`)
+        chunk_size: int, optional
+            maximum number of bytes per data chunk using chunked transfer
+            encoding (helpful for storing and retrieving large objects or large
+            collections of objects such as studies or series)
 
         '''  # noqa
         logger.debug('initialize HTTP session')
@@ -341,6 +382,7 @@ class DICOMwebClient(object):
                         'No password provided for user "{0}".'.format(username)
                     )
                 self._session.auth = (username, password)
+        self._chunk_size = chunk_size
 
     def _get_gcp_session(
             self,
@@ -648,7 +690,9 @@ class DICOMwebClient(object):
             params = {}
         url += self._build_query_string(params)
         logger.debug('GET: {} {}'.format(url, headers))
-        response = self._session.get(url=url, headers=headers)
+        # Setting stream allows for retrieval of data in chunks using
+        # the iter_content() method
+        response = self._session.get(url=url, headers=headers, stream=True)
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
@@ -710,10 +754,11 @@ class DICOMwebClient(object):
             message parts
 
         '''
-        header = ''
-        for key, value in headers.items():
-            header += '{}: {}\n'.format(key, value)
-        message = email.message_from_bytes(header.encode() + body)
+        header = ''.join([
+            '{}: {}\n'.format(key, value)
+            for key, value in headers.items()
+        ]).encode()
+        message = email.message_from_bytes(header + body)
         elements = []
         for part in message.walk():
             if part.get_content_maintype() == 'multipart':
@@ -997,8 +1042,17 @@ class DICOMwebClient(object):
             ),
         }
         response = self._http_get(url, params, headers)
+        with response as r:
+            if self._chunk_size is not None:
+                logger.info('retrieve data in chunks')
+                content = b''.join([
+                    chunk
+                    for chunk in r.iter_content(chunk_size=self._chunk_size)
+                ])
+            else:
+                content = r.content
         datasets = self._decode_multipart_message(
-            response.content,
+            content,
             response.headers
         )
         return [pydicom.dcmread(BytesIO(ds)) for ds in datasets]
@@ -1357,16 +1411,53 @@ class DICOMwebClient(object):
 
         '''
         logger.debug('POST: {} {}'.format(url, headers))
-        response = self._session.post(url=url, data=data, headers=headers)
+
+        def serve_data_chunks(data):
+            for i, offset in enumerate(range(0, len(data), self._chunk_size)):
+                end = offset + self._chunk_size
+                yield data[offset:end]
+
+        if self._chunk_size is not None and len(data) > self._chunk_size:
+            logger.info('store data in chunks using chunked transfer encoding')
+            chunked_headers = dict(headers)
+            chunked_headers['Transfer-Encoding'] = 'chunked'
+            chunked_headers['Cache-Control'] = 'no-cache'
+            chunked_headers['Connection'] = 'Keep-Alive'
+            data_chunks = serve_data_chunks(data)
+            response = self._session.post(
+                url=url,
+                data=data_chunks,
+                headers=headers
+            )
+        else:
+            response = self._session.post(url=url, data=data, headers=headers)
         logger.debug('request status code: {}'.format(response.status_code))
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as error:
+            raise HTTPError(error)
+        except requests.exceptions.ConnectionError as error:
+            raise HTTPError(error[0])
+        if not response.ok:
+            logger.warning('storage was not successful for all instances')
+            payload = response.content
+            tree = ET.fromstring(payload)
+            dataset = _load_xml_dataset(tree)
+            failed_sop_sequence = getattr(dataset, 'FailedSOPSequence', [])
+            for failed_sop_item in failed_sop_sequence:
+                logger.error(
+                    'storage of instance {} failed: "{}"'.format(
+                        failed_sop_item.ReferencedSOPInstanceUID,
+                        failed_sop_item.FailureReason
+                    )
+                )
         return response
 
     def _http_post_multipart_application_dicom(
             self,
             url: str,
             data: bytes
-        ) -> Dict[str, dict]:
+        ) -> Union[None, Dict[str, dict]]:
         '''Performs a HTTP POST request with a multipart payload with
         "application/dicom" media type.
 
@@ -1380,7 +1471,7 @@ class DICOMwebClient(object):
         Returns
         -------
         Dict[str, dict]
-            information about stored instances in DICOM JSON format
+            information about stored instances
 
         '''
         content_type = (
@@ -1389,20 +1480,20 @@ class DICOMwebClient(object):
             'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
-        self._http_post(
+        response = self._http_post(
             url,
             content,
             headers={'Content-Type': content_type}
         )
-        # FIXME: return information
-        # http://dicom.nema.org/medical/dicom/current/output/chtml/part18/chapter_I.html
-        # response = self._http_post(
-        #     url,
-        #     content,
-        #     headers={'Content-Type': content_type}
-        # )
-        # response.content
-        return {}
+        if response.content:
+            if (response.headers['Content-Type'] == 'application/dicom+json' or
+                    response.headers['Content-Type'] == 'application/json'):
+                return load_json_dataset(response.json())
+            elif (response.headers['Content-Type'] == 'application/dicom+xml' or
+                    response.headers['Content-Type'] == 'application/xml'):
+                tree = ET.fromstring(response.content)
+                return _load_xml_dataset(tree)
+        return None
 
     def search_for_studies(
             self,
@@ -2039,16 +2130,16 @@ class DICOMwebClient(object):
         Returns
         -------
         Dict[str, dict]
-            information about status of stored instances in DICOM JSON format
+            information about status of stored instances
 
         '''
         url = self._get_studies_url('stow', study_instance_uid)
         encoded_datasets = list()
-        # TODO: can we do this more memory efficient? Concatenations?
         for ds in datasets:
             with BytesIO() as b:
                 pydicom.dcmwrite(b, ds)
-                encoded_datasets.append(b.getvalue())
+                encoded_ds = b.getvalue()
+            encoded_datasets.append(encoded_ds)
         return self._http_post_multipart_application_dicom(
             url,
             encoded_datasets
