@@ -178,6 +178,41 @@ def load_json_dataset(dataset: Dict[str, dict]) -> pydicom.dataset.Dataset:
     return ds
 
 
+def _load_xml_dataset(dataset: ET) -> pydicom.dataset.Dataset:
+    '''Loads DICOM Data Set in DICOM XML format.
+
+    Parameters
+    ----------
+    dataset: xml.etree.ElementTree
+        element tree
+
+    Returns
+    -------
+    pydicom.dataset.Dataset
+        data set
+
+    '''
+    ds = pydicom.Dataset()
+    for element in dataset:
+        keyword = element.attrib['keyword']
+        vr = element.attrib['vr']
+        if vr == 'SQ':
+            value = [
+                _load_xml_dataset(item)
+                for item in element
+            ]
+        else:
+            value = list(element)
+            if len(value) == 1:
+                value = value[0].text.strip()
+            elif len(value) > 1:
+                value = [v.text.strip() for v in value]
+            else:
+                value = None
+        setattr(ds, keyword, value)
+    return ds
+
+
 class DICOMwebClient(object):
 
     '''Class for connecting to and interacting with a DICOMweb RESTful service.
@@ -1379,7 +1414,8 @@ class DICOMwebClient(object):
 
         def serve_data_chunks(data):
             for i, offset in enumerate(range(0, len(data), self._chunk_size)):
-                yield data[offset:offset+self._chunk_size]
+                end = offset + self._chunk_size
+                yield data[offset:end]
 
         if self._chunk_size is not None and len(data) > self._chunk_size:
             logger.info('store data in chunks using chunked transfer encoding')
@@ -1399,21 +1435,29 @@ class DICOMwebClient(object):
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
-            payload = response.content
-            root = ET.fromstring(payload)
-            for element in root.findall(".//*[@keyword='FailureReason']"):
-                reason = element.find('Value').text
-                logger.error('Failure Reason: {}'.format(reason))
             raise HTTPError(error)
         except requests.exceptions.ConnectionError as error:
             raise HTTPError(error[0])
+        if not response.ok:
+            logger.warning('storage was not successful for all instances')
+            payload = response.content
+            tree = ET.fromstring(payload)
+            dataset = _load_xml_dataset(tree)
+            failed_sop_sequence = getattr(dataset, 'FailedSOPSequence', [])
+            for failed_sop_item in failed_sop_sequence:
+                logger.error(
+                    'storage of instance {} failed: "{}"'.format(
+                        failed_sop_item.ReferencedSOPInstanceUID,
+                        failed_sop_item.FailureReason
+                    )
+                )
         return response
 
     def _http_post_multipart_application_dicom(
             self,
             url: str,
             data: bytes
-        ) -> Dict[str, dict]:
+        ) -> Union[None, Dict[str, dict]]:
         '''Performs a HTTP POST request with a multipart payload with
         "application/dicom" media type.
 
@@ -1427,7 +1471,7 @@ class DICOMwebClient(object):
         Returns
         -------
         Dict[str, dict]
-            information about stored instances in DICOM JSON format
+            information about stored instances
 
         '''
         content_type = (
@@ -1441,10 +1485,15 @@ class DICOMwebClient(object):
             content,
             headers={'Content-Type': content_type}
         )
-        # FIXME: return information
-        # http://dicom.nema.org/medical/dicom/current/output/chtml/part18/chapter_I.html
-        # response.content
-        return {}
+        if response.content:
+            if (response.headers['Content-Type'] == 'application/dicom+json' or
+                    response.headers['Content-Type'] == 'application/json'):
+                return load_json_dataset(response.json())
+            elif (response.headers['Content-Type'] == 'application/dicom+xml' or
+                    response.headers['Content-Type'] == 'application/xml'):
+                tree = ET.fromstring(response.content)
+                return _load_xml_dataset(tree)
+        return None
 
     def search_for_studies(
             self,
@@ -2081,7 +2130,7 @@ class DICOMwebClient(object):
         Returns
         -------
         Dict[str, dict]
-            information about status of stored instances in DICOM JSON format
+            information about status of stored instances
 
         '''
         url = self._get_studies_url('stow', study_instance_uid)
