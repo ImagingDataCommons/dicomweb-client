@@ -294,6 +294,16 @@ def test_parse_store_instances_single_file(parser):
     assert getattr(args, 'files') == ['/path/to/file.dcm']
 
 
+def test_parse_store_instances_chunked(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002',
+        '--chunk-size', '1000',
+        'store', 'instances',
+        '/path/to/file.dcm',
+    ])
+    assert getattr(args, 'chunk_size') == 1000
+
+
 def test_parse_store_instances_single_file_study_instance_uid(parser):
     args = parser.parse_args([
         '--url', 'http://localhost:8002', 'store', 'instances',
@@ -348,6 +358,16 @@ def test_parse_retrieve_instance(parser):
         getattr(args, 'prettify')
     with pytest.raises(AttributeError):
         getattr(args, 'dicomize')
+
+
+def test_parse_retrieve_instance_chunked(parser):
+    args = parser.parse_args([
+        '--url', 'http://localhost:8002',
+        '--chunk-size', '1000',
+        'retrieve', 'instances',
+        '--study', '1.2.3', '--series', '1.2.4', '--instance', '1.2.5', 'full',
+    ])
+    assert getattr(args, 'chunk_size') == 1000
 
 
 def test_parse_retrieve_instance_media_types(parser):
