@@ -738,7 +738,7 @@ class DICOMwebClient(object):
             self,
             body: bytes,
             headers: Dict[str, str]
-        ) -> Sequence[bytes]:
+        ) -> List[bytes]:
         '''Extracts parts of a HTTP multipart response message.
 
         Parameters
@@ -750,7 +750,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Sequence[bytes]
+        List[bytes]
             message parts
 
         '''
@@ -991,7 +991,7 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             params: Optional[Dict[str, Any]] = None
-        ) -> Sequence[pydicom.dataset.Dataset]:
+        ) -> List[pydicom.dataset.Dataset]:
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/dicom" media type.
 
@@ -1063,7 +1063,7 @@ class DICOMwebClient(object):
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None
-        ) -> Sequence[bytes]:
+        ) -> List[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/octet-stream" media type.
 
@@ -1113,7 +1113,7 @@ class DICOMwebClient(object):
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None,
             rendered: bool = False
-        ) -> Sequence[bytes]:
+        ) -> List[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         an image media type.
 
@@ -1179,7 +1179,7 @@ class DICOMwebClient(object):
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None,
             rendered: bool = False
-        ) -> Sequence[bytes]:
+        ) -> List[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         a video media type.
 
@@ -1480,7 +1480,7 @@ class DICOMwebClient(object):
             'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
-        response = self._http_post(
+        self._http_post(
             url,
             content,
             headers={'Content-Type': content_type}
@@ -1502,7 +1502,7 @@ class DICOMwebClient(object):
             offset: Optional[int] = None,
             fields: Optional[Sequence[str]] = None,
             search_filters: Optional[Dict[str, Any]] = None
-        ) -> Sequence[Dict[str, dict]]:
+        ) -> List[Dict[str, dict]]:
         '''Searches for DICOM studies.
 
         Parameters
@@ -1541,7 +1541,7 @@ class DICOMwebClient(object):
         studies = self._http_get_application_json(url, params)
         if studies is None:
             return []
-        if not(isinstance(studies, list)):
+        if not isinstance(studies, list):
             studies = [studies]
         return studies
 
@@ -1620,7 +1620,7 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None
-        ) -> Sequence[bytes]:
+        ) -> List[bytes]:
         '''Retrieves bulk data from a given location.
 
         Parameters
@@ -1662,7 +1662,7 @@ class DICOMwebClient(object):
             self,
             study_instance_uid: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-        ) -> Sequence[pydicom.dataset.Dataset]:
+        ) -> List[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM study.
 
         Parameters
@@ -1712,7 +1712,7 @@ class DICOMwebClient(object):
     def retrieve_study_metadata(
             self,
             study_instance_uid: str
-        ) -> Sequence[Dict[str, dict]]:
+        ) -> List[Dict[str, dict]]:
         '''Retrieves metadata of instances of a given DICOM study.
 
         Parameters
@@ -1735,7 +1735,7 @@ class DICOMwebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
-    def _assert_uid_format(self, uid: str):
+    def _assert_uid_format(self, uid: str) -> None:
         '''Checks whether a DICOM UID has the correct format.
 
         Parameters
@@ -1766,7 +1766,7 @@ class DICOMwebClient(object):
             offset: Optional[int] = None,
             fields: Optional[Sequence[str]] = None,
             search_filters: Optional[Dict[str, Any]] = None
-        ) -> Sequence[Dict[str, dict]]:
+        ) -> List[Dict[str, dict]]:
         '''Searches for DICOM series.
 
         Parameters
@@ -1818,7 +1818,7 @@ class DICOMwebClient(object):
             study_instance_uid: str,
             series_instance_uid: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> Sequence[pydicom.dataset.Dataset]:
+        ) -> List[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM series.
 
         Parameters
@@ -1879,7 +1879,7 @@ class DICOMwebClient(object):
             self,
             study_instance_uid: str,
             series_instance_uid: str,
-        ) -> Sequence[Dict[str, dict]]:
+        ) -> List[Dict[str, dict]]:
         '''Retrieves metadata for instances of a given DICOM series.
 
         Parameters
@@ -1983,7 +1983,7 @@ class DICOMwebClient(object):
             offset: Optional[int] = None,
             fields: Optional[Sequence[str]] = None,
             search_filters: Optional[Dict[str, Any]] = None
-        ) -> Sequence[Dict[str, dict]]:
+        ) -> List[Dict[str, dict]]:
         '''Searches for DICOM instances.
 
         Parameters
@@ -2266,7 +2266,7 @@ class DICOMwebClient(object):
             sop_instance_uid: str,
             frame_numbers: Sequence[int],
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> Sequence[bytes]:
+        ) -> List[bytes]:
         '''Retrieves one or more frames of an individual DICOM instance.
 
         Parameters

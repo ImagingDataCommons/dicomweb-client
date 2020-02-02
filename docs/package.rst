@@ -1,7 +1,7 @@
-.. _source-code:
+.. _api-doc:
 
-Source code
-===========
+API documentation
+=================
 
 .. _dicomweb-client-package:
 
