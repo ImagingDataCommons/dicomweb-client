@@ -1480,7 +1480,7 @@ class DICOMwebClient(object):
             'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
-        self._http_post(
+        response = self._http_post(
             url,
             content,
             headers={'Content-Type': content_type}
