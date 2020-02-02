@@ -47,7 +47,9 @@ version = '.'.join(release.split('.')[:2])
 # ones.
 extensions = [
     'sphinxcontrib.autoprogram',
-    'sphinx.ext.autodoc', 'sphinx.ext.napoleon',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx_autodoc_typehints',
 ]
 
 napoleon_google_docstring = False
@@ -78,6 +80,11 @@ exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
+
+# Concatenate docstring of class definion and __init__ method definition.
+autoclass_content = 'both'
+
+typehints_fully_qualified = True
 
 
 # -- Options for HTML output -------------------------------------------------
