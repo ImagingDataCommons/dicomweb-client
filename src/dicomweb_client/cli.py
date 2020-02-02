@@ -59,7 +59,7 @@ def _get_parser():
         help='path to a client certificate file in PEM format'
     )
     parser.add_argument(
-        '-t', '--token', dest='token', metavar='TOKEN',
+        '--bearer-token', dest='bearer_token', metavar='TOKEN',
         help='bearer token for authentication with the DICOMweb service'
     )
     parser.add_argument(
@@ -67,8 +67,8 @@ def _get_parser():
         help='uniform resource locator of the DICOMweb service'
     )
     parser.add_argument(
-        '--chunk_size', dest='chunk_size', metavar='CHUNK_SIZE',
-        help='maximum size of a network transfer chunk'
+        '--chunk-size', dest='chunk_size', type=int, metavar='NUM',
+        help='maximum size of a network transfer chunk in bytes'
     )
 
     abstract_optional_study_parser = argparse.ArgumentParser(add_help=False)
@@ -451,14 +451,16 @@ def _print_pixel_data(pixels):
     print(pixels)
     print('\n')
 
-def _headers(args):
+    
+def _create_headers(args):
     headers = None
-    if hasattr(args, "token"):
+    if hasattr(args, "bearer_token"):
         headers = {
-            "Authorization" : "Bearer {}".format(args.token)
+            "Authorization" : "Bearer {}".format(args.bearer_token)
         }
     return headers
 
+  
 def _search_for_studies(client, args):
     '''Searches for *Studies* and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
@@ -656,7 +658,7 @@ def main():
             password=args.password,
             ca_bundle=args.ca_bundle,
             cert=args.cert,
-            headers=_headers(args),
+            headers=_create_headers(args),
             chunk_size=args.chunk_size
         )
         args.func(client, args)

@@ -8,7 +8,7 @@ Installation guide
 Requirements
 ------------
 
-* `Python <https://www.python.org/>`_ (version 2.7 or higher)
+* `Python <https://www.python.org/>`_ (version 3.5 or higher)
 * Python package manager `pip <https://pip.pypa.io/en/stable/>`_
 
 For support of image formats:
@@ -32,6 +32,5 @@ Source code available at Github:
 
 .. code-block:: none
 
-    git clone https://github.com/clindatsci/dicomweb-client ~/dicomweb-client
+    git clone https://github.com/mghcomputationalpathology/dicomweb-client ~/dicomweb-client
     pip install ~/dicomweb-client
-

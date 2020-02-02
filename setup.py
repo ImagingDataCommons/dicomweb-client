@@ -15,7 +15,7 @@ setuptools.setup(
     description='Client for DICOMweb RESTful services.',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/clindatsci/dicomweb-client',
+    url='https://github.com/mghcomputationalpathology/dicomweb-client',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
@@ -29,6 +29,9 @@ setuptools.setup(
         'Topic :: Multimedia :: Graphics',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Development Status :: 4 - Beta',
     ],
     entry_points={
