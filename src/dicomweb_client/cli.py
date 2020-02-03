@@ -451,16 +451,16 @@ def _print_pixel_data(pixels):
     print(pixels)
     print('\n')
 
-    
+
 def _create_headers(args):
     headers = None
     if hasattr(args, "bearer_token"):
         headers = {
-            "Authorization" : "Bearer {}".format(args.bearer_token)
+            "Authorization": "Bearer {}".format(args.bearer_token)
         }
     return headers
 
-  
+
 def _search_for_studies(client, args):
     '''Searches for *Studies* and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
