@@ -1435,6 +1435,7 @@ class DICOMwebClient(object):
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
+
             raise HTTPError(error)
         except requests.exceptions.ConnectionError as error:
             raise HTTPError(error[0])

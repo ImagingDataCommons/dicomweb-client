@@ -59,6 +59,10 @@ def _get_parser():
         help='path to a client certificate file in PEM format'
     )
     parser.add_argument(
+        '--bearer-token', dest='bearer_token', metavar='TOKEN',
+        help='bearer token for authentication with the DICOMweb service'
+    )
+    parser.add_argument(
         '--url', dest='url', metavar='URL',
         help='uniform resource locator of the DICOMweb service'
     )
@@ -448,6 +452,15 @@ def _print_pixel_data(pixels):
     print('\n')
 
 
+def _create_headers(args):
+    headers = None
+    if hasattr(args, "bearer_token"):
+        headers = {
+            "Authorization": "Bearer {}".format(args.bearer_token)
+        }
+    return headers
+
+
 def _search_for_studies(client, args):
     '''Searches for *Studies* and writes metadata to standard output.'''
     params = _parse_search_parameters(args)
@@ -645,6 +658,7 @@ def main():
             password=args.password,
             ca_bundle=args.ca_bundle,
             cert=args.cert,
+            headers=_create_headers(args),
             chunk_size=args.chunk_size
         )
         args.func(client, args)
