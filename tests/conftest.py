@@ -1,4 +1,4 @@
-from pkg_resources import resource_filename
+from pathlib import Path
 
 import pytest
 
@@ -15,7 +15,7 @@ def parser():
 @pytest.fixture
 def cache_dir():
     '''Directory where responses are cached.'''
-    return resource_filename('dicomweb_client', 'data')
+    return Path(__file__).parent.parent.joinpath('data')
 
 
 @pytest.fixture
