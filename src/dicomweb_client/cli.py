@@ -63,6 +63,13 @@ def _get_parser():
         help='bearer token for authentication with the DICOMweb service'
     )
     parser.add_argument(
+        '--gcp-key-file', dest='gcp_service_account_key_file', metavar='PATH',
+        help=(
+            'path to a Google Cloud Platform (GCP) service account key file '
+            'in JSON format'
+        )
+    )
+    parser.add_argument(
         '--url', dest='url', metavar='URL',
         help='uniform resource locator of the DICOMweb service'
     )
@@ -659,7 +666,8 @@ def main():
             ca_bundle=args.ca_bundle,
             cert=args.cert,
             headers=_create_headers(args),
-            chunk_size=args.chunk_size
+            chunk_size=args.chunk_size,
+            gcp_service_account_key_file=args.gcp_service_account_key_file
         )
         args.func(client, args)
         sys.exit(0)
