@@ -1,3 +1,4 @@
+import os
 import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
@@ -79,7 +80,7 @@ def test_lookup_keyword(httpserver, client):
 
 
 def test_search_for_studies(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('search_for_studies.json')
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
@@ -96,7 +97,7 @@ def test_search_for_studies(httpserver, client, cache_dir):
 
 def test_search_for_studies_qido_prefix(httpserver, client, cache_dir):
     client.qido_url_prefix = 'qidors'
-    cache_filename = cache_dir.joinpath('search_for_studies.json')
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     headers = {'content-type': 'application/dicom+json'}
@@ -107,7 +108,7 @@ def test_search_for_studies_qido_prefix(httpserver, client, cache_dir):
 
 
 def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('search_for_studies.json')
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
     with open(cache_filename, 'r') as f:
         data = json.loads(f.read())
     # We will limit the search to 2 studies starting with the 2nd.
@@ -129,7 +130,7 @@ def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
 
 
 def test_search_for_series(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('search_for_series.json')
+    cache_filename = str(cache_dir.joinpath('search_for_series.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
@@ -157,7 +158,7 @@ def test_search_for_series_wrong_uid_value(httpserver, client, cache_dir):
 
 
 def test_search_for_series_limit_offset(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('search_for_series.json')
+    cache_filename = str(cache_dir.joinpath('search_for_series.json'))
     with open(cache_filename, 'r') as f:
         data = json.loads(f.read())
     content = json.dumps(data[1:3])
@@ -178,7 +179,7 @@ def test_search_for_series_limit_offset(httpserver, client, cache_dir):
 
 
 def test_search_for_instances(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('search_for_instances.json')
+    cache_filename = str(cache_dir.joinpath('search_for_instances.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
@@ -194,7 +195,7 @@ def test_search_for_instances(httpserver, client, cache_dir):
 
 
 def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('search_for_instances.json')
+    cache_filename = str(cache_dir.joinpath('search_for_instances.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
@@ -234,7 +235,7 @@ def test_search_for_instances_includefields(httpserver, client, cache_dir):
 
 
 def test_retrieve_instance_metadata(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('retrieve_instance_metadata.json')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_metadata.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
@@ -261,7 +262,7 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
 
 def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
     client.wado_url_prefix = 'wadors'
-    cache_filename = cache_dir.joinpath('retrieve_instance_metadata.json')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_metadata.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
     parsed_content = json.loads(content)
@@ -283,7 +284,7 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
 
 
 def test_retrieve_instance(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('file.dcm')
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -313,7 +314,7 @@ def test_retrieve_instance(httpserver, client, cache_dir):
 
 
 def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('file.dcm')
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -335,7 +336,7 @@ def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
 
 def test_retrieve_instance_default_transfer_syntax(httpserver, client,
                                                    cache_dir):
-    cache_filename = cache_dir.joinpath('file.dcm')
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -356,7 +357,7 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
 
 
 def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('file.dcm')
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -376,7 +377,7 @@ def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
 
 
 def test_retrieve_instance_wrong_mime_type(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('file.dcm')
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -396,7 +397,7 @@ def test_retrieve_instance_wrong_mime_type(httpserver, client, cache_dir):
 
 
 def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('retrieve_instance_pixeldata.jpg')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -425,7 +426,7 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
 def test_retrieve_instance_frames_jpeg_default_transfer_syntax(httpserver,
                                                                client,
                                                                cache_dir):
-    cache_filename = cache_dir.joinpath('retrieve_instance_pixeldata.jpg')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -447,7 +448,7 @@ def test_retrieve_instance_frames_jpeg_default_transfer_syntax(httpserver,
 
 
 def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('retrieve_instance_pixeldata.jp2')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jp2'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -474,7 +475,7 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
 
 
 def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('retrieve_instance_pixeldata.jpg')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -520,7 +521,7 @@ def test_retrieve_instance_frames_rendered_jpeg_transfer_syntax(httpserver,
 
 
 def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('retrieve_instance_pixeldata.png')
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.png'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
@@ -626,7 +627,7 @@ def test_load_json_dataset_pn_vm2_empty(httpserver, client, cache_dir):
 
 
 def test_load_xml_response(httpserver, client, cache_dir):
-    cache_filename = cache_dir.joinpath('store.xml')
+    cache_filename = str(cache_dir.joinpath('store.xml'))
     with open(cache_filename, 'rb') as f:
         tree = ET.fromstring(f.read())
         dataset = _load_xml_dataset(tree)
