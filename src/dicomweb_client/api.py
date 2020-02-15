@@ -1427,7 +1427,7 @@ class DICOMwebClient(object):
             response = self._session.post(
                 url=url,
                 data=data_chunks,
-                headers=headers
+                headers=chunked_headers
             )
         else:
             response = self._session.post(url=url, data=data, headers=headers)
