@@ -1442,8 +1442,14 @@ class DICOMwebClient(object):
         if not response.ok:
             logger.warning('storage was not successful for all instances')
             payload = response.content
-            tree = ET.fromstring(payload)
-            dataset = _load_xml_dataset(tree)
+            content_type = response.headers['Content-Type']
+            if content_type in ('application/dicom+json', 'application/json', ):
+                dataset = load_json_dataset(payload)
+            elif content_type in ('application/dicom+xml', 'application/xml', ):
+                tree = ET.fromstring(payload)
+                dataset = _load_xml_dataset(tree)
+            else:
+                raise ValueError('Response message has unexpected media type.')
             failed_sop_sequence = getattr(dataset, 'FailedSOPSequence', [])
             for failed_sop_item in failed_sop_sequence:
                 logger.error(
@@ -1487,11 +1493,10 @@ class DICOMwebClient(object):
             headers={'Content-Type': content_type}
         )
         if response.content:
-            if (response.headers['Content-Type'] == 'application/dicom+json' or
-                    response.headers['Content-Type'] == 'application/json'):
+            content_type = response.headers['Content-Type']
+            if content_type in ('application/dicom+json', 'application/json', ):
                 return load_json_dataset(response.json())
-            elif (response.headers['Content-Type'] == 'application/dicom+xml' or
-                    response.headers['Content-Type'] == 'application/xml'):
+            elif content_type in ('application/dicom+xml', 'application/xml', ):
                 tree = ET.fromstring(response.content)
                 return _load_xml_dataset(tree)
         return None
