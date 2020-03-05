@@ -1,10 +1,10 @@
-import os
 import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
+import requests
 
-import pytest
 import pydicom
+import pytest
 
 from dicomweb_client.api import (
     DICOMwebClient,
@@ -21,7 +21,7 @@ def test_url(httpserver):
     url = '{protocol}://{host}:{port}{path}'.format(
         protocol=protocol, host=host, port=port, path=path
     )
-    client = DICOMwebClient(url)
+    client = DICOMwebClient(url, requests.session())
     assert client.protocol == protocol
     assert client.host == host
     assert client.port == port
@@ -37,6 +37,7 @@ def test_url_prefixes(httpserver):
     stow_url_prefix = 'stow'
     client = DICOMwebClient(
         httpserver.url,
+        requests.session(),
         wado_url_prefix=wado_url_prefix,
         qido_url_prefix=qido_url_prefix,
         stow_url_prefix=stow_url_prefix,
@@ -51,7 +52,8 @@ def test_proxies(httpserver):
     protocol = 'http'
     address = 'foo.com'
     proxies = {protocol: address}
-    client = DICOMwebClient(httpserver.url, proxies=proxies)
+    client = DICOMwebClient(httpserver.url, requests.session(),
+                            proxies=proxies)
     assert client._session.proxies[protocol] == address
 
 
@@ -59,7 +61,8 @@ def test_headers(httpserver):
     name = 'my-token'
     value = 'topsecret'
     headers = {name: value}
-    client = DICOMwebClient(httpserver.url, headers=headers)
+    client = DICOMwebClient(httpserver.url, requests.session(),
+                            headers=headers)
     client.store_instances([])
     request = httpserver.requests[0]
     assert request.headers[name] == value
@@ -119,8 +122,8 @@ def test_search_for_studies_limit_offset(httpserver, client, cache_dir):
     assert client.search_for_studies(limit=2, offset=1) == parsed_content
     request = httpserver.requests[0]
     assert (
-        request.query_string.decode() == 'limit=2&offset=1' or
-        request.query_string.decode() == 'offset=1&limit=2'
+            request.query_string.decode() == 'limit=2&offset=1' or
+            request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/studies'
     assert all(
@@ -168,8 +171,8 @@ def test_search_for_series_limit_offset(httpserver, client, cache_dir):
     assert client.search_for_studies(limit=2, offset=1) == parsed_content
     request = httpserver.requests[0]
     assert (
-        request.query_string.decode() == 'limit=2&offset=1' or
-        request.query_string.decode() == 'offset=1&limit=2'
+            request.query_string.decode() == 'limit=2&offset=1' or
+            request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/studies'
     assert all(
@@ -204,8 +207,8 @@ def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
     assert client.search_for_instances(limit=2, offset=1) == parsed_content
     request = httpserver.requests[0]
     assert (
-        request.query_string.decode() == 'limit=2&offset=1' or
-        request.query_string.decode() == 'offset=1&limit=2'
+            request.query_string.decode() == 'limit=2&offset=1' or
+            request.query_string.decode() == 'offset=1&limit=2'
     )
     assert request.path == '/instances'
     assert all(
@@ -224,8 +227,8 @@ def test_search_for_instances_includefields(httpserver, client, cache_dir):
     query_string_opt_1 = 'includefield={}&includefield={}'.format(f1, f2)
     query_string_opt_2 = 'includefield={}&includefield={}'.format(f2, f1)
     assert (
-        request.query_string.decode() == query_string_opt_1 or
-        request.query_string.decode() == query_string_opt_2
+            request.query_string.decode() == query_string_opt_1 or
+            request.query_string.decode() == query_string_opt_2
     )
     assert request.path == '/instances'
     assert all(
@@ -327,7 +330,7 @@ def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
     client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         media_types=(
-            ('application/dicom', '*', ),
+            ('application/dicom', '*',),
         )
     )
     request = httpserver.requests[0]
@@ -349,14 +352,15 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
     client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         media_types=(
-            ('application/dicom', '1.2.840.10008.1.2.1', ),
+            ('application/dicom', '1.2.840.10008.1.2.1',),
         )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
 
 
-def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
+def test_retrieve_instance_wrong_transfer_syntax(httpserver, client,
+                                                 cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -371,7 +375,7 @@ def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
         client.retrieve_instance(
             study_instance_uid, series_instance_uid, sop_instance_uid,
             media_types=(
-                ('application/dicom', '1.2.3', ),
+                ('application/dicom', '1.2.3',),
             )
         )
 
@@ -391,7 +395,7 @@ def test_retrieve_instance_wrong_mime_type(httpserver, client, cache_dir):
         client.retrieve_instance(
             study_instance_uid, series_instance_uid, sop_instance_uid,
             media_types=(
-                ('image/dicom', '1.2.840.10008.1.2.1', ),
+                ('image/dicom', '1.2.840.10008.1.2.1',),
             )
         )
 
@@ -411,7 +415,7 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
     frame_list = ','.join([str(n) for n in frame_numbers])
     result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/jpeg', )
+        frame_numbers, media_types=('image/jpeg',)
     )
     assert result == [content]
     request = httpserver.requests[0]
@@ -440,7 +444,7 @@ def test_retrieve_instance_frames_jpeg_default_transfer_syntax(httpserver,
     client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=(
-            ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
+            ('image/jpeg', '1.2.840.10008.1.2.4.50',),
         )
     )
     request = httpserver.requests[0]
@@ -462,7 +466,7 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
     frame_list = ','.join([str(n) for n in frame_numbers])
     result = client.retrieve_instance_frames(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/jp2', )
+        frame_numbers, media_types=('image/jp2',)
     )
     assert result == [content]
     request = httpserver.requests[0]
@@ -488,7 +492,7 @@ def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
     frame_numbers = [1]
     result = client.retrieve_instance_frames_rendered(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/jpeg', )
+        frame_numbers, media_types=('image/jpeg',)
     )
     assert result == content
     request = httpserver.requests[0]
@@ -515,7 +519,7 @@ def test_retrieve_instance_frames_rendered_jpeg_transfer_syntax(httpserver,
         client.retrieve_instance_frames_rendered(
             study_instance_uid, series_instance_uid, sop_instance_uid,
             frame_numbers, media_types=(
-                ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
+                ('image/jpeg', '1.2.840.10008.1.2.4.50',),
             )
         )
 
@@ -534,7 +538,7 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
     frame_numbers = [1]
     result = client.retrieve_instance_frames_rendered(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/png', )
+        frame_numbers, media_types=('image/png',)
     )
     assert result == content
     request = httpserver.requests[0]

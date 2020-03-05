@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import requests
 
 from dicomweb_client.cli import _get_parser
 from dicomweb_client.api import DICOMwebClient
@@ -21,4 +22,4 @@ def cache_dir():
 @pytest.fixture
 def client(httpserver):
     '''Instance of `dicomweb_client.api.DICOMwebClient`.'''
-    return DICOMwebClient(httpserver.url)
+    return DICOMwebClient(httpserver.url, requests.session())
