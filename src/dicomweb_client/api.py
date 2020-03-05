@@ -1,6 +1,5 @@
 '''Application Programming Interface (API).'''
 import re
-import os
 import logging
 import email
 import six
@@ -220,6 +219,8 @@ class DICOMwebClient(object):
     ----------
     base_url: str
         unique resource locator of the DICOMweb service
+    session: requests.Session
+        session to  make the API call to DICOMweb service
     protocol: str
         name of the protocol, e.g. ``"https"``
     host: str
@@ -256,6 +257,10 @@ class DICOMwebClient(object):
             base unique resource locator consisting of protocol, hostname
             (IP address or DNS name) of the machine that hosts the server and
             optionally port number and path prefix
+        session: requests.Session
+            session required to make connection to the DICOMweb service
+            (see session_utils.py to create a valid session if necessary)
+        qido_url_prefix: str, optional
         qido_url_prefix: str, optional
             URL path prefix for QIDO RESTful services
         wado_url_prefix: str, optional
@@ -277,7 +282,7 @@ class DICOMwebClient(object):
 
         '''  # noqa
         logger.debug('initialize HTTP session')
-        self._session = session
+        self.session = session
         self.base_url = url
         self.qido_url_prefix = qido_url_prefix
         self.wado_url_prefix = wado_url_prefix
@@ -314,12 +319,12 @@ class DICOMwebClient(object):
                 )
         url_components = urlparse(url)
         self.url_prefix = url_components.path
-        self._session.headers.update({'Host': self.host})
+        self.session.headers.update({'Host': self.host})
         if headers is not None:
-            self._session.headers.update(headers)
-        self._session.proxies = proxies
+            self.session.headers.update(headers)
+        self.session.proxies = proxies
         if callback is not None:
-            self._session.hooks = {'response': callback}
+            self.session.hooks = {'response': callback}
         self._chunk_size = chunk_size
 
     def _parse_qido_query_parameters(
@@ -604,7 +609,7 @@ class DICOMwebClient(object):
         logger.debug('GET: {} {}'.format(url, headers))
         # Setting stream allows for retrieval of data in chunks using
         # the iter_content() method
-        response = self._session.get(url=url, headers=headers, stream=True)
+        response = self.session.get(url=url, headers=headers, stream=True)
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
@@ -1336,13 +1341,13 @@ class DICOMwebClient(object):
             chunked_headers['Cache-Control'] = 'no-cache'
             chunked_headers['Connection'] = 'Keep-Alive'
             data_chunks = serve_data_chunks(data)
-            response = self._session.post(
+            response = self.session.post(
                 url=url,
                 data=data_chunks,
                 headers=chunked_headers
             )
         else:
-            response = self._session.post(url=url, data=data, headers=headers)
+            response = self.session.post(url=url, data=data, headers=headers)
         logger.debug('request status code: {}'.format(response.status_code))
         try:
             response.raise_for_status()

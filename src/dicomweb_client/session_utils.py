@@ -97,7 +97,7 @@ def create_session_from_gcp_credentials(
     ----------
     google_credentials: google.auth.credentials
         Google cloud credentials.
-        (See https://cloud.google.com/docs/authentication/production
+        (see https://cloud.google.com/docs/authentication/production
         for more information on Google cloud authentication)
 
     Returns
