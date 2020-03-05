@@ -54,7 +54,7 @@ def test_proxies(httpserver):
     proxies = {protocol: address}
     client = DICOMwebClient(httpserver.url, requests.session(),
                             proxies=proxies)
-    assert client._session.proxies[protocol] == address
+    assert client.session.proxies[protocol] == address
 
 
 def test_headers(httpserver):
