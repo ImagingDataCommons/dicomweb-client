@@ -1,9 +1,8 @@
 import logging
 import os
-from typing import Optional
+from typing import Optional, Any
 
 import requests
-from google.auth import credentials
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +22,7 @@ def create_session_from_auth(
         authenticated session
 
     '''
+    logger.debug('initialize HTTP session')
     session = requests.Session()
     session.auth = auth
     return session
@@ -44,16 +44,20 @@ def create_session_from_user_pass(username: [str],
         authenticated session
 
     '''
+    logger.debug('initialize HTTP session')
     session = requests.Session()
     session.auth = (username, password)
     return session
 
 
-def create_verified_session(ca_bundle: Optional[str] = None,
+def add_certs_to_session(session: [requests.Session],
+                            ca_bundle: Optional[str] = None,
                             cert: Optional[str] = None) -> requests.Session:
     '''
     Parameters
     ----------
+    session: requests.Session,
+        input session
     ca_bundle: str, optional
         path to CA bundle file
     cert: str, optional
@@ -65,12 +69,6 @@ def create_verified_session(ca_bundle: Optional[str] = None,
         verified session
 
     '''
-    if ca_bundle is None and cert is None:
-        raise ValueError(
-            'Both ca_bundle and cert cannot be None'
-        )
-
-    session = requests.Session()
     if ca_bundle is not None:
         ca_bundle = os.path.expanduser(os.path.expandvars(ca_bundle))
         if not os.path.exists(ca_bundle):
@@ -91,14 +89,15 @@ def create_verified_session(ca_bundle: Optional[str] = None,
 
 
 def create_session_from_gcp_credentials(
-        google_credentials: [credentials]) -> requests.Session:
+        google_credentials: [Any] = None) -> requests.Session:
     '''
     Parameters
     ----------
-    google_credentials: google.auth.credentials
+    google_credentials: Any
         Google cloud credentials.
         (see https://cloud.google.com/docs/authentication/production
-        for more information on Google cloud authentication)
+        for more information on Google cloud authentication).
+        If not set, will be initialized to google.auth.default()
 
     Returns
     -------
@@ -106,5 +105,16 @@ def create_session_from_gcp_credentials(
         Google cloud authorized session
 
     '''
-    from google.auth.transport import requests as google_requests
+    try:
+        from google.auth.transport import requests as google_requests
+        if google_credentials is None:
+            import google.auth
+            google_credentials = google.auth.default()
+    except ImportError:
+        raise ImportError(
+            'The dicomweb-client package needs to be installed with the '
+            '"gcp" extra requirements to support interaction with the '
+            'Google Cloud Healthcare API: pip install dicomweb-client[gcp]'
+        )
+    logger.debug('initialize Google AuthorizedSession')
     return google_requests.AuthorizedSession(google_credentials)
