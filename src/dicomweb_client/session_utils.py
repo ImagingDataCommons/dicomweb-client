@@ -51,8 +51,8 @@ def create_session_from_user_pass(username: [str],
 
 
 def add_certs_to_session(session: [requests.Session],
-                            ca_bundle: Optional[str] = None,
-                            cert: Optional[str] = None) -> requests.Session:
+                         ca_bundle: Optional[str] = None,
+                         cert: Optional[str] = None) -> requests.Session:
     '''
     Parameters
     ----------
