@@ -109,7 +109,7 @@ def create_session_from_gcp_credentials(
         from google.auth.transport import requests as google_requests
         if google_credentials is None:
             import google.auth
-            google_credentials = google.auth.default()
+            google_credentials, _ = google.auth.default()
     except ImportError:
         raise ImportError(
             'The dicomweb-client package needs to be installed with the '
@@ -117,4 +117,7 @@ def create_session_from_gcp_credentials(
             'Google Cloud Healthcare API: pip install dicomweb-client[gcp]'
         )
     logger.debug('initialize Google AuthorizedSession')
+    if google_credentials.scopes is None:
+        scopes = ['https://www.googleapis.com/auth/cloud-platform', ]
+        google_credentials = google_credentials.with_scopes(scopes)
     return google_requests.AuthorizedSession(google_credentials)
