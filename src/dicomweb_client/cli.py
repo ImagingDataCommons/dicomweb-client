@@ -15,7 +15,8 @@ import numpy as np
 
 from dicomweb_client.api import DICOMwebClient, load_json_dataset
 from dicomweb_client.log import configure_logging
-
+from dicomweb_client.session_utils import create_session_from_user_pass, \
+    add_certs_to_session
 
 logger = logging.getLogger(__name__)
 
@@ -652,12 +653,11 @@ def main():
 
     configure_logging(args.logging_verbosity)
     try:
+        session = create_session_from_user_pass(args.username, args.password)
+        session = add_certs_to_session(session, args.ca_bundle, args.cert)
         client = DICOMwebClient(
             args.url,
-            username=args.username,
-            password=args.password,
-            ca_bundle=args.ca_bundle,
-            cert=args.cert,
+            session=session,
             headers=_create_headers(args),
             chunk_size=args.chunk_size
         )

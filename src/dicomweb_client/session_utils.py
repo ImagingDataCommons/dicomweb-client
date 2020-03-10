@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def create_session_from_auth(
         auth: [requests.auth.AuthBase]) -> requests.Session:
-    '''
+    '''Creates a session from a gicen AuthBase object
     Parameters
     ----------
     auth: requests.auth.AuthBase, optional
@@ -30,7 +30,7 @@ def create_session_from_auth(
 
 def create_session_from_user_pass(username: [str],
                                   password: [str]) -> requests.Session:
-    '''
+    '''Creates a session from a given username and password
     Parameters
     ----------
     username: str,
@@ -53,7 +53,7 @@ def create_session_from_user_pass(username: [str],
 def add_certs_to_session(session: [requests.Session],
                          ca_bundle: Optional[str] = None,
                          cert: Optional[str] = None) -> requests.Session:
-    '''
+    '''Adds ca_bundle and certificate to an existing session
     Parameters
     ----------
     session: requests.Session,
@@ -90,7 +90,7 @@ def add_certs_to_session(session: [requests.Session],
 
 def create_session_from_gcp_credentials(
         google_credentials: [Any] = None) -> requests.Session:
-    '''
+    '''Creates a session for Google Cloud Platform
     Parameters
     ----------
     google_credentials: Any
