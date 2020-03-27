@@ -53,7 +53,7 @@ setuptools.setup(
         'gcp': [
             'google-auth>=1.6',
             'google-oauth>=1.0',
-        ]
+        ],
     },
     tests_require=[
         'mypy>=0.7',
@@ -63,10 +63,7 @@ setuptools.setup(
         'tox>=3.13',
     ],
     install_requires=[
-        'numpy>=1.13',
-        'pillow>=5.0',
         'pydicom>=1.0',
         'requests>=2.18',
-        'six>=1.11'
     ]
 )

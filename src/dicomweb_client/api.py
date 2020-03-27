@@ -4,7 +4,6 @@ import os
 import sys
 import logging
 import email
-import six
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from io import BytesIO
@@ -132,7 +131,7 @@ def _create_dataelement(
                 else:
                     elem_value = value
         else:
-            if len(value) == 1 and isinstance(value[0], six.string_types):
+            if len(value) == 1 and isinstance(value[0], str):
                 elem_value = value[0].split('\\')
             else:
                 elem_value = value
@@ -885,7 +884,7 @@ class DICOMwebClient(object):
             )
         field_value_parts = []
         for media_type in media_types:
-            if not isinstance(media_type, six.string_types):
+            if not isinstance(media_type, str):
                 raise TypeError(
                     'Media type "{}" is not supported for '
                     'requested resource'.format(media_type)
@@ -1604,7 +1603,7 @@ class DICOMwebClient(object):
             raise ValueError('No acceptable media types provided.')
         common_media_types = []
         for item in media_types:
-            if isinstance(item, six.string_types):
+            if isinstance(item, str):
                 media_type = item
             else:
                 media_type = item[0]
@@ -1758,7 +1757,7 @@ class DICOMwebClient(object):
             ``"^[.0-9]+$"``
 
         '''
-        if not isinstance(uid, six.string_types):
+        if not isinstance(uid, str):
             raise TypeError('DICOM UID must be a string.')
         pattern = re.compile('^[.0-9]+$')
         if not pattern.search(uid):
