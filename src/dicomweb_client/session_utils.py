@@ -7,56 +7,79 @@ import requests
 logger = logging.getLogger(__name__)
 
 
+def create_session() -> requests.Session:
+    '''Creates an unauthorized session.
+
+    Returns
+    -------
+    requests.Session
+        unauthorized session
+
+    '''
+    logger.debug('initialize HTTP session')
+    return requests.Session()
+
+
 def create_session_from_auth(
-        auth: [requests.auth.AuthBase]) -> requests.Session:
-    '''Creates a session from a gicen AuthBase object
+        auth: requests.auth.AuthBase
+    ) -> requests.Session:
+    '''Creates a session from a gicen AuthBase object.
+
     Parameters
     ----------
-    auth: requests.auth.AuthBase, optional
+    auth: requests.auth.AuthBase
         an implementation of `requests.auth.AuthBase` to be used for
         authentication with services
 
     Returns
     -------
     requests.Session
-        authenticated session
+        authorized session
 
     '''
     logger.debug('initialize HTTP session')
     session = requests.Session()
+    logger.debug('authenticate HTTP session')
     session.auth = auth
     return session
 
 
-def create_session_from_user_pass(username: [str],
-                                  password: [str]) -> requests.Session:
-    '''Creates a session from a given username and password
+def create_session_from_user_pass(
+        username: str,
+        password: str
+    ) -> requests.Session:
+    '''Creates a session from a given username and password.
+
     Parameters
     ----------
-    username: str,
+    username: str
         username for authentication with services
-    password: str,
+    password: str
         password for authentication with services
 
     Returns
     -------
     requests.Session
-        authenticated session
+        authorized session
 
     '''
     logger.debug('initialize HTTP session')
     session = requests.Session()
+    logger.debug('authenticate and authorize HTTP session')
     session.auth = (username, password)
     return session
 
 
-def add_certs_to_session(session: [requests.Session],
-                         ca_bundle: Optional[str] = None,
-                         cert: Optional[str] = None) -> requests.Session:
-    '''Adds ca_bundle and certificate to an existing session
+def add_certs_to_session(
+        session: requests.Session,
+        ca_bundle: Optional[str] = None,
+        cert: Optional[str] = None
+    ) -> requests.Session:
+    '''Adds CA bundle and certificate to an existing session.
+
     Parameters
     ----------
-    session: requests.Session,
+    session: requests.Session
         input session
     ca_bundle: str, optional
         path to CA bundle file
@@ -89,15 +112,17 @@ def add_certs_to_session(session: [requests.Session],
 
 
 def create_session_from_gcp_credentials(
-        google_credentials: [Any] = None) -> requests.Session:
-    '''Creates a session for Google Cloud Platform
+        google_credentials: Optional[Any] = None
+    ) -> requests.Session:
+    '''Creates an authorized session for Google Cloud Platform.
+
     Parameters
     ----------
     google_credentials: Any
         Google cloud credentials.
         (see https://cloud.google.com/docs/authentication/production
         for more information on Google cloud authentication).
-        If not set, will be initialized to google.auth.default()
+        If not set, will be initialized to ``google.auth.default()``
 
     Returns
     -------
@@ -110,12 +135,13 @@ def create_session_from_gcp_credentials(
         if google_credentials is None:
             import google.auth
             google_credentials, _ = google.auth.default(
-                scopes=['https://www.googleapis.com/auth/cloud-platform'])
+                scopes=['https://www.googleapis.com/auth/cloud-platform']
+            )
     except ImportError:
         raise ImportError(
             'The dicomweb-client package needs to be installed with the '
             '"gcp" extra requirements to support interaction with the '
             'Google Cloud Healthcare API: pip install dicomweb-client[gcp]'
         )
-    logger.debug('initialize Google AuthorizedSession')
+    logger.debug('initialize, authenticate and authorize HTTP session')
     return google_requests.AuthorizedSession(google_credentials)

@@ -44,3 +44,10 @@ dicomweb\_client.log module
     :undoc-members:
     :show-inheritance:
 
+dicomweb\_client.session_utils module
++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: dicomweb_client.session_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -16,7 +16,7 @@ To interact with a publicly accessible server, you only need to provide the ``ur
 
     from dicomweb_client.api import DICOMwebClient
 
-    client = DICOMwebClient("https://mydicomwebserver.com")
+    client = DICOMwebClient(url="https://mydicomwebserver.com")
 
 
 Some servers expose the different DICOMweb RESTful services using different path prefixes.
@@ -41,10 +41,14 @@ To interact with servers requiring authentication, ``DICOMwebClient`` accepts ar
 
     from requests.auth import HTTPBasicAuth
     from dicomweb_client.api import DICOMwebClient
+    from dicomweb_client.session_utils import create_session_from_auth
+
+    auth=HTTPBasicAuth('myusername', 'mypassword')
+    session = create_session_from_auth(auth)
 
     client = DICOMwebClient(
         url="https://mydicomwebserver.com",
-        auth=HTTPBasicAuth('myusername', 'mypassword')
+        session=session
     )
 
 To simplify usage for ``HTTPBasicAuth``, you may also directly provide a username and password using the corresponding arguments.
@@ -52,13 +56,17 @@ To simplify usage for ``HTTPBasicAuth``, you may also directly provide a usernam
 .. code-block:: python
 
     from dicomweb_client.api import DICOMwebClient
+    from dicomweb_client.session_utils import create_session_from_user_pass
+
+    session = create_session_from_user_pass(
+        username='myusername',
+        password='mypassword'
+    )
 
     client = DICOMwebClient(
         url="https://mydicomwebserver.com",
-        username="myusername",
-        password="mypassword"
+        session=session
     )
-
 
 To interact with servers supporting token-based authorization, you can provide the access token using the ``headers`` argument (the header will be included in every client request message).
 
@@ -78,11 +86,36 @@ To interact with servers requiring certificate-based authentication, you can pro
 .. code-block:: python
 
     from dicomweb_client.api import DICOMwebClient
+    from dicomweb_client.session_utils import (
+        create_session,
+        add_certs_to_session
+    )
+
+    session = create_session()
+    session = add_certs_to_session(
+        session=session,
+        ca_bundle="/path/to/ca.crt",
+        cert="/path/to/cert.pem"
+    )
+
+    client = DICOMwebClient(url="https://mydicomwebserver.com")
+
+
+To interact with a server of the Google Healthcare API requiring OpenID Connect based authentication and authorization provide a session authenticated using the Google Cloud Platform (GCP) credentials.
+See `GCP documentation <https://cloud.google.com/docs/authentication/production>`_ for details.
+
+Note that GCP authentication requires installation of the package distribution with the ``gcp`` extra requirements: ``$ pip install dicomweb-client[gcp]``.
+
+.. code-block:: python
+
+    from dicomweb_client.api import DICOMwebClient
+    from dicomweb_client.session_utils import create_session_from_gcp_credentials
+
+    session = create_session_from_gcp_credentials()
 
     client = DICOMwebClient(
         url="https://mydicomwebserver.com",
-        ca_bundle="/path/to/ca.crt",
-        cert="/path/to/cert.pem"
+        session=session
     )
 
 
