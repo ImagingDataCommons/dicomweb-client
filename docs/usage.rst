@@ -34,6 +34,10 @@ You can specify these prefixes using ``qido_url_prefix``, ``wado_url_prefix``, a
         stow_url_prefix="stowrs"
     )
 
+.. _auth:
+
+Authentication and authorization
+++++++++++++++++++++++++++++++++
 
 To interact with servers requiring authentication, ``DICOMwebClient`` accepts arbitrary authentication handlers derived from ``requests.auth.AuthBase`` (see `here <http://docs.python-requests.org/en/master/user/authentication/>`_ for details).
 
@@ -43,7 +47,7 @@ To interact with servers requiring authentication, ``DICOMwebClient`` accepts ar
     from dicomweb_client.api import DICOMwebClient
     from dicomweb_client.session_utils import create_session_from_auth
 
-    auth=HTTPBasicAuth('myusername', 'mypassword')
+    auth = HTTPBasicAuth('myusername', 'mypassword')
     session = create_session_from_auth(auth)
 
     client = DICOMwebClient(
@@ -51,7 +55,7 @@ To interact with servers requiring authentication, ``DICOMwebClient`` accepts ar
         session=session
     )
 
-To simplify usage for ``HTTPBasicAuth``, you may also directly provide a username and password using the corresponding arguments.
+To simplify usage for basic HTTP authentication, you may also directly provide a username and password using the corresponding arguments.
 
 .. code-block:: python
 
@@ -101,7 +105,7 @@ To interact with servers requiring certificate-based authentication, you can pro
     client = DICOMwebClient(url="https://mydicomwebserver.com")
 
 
-To interact with a server of the Google Healthcare API requiring OpenID Connect based authentication and authorization provide a session authenticated using the Google Cloud Platform (GCP) credentials.
+To interact with a server of the Google Healthcare API requiring OpenID Connect based authentication and authorization, provide a session authenticated using the Google Cloud Platform (GCP) credentials.
 See `GCP documentation <https://cloud.google.com/docs/authentication/production>`_ for details.
 
 Note that GCP authentication requires installation of the package distribution with the ``gcp`` extra requirements: ``$ pip install dicomweb-client[gcp]``.
