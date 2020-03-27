@@ -239,21 +239,16 @@ class DICOMwebClient(object):
     '''
 
     def __init__(
-        self,
-        url: str,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        ca_bundle: Optional[str] = None,
-        cert: Optional[str] = None,
-        qido_url_prefix: Optional[str] = None,
-        wado_url_prefix: Optional[str] = None,
-        stow_url_prefix: Optional[str] = None,
-        proxies: Optional[Dict[str, str]] = None,
-        headers: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
-        callback: Optional[Callable] = None,
-        auth: Optional[requests.auth.AuthBase] = None,
-        gcp_service_account_key_file: Optional[str] = None,
-        chunk_size: Optional[int] = None
+            self,
+            url: str,
+            session: Optional[requests.Session] = None,
+            qido_url_prefix: Optional[str] = None,
+            wado_url_prefix: Optional[str] = None,
+            stow_url_prefix: Optional[str] = None,
+            proxies: Optional[Dict[str, str]] = None,
+            headers: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
+            callback: Optional[Callable] = None,
+            chunk_size: Optional[int] = None
     ) -> None:
         '''
         Parameters
@@ -262,15 +257,10 @@ class DICOMwebClient(object):
             base unique resource locator consisting of protocol, hostname
             (IP address or DNS name) of the machine that hosts the server and
             optionally port number and path prefix
-        username: str, optional
-            username for authentication with services
-        password: str, optional
-            password for authentication with services
-        ca_bundle: str, optional
-            path to CA bundle file
-        cert: str, optional
-            path to client certificate file in Privacy Enhanced Mail (PEM)
-            format
+        session: requests.Session, optional
+            session required to make connection to the DICOMweb service
+            (see session_utils.py to create a valid session if necessary)
+        qido_url_prefix: str, optional
         qido_url_prefix: str, optional
             URL path prefix for QIDO RESTful services
         wado_url_prefix: str, optional
@@ -285,46 +275,20 @@ class DICOMwebClient(object):
         callback: Callable, optional
             callback function to manipulate responses generated from requests
             (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
-        auth: requests.auth.AuthBase, optional
-            an implementation of `requests.auth.AuthBase` to be used for
-            authentication with services
-        gcp_service_account_key_file: str, optional
-            path to a Google Cloud Platform (GCP) service account key file in
-            JSON format to be used for authentication with Google Cloud
-            Healthcare services
-            (see `Google Cloud Healthcare API authentication <https://cloud.google.com/healthcare/docs/how-tos/authentication>`)
         chunk_size: int, optional
             maximum number of bytes per data chunk using chunked transfer
             encoding (helpful for storing and retrieving large objects or large
             collections of objects such as studies or series)
 
         '''  # noqa
-        logger.debug('initialize HTTP session')
-        if gcp_service_account_key_file is not None:
-            self._session = self._get_gcp_session(gcp_service_account_key_file)
-        else:
-            self._session = requests.Session()
+        if session is None:
+            logger.debug('initialize HTTP session')
+            session = requests.session()
+        self._session = session
         self.base_url = url
         self.qido_url_prefix = qido_url_prefix
         self.wado_url_prefix = wado_url_prefix
         self.stow_url_prefix = stow_url_prefix
-        if self.base_url.startswith('https'):
-            if ca_bundle is not None:
-                ca_bundle = os.path.expanduser(os.path.expandvars(ca_bundle))
-                if not os.path.exists(ca_bundle):
-                    raise OSError(
-                        'CA bundle file does not exist: {}'.format(ca_bundle)
-                    )
-                logger.debug('use CA bundle file: {}'.format(ca_bundle))
-                self._session.verify = ca_bundle
-            if cert is not None:
-                cert = os.path.expanduser(os.path.expandvars(cert))
-                if not os.path.exists(cert):
-                    raise OSError(
-                        'Certificate file does not exist: {}'.format(cert)
-                    )
-                logger.debug('use certificate file: {}'.format(cert))
-                self._session.cert = cert
 
         # This regular expression extracts the scheme and host name from the URL
         # and optionally the port number and prefix:
@@ -363,52 +327,7 @@ class DICOMwebClient(object):
         self._session.proxies = proxies
         if callback is not None:
             self._session.hooks = {'response': callback}
-        if gcp_service_account_key_file is not None:
-            logger.warning(
-                'GCP service account key file specified. '
-                'Other authentication mechanisms ignored.'
-            )
-        else:
-            if auth is not None:
-                self._session.auth = auth
-                if username or password:
-                    logger.warning(
-                        'Auth object specified. '
-                        'Username and password ignored.'
-                    )
-            if username is not None:
-                if not password:
-                    raise ValueError(
-                        'No password provided for user "{0}".'.format(username)
-                    )
-                self._session.auth = (username, password)
         self._chunk_size = chunk_size
-
-    def _get_gcp_session(
-            self,
-            service_account_key_file: str
-        ) -> requests.sessions.Session:
-        try:
-            from google.auth.transport import requests as google_requests
-            from google.oauth2 import service_account
-        except ImportError:
-            raise ImportError(
-                'The dicomweb-client package needs to be installed with the '
-                '"gcp" extra requirements to support interaction with the '
-                'Google Cloud Healthcare API: pip install dicomweb-client[gcp]'
-            )
-        if not os.path.exists(service_account_key_file):
-            raise OSError(
-                'Google service account key file does not exist: "{}"'.format(
-                    service_account_key_file
-                )
-            )
-        credentials = service_account.Credentials.from_service_account_file(
-            service_account_key_file
-        )
-        scopes = ['https://www.googleapis.com/auth/cloud-platform', ]
-        scoped_credentials = credentials.with_scopes(scopes)
-        return google_requests.AuthorizedSession(scoped_credentials)
 
     def _parse_qido_query_parameters(
             self,
