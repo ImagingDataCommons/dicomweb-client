@@ -15,8 +15,11 @@ import numpy as np
 
 from dicomweb_client.api import DICOMwebClient, load_json_dataset
 from dicomweb_client.log import configure_logging
-from dicomweb_client.session_utils import create_session_from_user_pass, \
-    add_certs_to_session
+from dicomweb_client.session_utils import (
+    create_session,
+    create_session_from_user_pass,
+    add_certs_to_session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -646,19 +649,22 @@ def main():
     parser = _get_parser()
     args = parser.parse_args()
 
+    configure_logging(args.logging_verbosity)
+
     if args.username:
         if not args.password:
             message = 'Enter password for user "{0}": '.format(args.username)
             args.password = getpass.getpass(message)
-
-    configure_logging(args.logging_verbosity)
-    try:
         session = create_session_from_user_pass(args.username, args.password)
+    else:
+        session = create_session()
+
+    try:
         session = add_certs_to_session(session, args.ca_bundle, args.cert)
+        session = add_headers_to_session(session, headers=_create_headers(args))
         client = DICOMwebClient(
             args.url,
             session=session,
-            headers=_create_headers(args),
             chunk_size=args.chunk_size
         )
         args.func(client, args)
