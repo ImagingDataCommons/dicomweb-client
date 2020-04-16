@@ -2,6 +2,10 @@
 
 [![Build Status](https://travis-ci.org/mghcomputationalpathology/dicomweb-client.svg?branch=master)](https://travis-ci.org/mghcomputationalpathology/dicomweb-client)
 
+[![PyPi Distribution](https://img.shields.io/pypi/v/dicomweb-client.svg)](https://pypi.python.org/pypi/dicomweb-client/)
+
+[![Python Versions](https://img.shields.io/pypi/pyversions/dicomweb-client.svg)](https://pypi.org/project/dicomweb-client/)
+
 Python client for DICOMweb services.
 
 
