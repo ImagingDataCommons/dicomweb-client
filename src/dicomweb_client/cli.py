@@ -9,9 +9,7 @@ import traceback
 import getpass
 from io import BytesIO
 
-from PIL import Image
 import pydicom
-import numpy as np
 
 from dicomweb_client.api import DICOMwebClient, load_json_dataset
 from dicomweb_client.log import configure_logging
@@ -440,16 +438,6 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
                 json.dump(data, f, sort_keys=True)
 
 
-def _save_image(image, filename):
-    logger.info('save pixel data to file "{}"'.format(filename))
-    image.save(filename)
-
-
-def _show_image(image):
-    logger.info('show pixel data')
-    image.show()
-
-
 def _print_pixel_data(pixels):
     logger.info('print pixel data')
     print(pixels)
@@ -596,35 +584,34 @@ def _retrieve_instance_frames(client, args):
     image media types.
     '''
     pixel_data = client.retrieve_instance_frames(
-        args.study_instance_uid, args.series_instance_uid,
-        args.sop_instance_uid, args.frame_numbers,
+        args.study_instance_uid,
+        args.series_instance_uid,
+        args.sop_instance_uid,
+        args.frame_numbers,
         media_types=args.media_types,
     )
 
     for i, data in enumerate(pixel_data):
-        if args.save or args.show:
-            try:
-                image = Image.open(BytesIO(data))
-            except Exception:
-                try:
-                    import jpeg_ls
-                    image = jpeg_ls.decode(np.fromstring(data, dtype=np.uint8))
-                except Exception:
-                    raise IOError(
-                        'Cannot load retrieved frame as an image.'
-                    )
-            if args.save:
-                filename = (
-                    '{sop_instance_uid}_{frame_number}.{extension}'.format(
-                        sop_instance_uid=args.sop_instance_uid,
-                        frame_number=args.frame_numbers[i],
-                        extension=image.format.lower()
-                    )
+        if args.save:
+            if data[:2] == b'\xFF\xD8':       # SOI marker => JPEG
+                if data[2:4] == b'\xFF\xF7':  # SOF 55 marker => JPEG-LS
+                    extension = 'jls'
+                else:
+                    extension = 'jpg'
+            elif data[:2] == b'\xFF\x4F':     # SOC marker => JPEG 2000
+                extension = 'jp2'
+            else:
+                extension = 'dat'
+            filename = (
+                '{sop_instance_uid}_{frame_number}.{extension}'.format(
+                    sop_instance_uid=args.sop_instance_uid,
+                    frame_number=args.frame_numbers[i],
+                    extension=extension
                 )
-                filepath = os.path.join(args.output_dir, filename)
-                _save_image(image, filepath)
-            elif args.show:
-                _show_image(image)
+            )
+            filepath = os.path.join(args.output_dir, filename)
+            with open(filepath, 'bw') as fp:
+                fp.write(data)
         else:
             _print_pixel_data(data)
 
