@@ -60,7 +60,6 @@ setuptools.setup(
         'pytest>=5.0',
         'pytest-localserver>=0.5',
         'pytest-flake8>=1.0',
-        'tox>=3.13',
     ],
     install_requires=[
         'numpy>=1.13',
