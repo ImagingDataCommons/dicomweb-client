@@ -1,6 +1,10 @@
+import json
 import tempfile
 
 import pytest
+
+from dicomweb_client.api import load_json_dataset
+from dicomweb_client.cli import main
 
 
 def test_parse_search_studies(parser):
@@ -592,3 +596,60 @@ def test_parse_retrieve_bulkdata_missing_argument(parser):
         parser.parse_args([
             '--url', 'http://localhost:8002', 'retrieve', 'bulkdata'
         ])
+
+
+def test_search_for_studies(parser, httpserver, cache_dir, capsys):
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    args = parser.parse_args([
+        '--url', httpserver.url, 'search', 'studies',
+    ])
+    with pytest.raises(SystemExit) as exit:
+        main(args)
+    assert exit.value.code == 0
+    stdout, stderr = capsys.readouterr()
+    assert stdout == content
+
+
+def test_search_for_studies_dicomize(parser, httpserver, cache_dir, capsys):
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    dicomized_content = '\n\n\n'.join([
+        repr(load_json_dataset(instance))
+        for instance in parsed_content
+    ])
+    dicomized_content += '\n\n\n'
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    args = parser.parse_args([
+        '--url', httpserver.url, 'search', 'studies', '--dicomize'
+    ])
+    with pytest.raises(SystemExit) as exit:
+        main(args)
+    assert exit.value.code == 0
+    stdout, stderr = capsys.readouterr()
+    assert stdout == dicomized_content
+
+
+def test_search_for_studies_prettify(parser, httpserver, cache_dir, capsys):
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    prettified_content = json.dumps(parsed_content, indent=4, sort_keys=True)
+    prettified_content += '\n'
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    args = parser.parse_args([
+        '--url', httpserver.url, 'search', 'studies', '--prettify'
+    ])
+    with pytest.raises(SystemExit) as exit:
+        main(args)
+    assert exit.value.code == 0
+    stdout, stderr = capsys.readouterr()
+    assert stdout == prettified_content

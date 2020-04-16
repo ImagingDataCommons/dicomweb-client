@@ -445,7 +445,7 @@ def _print_pixel_data(pixels):
 
 
 def _create_headers(args):
-    headers = None
+    headers = {}
     if hasattr(args, "bearer_token"):
         headers = {
             "Authorization": "Bearer {}".format(args.bearer_token)
@@ -631,10 +631,14 @@ def _store_instances(client, args):
     client.store_instances(datasets)
 
 
-def main():
-    '''Main entry point for the ``dicomweb_client`` command line program.'''
+def _main():
     parser = _get_parser()
     args = parser.parse_args()
+    main(args)
+
+
+def main(args):
+    '''Main entry point for the ``dicomweb_client`` command line program.'''
 
     configure_logging(args.logging_verbosity)
 
@@ -648,7 +652,7 @@ def main():
 
     try:
         session = add_certs_to_session(session, args.ca_bundle, args.cert)
-        session = add_headers_to_session(session, headers=_create_headers(args))
+        session.headers.update(_create_headers(args))
         client = DICOMwebClient(
             args.url,
             session=session,
@@ -662,8 +666,3 @@ def main():
             tb = traceback.format_exc()
             logger.error(tb)
         sys.exit(1)
-
-
-if __name__ == '__main__':
-
-    main()

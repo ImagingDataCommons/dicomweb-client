@@ -35,7 +35,7 @@ setuptools.setup(
         'Development Status :: 4 - Beta',
     ],
     entry_points={
-        'console_scripts': ['dicomweb_client = dicomweb_client.cli:main'],
+        'console_scripts': ['dicomweb_client = dicomweb_client.cli:_main'],
     },
     include_package_data=True,
     packages=setuptools.find_packages('src'),
