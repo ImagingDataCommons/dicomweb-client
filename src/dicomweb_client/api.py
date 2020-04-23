@@ -7,6 +7,8 @@ import email
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from io import BytesIO
+from http import HTTPStatus
+import retrying
 from urllib.parse import quote_plus, urlparse
 from typing import (
     Any,
@@ -23,7 +25,7 @@ from typing import (
 import requests
 import pydicom
 
-from dicomweb_client.error import DICOMJSONError, HTTPError
+from dicomweb_client.error import DICOMJSONError
 
 
 logger = logging.getLogger(__name__)
@@ -237,6 +239,64 @@ class DICOMwebClient(object):
 
     '''
 
+    # Default HTTP error codes to retry.
+    _default_retriable_error_codes = (HTTPStatus.TOO_MANY_REQUESTS,
+                                      HTTPStatus.REQUEST_TIMEOUT,
+                                      HTTPStatus.SERVICE_UNAVAILABLE,
+                                      HTTPStatus.GATEWAY_TIMEOUT)
+
+    def set_http_retry_params(
+        self, retry: bool = True,
+        max_attempts: Optional[int] = 5,
+        wait_exponential_multiplier: Optional[int] = 1000,
+        retriable_error_codes: Optional[
+          Tuple[HTTPStatus]] = _default_retriable_error_codes) -> None:
+        '''Sets parameters for HTTP retrying logic. These parameters are passed
+        to @retrying.retry which wraps the HTTP requests and retries all
+        responses that return an error code defined in |retriable_error_codes|.
+        The retrying method uses exponential back off using the multiplier
+        |wait_exponential_multiplier| for a max attempts defined by
+        |max_attempts|.
+
+        Parameters
+        ----------
+        retry: bool, optional
+            whether HTTP retrying should be performed, if it is set to false,
+            the rest of the parameters are ignored.
+        max_attempts: int, optional
+            the maximum number of request attempts.
+        wait_exponential_multiplier: float, optional
+            exponential multiplier applied to delay between attempts in ms.
+        retriable_error_codes: tuple, optional
+            tuple of HTTP error codes to retry if raised.
+        '''
+        self._http_retry = retry
+        if retry:
+          self._max_attempts = max_attempts
+          self._wait_exponential_multiplier = wait_exponential_multiplier
+          self._http_retrable_errors = retriable_error_codes
+
+        else:
+          self._max_attempts = 1
+          self._wait_exponential_multiplier = 1
+          self._http_retrable_errors = ()
+
+    def _is_retriable_http_error(
+        self, response: requests.models.Response) -> bool:
+        '''Determines whether the given response's status code is retriable.
+
+        Parameters
+        ----------
+        response: requests.models.Response
+            HTTP response object returned by the request method.
+
+        Returns
+        -------
+        bool
+            Whether the HTTP request should be retried.
+        '''
+        return response.status_code in self._http_retrable_errors
+
     def __init__(
             self,
             url: str,
@@ -327,6 +387,7 @@ class DICOMwebClient(object):
         if callback is not None:
             self._session.hooks = {'response': callback}
         self._chunk_size = chunk_size
+        self.set_http_retry_params()
 
     def _parse_qido_query_parameters(
             self,
@@ -602,20 +663,26 @@ class DICOMwebClient(object):
             HTTP response message
 
         '''
+        @retrying.retry(
+            retry_on_result=self._is_retriable_http_error,
+            wait_exponential_multiplier=self._wait_exponential_multiplier,
+            stop_max_attempt_number=self._max_attempts)
+        def _invoke_get_request(url: str,
+                                headers: Optional[Dict[str, str]] = None
+                               )-> requests.models.Response:
+            # Setting stream allows for retrieval of data in chunks using
+            # the iter_content() method
+            return self._session.get(url=url, headers=headers, stream=True)
+
         if headers is None:
             headers = {}
         if params is None:
             params = {}
         url += self._build_query_string(params)
         logger.debug('GET: {} {}'.format(url, headers))
-        # Setting stream allows for retrieval of data in chunks using
-        # the iter_content() method
-        response = self._session.get(url=url, headers=headers, stream=True)
-        try:
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as error:
-            raise HTTPError(error)
+        response = _invoke_get_request(url, headers)
         logger.debug('request status code: {}'.format(response.status_code))
+        response.raise_for_status()
         if response.status_code == 204:
             logger.warning('empty response')
         # The server may not return all results, but rather include a warning
@@ -1335,6 +1402,15 @@ class DICOMwebClient(object):
                 end = offset + self._chunk_size
                 yield data[offset:end]
 
+        @retrying.retry(
+            retry_on_result=self._is_retriable_http_error,
+            wait_exponential_multiplier=self._wait_exponential_multiplier,
+            stop_max_attempt_number=self._max_attempts)
+        def _invoke_post_request(url: str, data: bytes,
+                                 headers: Optional[Dict[str, str]] = None
+                                )-> requests.models.Response:
+            return self._session.post(url, headers, data)
+
         if self._chunk_size is not None and len(data) > self._chunk_size:
             logger.info('store data in chunks using chunked transfer encoding')
             chunked_headers = dict(headers)
@@ -1342,21 +1418,14 @@ class DICOMwebClient(object):
             chunked_headers['Cache-Control'] = 'no-cache'
             chunked_headers['Connection'] = 'Keep-Alive'
             data_chunks = serve_data_chunks(data)
-            response = self._session.post(
-                url=url,
-                data=data_chunks,
-                headers=chunked_headers
-            )
+            response = _invoke_post_request(url, data_chunks, chunked_headers)
         else:
-            response = self._session.post(url=url, data=data, headers=headers)
+            response = _invoke_post_request(url, data, headers)
         logger.debug('request status code: {}'.format(response.status_code))
         try:
             response.raise_for_status()
-        except requests.exceptions.HTTPError as error:
-
-            raise HTTPError(error)
         except requests.exceptions.ConnectionError as error:
-            raise HTTPError(error[0])
+            raise requests.exceptions.HTTPError(error[0])
         if not response.ok:
             logger.warning('storage was not successful for all instances')
             payload = response.content
