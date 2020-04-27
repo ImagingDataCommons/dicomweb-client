@@ -8,7 +8,6 @@ import xml.etree.ElementTree as ET
 from collections import OrderedDict
 from io import BytesIO
 from http import HTTPStatus
-import retrying
 from urllib.parse import quote_plus, urlparse
 from typing import (
     Any,
@@ -23,6 +22,7 @@ from typing import (
 )
 
 import requests
+import retrying
 import pydicom
 
 from dicomweb_client.error import DICOMJSONError
@@ -240,7 +240,7 @@ class DICOMwebClient(object):
     '''
 
     # Default HTTP error codes to retry.
-    _default_retriable_error_codes = (HTTPStatus.TOO_MANY_REQUESTS,
+    _DEFAULT_RETRIABLE_ERROR_CODES = (HTTPStatus.TOO_MANY_REQUESTS,
                                       HTTPStatus.REQUEST_TIMEOUT,
                                       HTTPStatus.SERVICE_UNAVAILABLE,
                                       HTTPStatus.GATEWAY_TIMEOUT)
@@ -250,7 +250,7 @@ class DICOMwebClient(object):
         max_attempts: Optional[int] = 5,
         wait_exponential_multiplier: Optional[int] = 1000,
         retriable_error_codes: Optional[
-          Tuple[HTTPStatus]] = _default_retriable_error_codes) -> None:
+          Tuple[HTTPStatus, ...]] = _DEFAULT_RETRIABLE_ERROR_CODES) -> None:
         '''Sets parameters for HTTP retrying logic. These parameters are passed
         to @retrying.retry which wraps the HTTP requests and retries all
         responses that return an error code defined in |retriable_error_codes|.
