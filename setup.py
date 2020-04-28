@@ -64,5 +64,6 @@ setuptools.setup(
     install_requires=[
         'pydicom>=1.0',
         'requests>=2.18',
+        'retrying>=1.3.3',
     ]
 )
