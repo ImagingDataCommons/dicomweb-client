@@ -4,7 +4,10 @@ import os
 import sys
 import logging
 import email
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import (
+    Element,
+    fromstring
+)
 from collections import OrderedDict
 from io import BytesIO
 from http import HTTPStatus
@@ -14,6 +17,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Set,
     Sequence,
@@ -45,7 +49,7 @@ def _init_dataset():
 def _create_dataelement(
         tag: pydicom.tag.Tag,
         vr: str,
-        value: Sequence
+        value: List[Any]
     ) -> pydicom.dataelem.DataElement:
     '''Creates a DICOM Data Element.
 
@@ -55,7 +59,7 @@ def _create_dataelement(
         data element tag
     vr: str
         data element value representation
-    value: Sequence
+    value: List[Any]
         data element value(s)
 
     Returns
@@ -75,6 +79,7 @@ def _create_dataelement(
             raise DICOMJSONError(
                 '"Value" of data element "{}" must be an array.'.format(tag)
             )
+    elem_value: Optional[List[Any]]
     if vr == 'SQ':
         elem_value = []
         for value_item in value:
@@ -179,13 +184,13 @@ def load_json_dataset(dataset: Dict[str, dict]) -> pydicom.dataset.Dataset:
     return ds
 
 
-def _load_xml_dataset(dataset: ET) -> pydicom.dataset.Dataset:
+def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
     '''Loads DICOM Data Set in DICOM XML format.
 
     Parameters
     ----------
-    dataset: xml.etree.ElementTree
-        element tree
+    dataset: xml.etree.ElementTree.Element
+        parsed element tree
 
     Returns
     -------
@@ -197,6 +202,7 @@ def _load_xml_dataset(dataset: ET) -> pydicom.dataset.Dataset:
     for element in dataset:
         keyword = element.attrib['keyword']
         vr = element.attrib['vr']
+        value: Optional[Union[List[Any], str]]
         if vr == 'SQ':
             value = [
                 _load_xml_dataset(item)
@@ -239,18 +245,18 @@ class DICOMwebClient(object):
 
     '''
 
-    # Default HTTP error codes to retry.
-    _DEFAULT_RETRIABLE_ERROR_CODES = (HTTPStatus.TOO_MANY_REQUESTS,
-                                      HTTPStatus.REQUEST_TIMEOUT,
-                                      HTTPStatus.SERVICE_UNAVAILABLE,
-                                      HTTPStatus.GATEWAY_TIMEOUT)
-
     def set_http_retry_params(
-        self, retry: bool = True,
-        max_attempts: Optional[int] = 5,
-        wait_exponential_multiplier: Optional[int] = 1000,
-        retriable_error_codes: Optional[
-          Tuple[HTTPStatus, ...]] = _DEFAULT_RETRIABLE_ERROR_CODES) -> None:
+            self,
+            retry: bool = True,
+            max_attempts: int = 5,
+            wait_exponential_multiplier: int = 1000,
+            retriable_error_codes: Tuple[HTTPStatus, ...] = (
+                HTTPStatus.TOO_MANY_REQUESTS,
+                HTTPStatus.REQUEST_TIMEOUT,
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                HTTPStatus.GATEWAY_TIMEOUT,
+            )
+        ) -> None:
         '''Sets parameters for HTTP retrying logic. These parameters are passed
         to @retrying.retry which wraps the HTTP requests and retries all
         responses that return an error code defined in |retriable_error_codes|.
@@ -261,8 +267,8 @@ class DICOMwebClient(object):
         Parameters
         ----------
         retry: bool, optional
-            whether HTTP retrying should be performed, if it is set to false,
-            the rest of the parameters are ignored.
+            whether HTTP retrying should be performed, if it is set to
+            ``False``, the rest of the parameters are ignored.
         max_attempts: int, optional
             the maximum number of request attempts.
         wait_exponential_multiplier: float, optional
@@ -272,17 +278,19 @@ class DICOMwebClient(object):
         '''
         self._http_retry = retry
         if retry:
-          self._max_attempts = max_attempts
-          self._wait_exponential_multiplier = wait_exponential_multiplier
-          self._http_retrable_errors = retriable_error_codes
+            self._max_attempts = max_attempts
+            self._wait_exponential_multiplier = wait_exponential_multiplier
+            self._http_retrable_errors = retriable_error_codes
 
         else:
-          self._max_attempts = 1
-          self._wait_exponential_multiplier = 1
-          self._http_retrable_errors = ()
+            self._max_attempts = 1
+            self._wait_exponential_multiplier = 1
+            self._http_retrable_errors = ()
 
     def _is_retriable_http_error(
-        self, response: requests.models.Response) -> bool:
+            self,
+            response: requests.models.Response
+    ) -> bool:
         '''Determines whether the given response's status code is retriable.
 
         Parameters
@@ -305,7 +313,7 @@ class DICOMwebClient(object):
             wado_url_prefix: Optional[str] = None,
             stow_url_prefix: Optional[str] = None,
             proxies: Optional[Dict[str, str]] = None,
-            headers: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
+            headers: Optional[Dict[str, str]] = None,
             callback: Optional[Callable] = None,
             chunk_size: Optional[int] = None
     ) -> None:
@@ -326,9 +334,9 @@ class DICOMwebClient(object):
             URL path prefix for WADO RESTful services
         stow_url_prefix: str, optional
             URL path prefix for STOW RESTful services
-        proxies: dict, optional
+        proxies: Dict[str, str], optional
             mapping of protocol or protocol + host to the URL of a proxy server
-        headers: dict, optional
+        headers: Dict[str, str], optional
             custom headers that should be included in request messages,
             e.g., authentication tokens
         callback: Callable, optional
@@ -364,11 +372,11 @@ class DICOMwebClient(object):
         try:
             self.protocol = match.group('scheme')
             self.host = match.group('host')
-            self.port = match.group('port')
+            port = match.group('port')
         except AttributeError:
             raise ValueError('Malformed URL: {}'.format(self.base_url))
-        if self.port is not None:
-            self.port = int(self.port)
+        if port is not None:
+            self.port = int(port)
         else:
             if self.protocol == 'http':
                 self.port = 80
@@ -383,9 +391,10 @@ class DICOMwebClient(object):
         self._session.headers.update({'Host': self.host})
         if headers is not None:
             self._session.headers.update(headers)
-        self._session.proxies = proxies
+        if proxies is not None:
+            self._session.proxies = proxies
         if callback is not None:
-            self._session.hooks = {'response': callback}
+            self._session.hooks = {'response': [callback, ]}
         self._chunk_size = chunk_size
         self.set_http_retry_params()
 
@@ -421,7 +430,7 @@ class DICOMwebClient(object):
             sanitized and sorted query parameters
 
         '''
-        params = {}
+        params: Dict[str, Union[int, str, List[str]]] = {}
         if limit is not None:
             if not(isinstance(limit, int)):
                 raise TypeError('Parameter "limit" must be an integer.')
@@ -442,11 +451,12 @@ class DICOMwebClient(object):
             else:
                 params['fuzzymatching'] = 'false'
         if fields is not None:
-            params['includefield'] = []
+            includefields = []
             for field in set(fields):
                 if not(isinstance(field, str)):
                     raise TypeError('Elements of "fields" must be a string.')
-                params['includefield'].append(field)
+                includefields.append(field)
+            params['includefield'] = includefields
         if search_filters is not None:
             for field, criterion in search_filters.items():
                 if not(isinstance(field, str)):
@@ -666,10 +676,12 @@ class DICOMwebClient(object):
         @retrying.retry(
             retry_on_result=self._is_retriable_http_error,
             wait_exponential_multiplier=self._wait_exponential_multiplier,
-            stop_max_attempt_number=self._max_attempts)
-        def _invoke_get_request(url: str,
-                                headers: Optional[Dict[str, str]] = None
-                               )-> requests.models.Response:
+            stop_max_attempt_number=self._max_attempts
+        )
+        def _invoke_get_request(
+                url: str,
+                headers: Optional[Dict[str, str]] = None
+            ) -> requests.models.Response:
             # Setting stream allows for retrieval of data in chunks using
             # the iter_content() method
             return self._session.get(url=url, headers=headers, stream=True)
@@ -696,7 +708,7 @@ class DICOMwebClient(object):
             self,
             url: str,
             params: Optional[Dict[str, Any]] = None
-        ) -> Union[Dict[str, dict], List[Dict[str, dict]]]:
+        ) -> List[Dict[str, dict]]:
         '''Performs a HTTP GET request that accepts "applicaton/dicom+json"
         or "application/json" media type.
 
@@ -709,20 +721,26 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Union[dict, list, None]
+        List[str, dict]
             content of HTTP message body in DICOM JSON format
 
         '''
         content_type = 'application/dicom+json, application/json'
         response = self._http_get(url, params, {'Accept': content_type})
         if response.content:
-            return response.json()
-        return None
+            decoded_response = response.json()
+            # All metadata resources are expected to be sent as a JSON array of
+            # DICOM data sets. However, some origin servers may incorrectly
+            # sent an individual data set.
+            if isinstance(decoded_response, dict):
+                return [decoded_response]
+            return decoded_response
+        return []
 
     def _decode_multipart_message(
             self,
             body: bytes,
-            headers: Dict[str, str]
+            headers: Mapping[str, str]
         ) -> List[bytes]:
         '''Extracts parts of a HTTP multipart response message.
 
@@ -846,14 +864,14 @@ class DICOMwebClient(object):
 
     def _build_accept_header_field_value(
             self,
-            media_types: Tuple[str],
+            media_types: Union[Tuple[Union[str, Tuple[str, str]]], None],
             supported_media_types: Set[str]
         ) -> str:
         '''Builds an accept header field value for HTTP GET request messages.
 
         Parameters
         ----------
-        media_types: Tuple[str]
+        media_types: Union[Tuple[str], None]
             acceptable media types
         supported_media_types: Set[str]
             supported media types
@@ -886,7 +904,7 @@ class DICOMwebClient(object):
 
     def _build_multipart_accept_header_field_value(
             self,
-            media_types: Tuple[Union[str, Tuple[str, str]]],
+            media_types: Union[Tuple[Union[str, Tuple[str, str]]], None],
             supported_media_types: Union[Dict[str, str], Set[str]]
         ) -> str:
         '''Builds an accept header field value for HTTP GET multipart request
@@ -894,7 +912,7 @@ class DICOMwebClient(object):
 
         Parameters
         ----------
-        media_types: Tuple[Union[str, Tuple[str, str]]]
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None]
             acceptable media types and optionally the UIDs of the corresponding
             transfer syntaxes
         supported_media_types: Union[Dict[str, str], Set[str]]
@@ -1106,7 +1124,7 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]]
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
             acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Tuple[int, int], optional
@@ -1123,6 +1141,7 @@ class DICOMwebClient(object):
 
         '''
         headers = {}
+        supported_media_types: Union[set, dict]
         if rendered:
             supported_media_types = {
                 'image/jpeg',
@@ -1149,7 +1168,8 @@ class DICOMwebClient(object):
                     byte_range
                 )
         headers['Accept'] = self._build_multipart_accept_header_field_value(
-            media_types, supported_media_types
+            media_types,
+            supported_media_types
         )
         response = self._http_get(url, params, headers)
         return self._decode_multipart_message(
@@ -1189,6 +1209,7 @@ class DICOMwebClient(object):
 
         '''
         headers = {}
+        supported_media_types: Union[set, dict]
         if rendered:
             supported_media_types = {
                 'video/',
@@ -1212,7 +1233,8 @@ class DICOMwebClient(object):
                     byte_range
                 )
         headers['Accept'] = self._build_multipart_accept_header_field_value(
-            media_types, supported_media_types
+            media_types,
+            supported_media_types
         )
         response = self._http_get(url, params, headers)
         return self._decode_multipart_message(
@@ -1250,7 +1272,7 @@ class DICOMwebClient(object):
     def _http_get_image(
             self,
             url: str,
-            media_types: Optional[Tuple[str]] = None,
+            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             params: Optional[Dict[str, Any]] = None
         ) -> bytes:
         '''Performs a HTTP GET request that accepts a message with an image
@@ -1260,7 +1282,7 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        media_types: Tuple[str]
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
             image media type (choices: ``"image/jpeg"``, ``"image/gif"``,
             ``"image/jp2"``, ``"image/png"``)
         params: Dict[str, Any], optional
@@ -1281,7 +1303,8 @@ class DICOMwebClient(object):
             'image/png',
         }
         accept_header_field_value = self._build_accept_header_field_value(
-            media_types, supported_media_types
+            media_types,
+            supported_media_types
         )
         headers = {
             'Accept': accept_header_field_value,
@@ -1292,7 +1315,7 @@ class DICOMwebClient(object):
     def _http_get_video(
             self,
             url: str,
-            media_types: Optional[Tuple[str]] = None,
+            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             params: Optional[Dict[str, Any]] = None
         ) -> bytes:
         '''Performs a HTTP GET request that accepts a message with an video
@@ -1302,7 +1325,7 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        media_types: Tuple[str]
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
             video media type (choices: ``"video/mpeg"``, ``"video/mp4"``,
             ``"video/H265"``)
         params: Dict[str, Any], optional
@@ -1322,7 +1345,8 @@ class DICOMwebClient(object):
             'video/H265',
         }
         accept_header_field_value = self._build_accept_header_field_value(
-            media_types, supported_media_types
+            media_types,
+            supported_media_types
         )
         headers = {
             'Accept': accept_header_field_value,
@@ -1333,7 +1357,7 @@ class DICOMwebClient(object):
     def _http_get_text(
             self,
             url: str,
-            media_types: Optional[Tuple[str]] = None,
+            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             params: Optional[Dict[str, Any]] = None
         ) -> bytes:
         '''Performs a HTTP GET request that accepts a message with an text
@@ -1343,7 +1367,7 @@ class DICOMwebClient(object):
         ----------
         url: str
             unique resource locator
-        media_types: Tuple[str]
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
             text media type (choices: ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``)
         params: Dict[str, Any], optional
@@ -1405,10 +1429,13 @@ class DICOMwebClient(object):
         @retrying.retry(
             retry_on_result=self._is_retriable_http_error,
             wait_exponential_multiplier=self._wait_exponential_multiplier,
-            stop_max_attempt_number=self._max_attempts)
-        def _invoke_post_request(url: str, data: bytes,
-                                 headers: Optional[Dict[str, str]] = None
-                                )-> requests.models.Response:
+            stop_max_attempt_number=self._max_attempts
+        )
+        def _invoke_post_request(
+                url: str,
+                data: bytes,
+                headers: Optional[Dict[str, str]] = None
+            ) -> requests.models.Response:
             return self._session.post(url, headers, data)
 
         if self._chunk_size is not None and len(data) > self._chunk_size:
@@ -1422,10 +1449,7 @@ class DICOMwebClient(object):
         else:
             response = _invoke_post_request(url, data, headers)
         logger.debug('request status code: {}'.format(response.status_code))
-        try:
-            response.raise_for_status()
-        except requests.exceptions.ConnectionError as error:
-            raise requests.exceptions.HTTPError(error[0])
+        response.raise_for_status()
         if not response.ok:
             logger.warning('storage was not successful for all instances')
             payload = response.content
@@ -1433,7 +1457,7 @@ class DICOMwebClient(object):
             if content_type in ('application/dicom+json', 'application/json', ):
                 dataset = load_json_dataset(payload)
             elif content_type in ('application/dicom+xml', 'application/xml', ):
-                tree = ET.fromstring(payload)
+                tree = fromstring(payload)
                 dataset = _load_xml_dataset(tree)
             else:
                 raise ValueError('Response message has unexpected media type.')
@@ -1450,8 +1474,8 @@ class DICOMwebClient(object):
     def _http_post_multipart_application_dicom(
             self,
             url: str,
-            data: bytes
-        ) -> Union[None, Dict[str, dict]]:
+            data: Sequence[bytes]
+        ) -> pydicom.Dataset:
         '''Performs a HTTP POST request with a multipart payload with
         "application/dicom" media type.
 
@@ -1464,7 +1488,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Dict[str, dict]
+        pydicom.dataset.Dataset
             information about stored instances
 
         '''
@@ -1484,9 +1508,9 @@ class DICOMwebClient(object):
             if content_type in ('application/dicom+json', 'application/json', ):
                 return load_json_dataset(response.json())
             elif content_type in ('application/dicom+xml', 'application/xml', ):
-                tree = ET.fromstring(response.content)
+                tree = fromstring(response.content)
                 return _load_xml_dataset(tree)
-        return None
+        return pydicom.Dataset()
 
     def search_for_studies(
             self,
@@ -1531,12 +1555,7 @@ class DICOMwebClient(object):
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
-        studies = self._http_get_application_json(url, params)
-        if studies is None:
-            return []
-        if not isinstance(studies, list):
-            studies = [studies]
-        return studies
+        return self._http_get_application_json(url, params)
 
     def _parse_media_type(self, media_type: str) -> Tuple[str, str]:
         '''Parses media type and extracts its type and subtype.
@@ -1799,12 +1818,7 @@ class DICOMwebClient(object):
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
-        series = self._http_get_application_json(url, params)
-        if series is None:
-            return []
-        if not(isinstance(series, list)):
-            series = [series]
-        return series
+        return self._http_get_application_json(url, params)
 
     def retrieve_series(
             self,
@@ -2020,12 +2034,7 @@ class DICOMwebClient(object):
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
-        instances = self._http_get_application_json(url, params)
-        if instances is None:
-            return []
-        if not(isinstance(instances, list)):
-            instances = [instances]
-        return instances
+        return self._http_get_application_json(url, params)
 
     def retrieve_instance(
             self,
@@ -2122,7 +2131,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Dict[str, dict]
+        pydicom.dataset.Dataset
             information about status of stored instances
 
         '''

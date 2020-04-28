@@ -32,6 +32,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Development Status :: 4 - Beta',
     ],
     entry_points={
@@ -40,27 +41,12 @@ setuptools.setup(
     include_package_data=True,
     packages=setuptools.find_packages('src'),
     package_dir={'': 'src'},
-    setup_requires=[
-        'pytest-runner>=3.0',
-    ],
     extras_require={
-        'docs': [
-            'sphinx>=1.7.1',
-            'sphinx-pyreverse>=0.0.12',
-            'sphinxcontrib-autoprogram>=0.1.4',
-            'sphinx_rtd_theme>=0.2.4'
-        ],
         'gcp': [
             'google-auth>=1.6',
             'google-oauth>=1.0',
         ],
     },
-    tests_require=[
-        'mypy>=0.7',
-        'pytest>=5.0',
-        'pytest-localserver>=0.5',
-        'pytest-flake8>=1.0',
-    ],
     install_requires=[
         'pydicom>=1.0',
         'requests>=2.18',
