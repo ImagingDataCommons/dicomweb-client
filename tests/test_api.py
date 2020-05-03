@@ -619,6 +619,10 @@ def test_store_instance_error_with_retries(httpserver, client, cache_dir):
     with pytest.raises(RetryError):
         client.store_instances([dataset])
     assert len(httpserver.requests) == max_attempts
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
 
 
 def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
@@ -634,6 +638,10 @@ def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     with pytest.raises(HTTPError):
         client.store_instances([dataset])
     assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):

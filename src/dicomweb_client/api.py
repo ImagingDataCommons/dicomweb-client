@@ -142,8 +142,6 @@ def _create_dataelement(
                 elem_value = value[0].split('\\')
             else:
                 elem_value = value
-    if value is None:
-        logger.warning('missing value for data element "{}"'.format(tag))
     try:
         return pydicom.dataelem.DataElement(tag=tag, value=elem_value, VR=vr)
     except Exception:
@@ -375,7 +373,7 @@ class DICOMwebClient(object):
             port = match.group('port')
         except AttributeError:
             raise ValueError('Malformed URL: {}'.format(self.base_url))
-        if port is not None:
+        if port:
             self.port = int(port)
         else:
             if self.protocol == 'http':
@@ -836,7 +834,7 @@ class DICOMwebClient(object):
 
     def _build_range_header_field_value(
             self,
-            byte_range: Tuple[int, int]
+            byte_range: Optional[Tuple[int, int]]
         ) -> str:
         '''Builds a range header field value for HTTP GET request messages.
 
@@ -1436,7 +1434,7 @@ class DICOMwebClient(object):
                 data: bytes,
                 headers: Optional[Dict[str, str]] = None
             ) -> requests.models.Response:
-            return self._session.post(url, headers, data)
+            return self._session.post(url, data=data, headers=headers)
 
         if self._chunk_size is not None and len(data) > self._chunk_size:
             logger.info('store data in chunks using chunked transfer encoding')
