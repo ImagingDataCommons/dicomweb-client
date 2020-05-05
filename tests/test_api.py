@@ -2,9 +2,12 @@ import os
 import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
+from http import HTTPStatus
 
 import pytest
 import pydicom
+from requests.exceptions import HTTPError
+from retrying import RetryError
 
 from dicomweb_client.api import (
     DICOMwebClient,
@@ -79,6 +82,22 @@ def test_lookup_keyword(httpserver, client):
     assert client.lookup_keyword('7FE00010') == 'PixelData'
 
 
+def test_set_http_retry_params(httpserver, client):
+    retry = True
+    retriable_error_codes = (HTTPStatus.TOO_MANY_REQUESTS,
+                             HTTPStatus.SERVICE_UNAVAILABLE)
+    max_attempts = 10
+    wait_exponential_multiplier = 100
+    client = DICOMwebClient(httpserver.url)
+    client.set_http_retry_params(retry, max_attempts,
+                                 wait_exponential_multiplier,
+                                 retriable_error_codes)
+    assert client._http_retry == retry
+    assert client._http_retrable_errors == retriable_error_codes
+    assert client._max_attempts == max_attempts
+    assert client._wait_exponential_multiplier == wait_exponential_multiplier
+
+
 def test_search_for_studies(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
     with open(cache_filename, 'r') as f:
@@ -93,6 +112,37 @@ def test_search_for_studies(httpserver, client, cache_dir):
         mime[0] in ('application/json', 'application/dicom+json')
         for mime in request.accept_mimetypes
     )
+
+
+def test_search_for_studies_with_retries(httpserver, client, cache_dir):
+    headers = {'content-type': 'application/dicom+json'}
+    max_attempts = 3
+    client.set_http_retry_params(
+        retry=True,
+        max_attempts=max_attempts,
+        wait_exponential_multiplier=10
+    )
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=headers
+    )
+    with pytest.raises(RetryError):
+        client.search_for_studies()
+    assert len(httpserver.requests) == max_attempts
+
+
+def test_search_for_studies_with_no_retries(httpserver, client, cache_dir):
+    client.set_http_retry_params(retry=False)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=headers
+    )
+    with pytest.raises(HTTPError):
+        client.search_for_studies()
+    assert len(httpserver.requests) == 1
 
 
 def test_search_for_studies_qido_prefix(httpserver, client, cache_dir):
@@ -549,6 +599,49 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:10] == headers['content-type'][:10]
+
+
+def test_store_instance_error_with_retries(httpserver, client, cache_dir):
+    dataset = load_json_dataset({})
+    dataset.is_little_endian = True
+    dataset.is_implicit_VR = True
+    max_attempts = 2
+    client.set_http_retry_params(
+        retry=True,
+        max_attempts=max_attempts,
+        wait_exponential_multiplier=10
+    )
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=''
+    )
+    with pytest.raises(RetryError):
+        client.store_instances([dataset])
+    assert len(httpserver.requests) == max_attempts
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
+
+
+def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
+    dataset = load_json_dataset({})
+    dataset.is_little_endian = True
+    dataset.is_implicit_VR = True
+    client.set_http_retry_params(retry=False)
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=''
+    )
+    with pytest.raises(HTTPError):
+        client.store_instances([dataset])
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):
