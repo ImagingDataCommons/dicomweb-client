@@ -643,6 +643,69 @@ def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
         'multipart/related; type="application/dicom"'
     )
 
+def test_delete_study_error(httpserver, client, cache_dir):
+    study_instance_uid = '1.2.3'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    with pytest.raises(HTTPError):
+        client.delete_study(study_instance_uid=study_instance_uid)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}'.format(
+            study_instance_uid=study_instance_uid)
+        )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+
+def test_delete_series_error(httpserver, client, cache_dir):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    with pytest.raises(HTTPError):
+        client.delete_series(study_instance_uid=study_instance_uid,
+                             series_instance_uid=series_instance_uid)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}/series/{series_instance_uid}'.format(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid)
+        )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+
+def test_delete_instance_error(httpserver, client, cache_dir):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    with pytest.raises(HTTPError):
+        client.delete_instance(study_instance_uid=study_instance_uid,
+                               series_instance_uid=series_instance_uid,
+                               sop_instance_uid=sop_instance_uid)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
+        '/{sop_instance_uid}'.format(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid,)
+        )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):
     value = ['2018-11-21']
@@ -726,3 +789,4 @@ def test_load_xml_response(httpserver, client, cache_dir):
         dataset = _load_xml_dataset(tree)
     assert dataset.RetrieveURL.startswith('https://wadors.hospital.com')
     assert len(dataset.ReferencedSOPSequence) == 2
+
