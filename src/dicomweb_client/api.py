@@ -1795,6 +1795,7 @@ class DICOMwebClient(object):
         -------
         requests.models.Response
             HTTP response object returned.
+
         Note
         ----
         The Delete Study resource is not part of the DICOM standard
