@@ -2276,6 +2276,7 @@ class DICOMwebClient(object):
         ----
         The Delete Instance resource is not part of the DICOM standard
         and may not be supported by all origin servers.
+
         WARNING
         -------
         This method performs a DELETE and should be used with caution.
