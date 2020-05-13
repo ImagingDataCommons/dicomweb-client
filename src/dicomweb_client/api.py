@@ -240,6 +240,8 @@ class DICOMwebClient(object):
         URL path prefix for WADO-RS (not part of `base_url`)
     stow_url_prefix: Union[str, None]
         URL path prefix for STOW-RS (not part of `base_url`)
+    delete_url_prefix: Union[str, None]
+        URL path prefix for DELETE (not part of `base_url`)
 
     '''
 
@@ -310,6 +312,7 @@ class DICOMwebClient(object):
             qido_url_prefix: Optional[str] = None,
             wado_url_prefix: Optional[str] = None,
             stow_url_prefix: Optional[str] = None,
+            delete_url_prefix: Optional[str] = None,
             proxies: Optional[Dict[str, str]] = None,
             headers: Optional[Dict[str, str]] = None,
             callback: Optional[Callable] = None,
@@ -332,6 +335,8 @@ class DICOMwebClient(object):
             URL path prefix for WADO RESTful services
         stow_url_prefix: str, optional
             URL path prefix for STOW RESTful services
+        delete_url_prefix: str, optional
+            URL path prefix for DELETE RESTful services
         proxies: Dict[str, str], optional
             mapping of protocol or protocol + host to the URL of a proxy server
         headers: Dict[str, str], optional
@@ -354,6 +359,7 @@ class DICOMwebClient(object):
         self.qido_url_prefix = qido_url_prefix
         self.wado_url_prefix = wado_url_prefix
         self.stow_url_prefix = stow_url_prefix
+        self.delete_url_prefix = delete_url_prefix
 
         # This regular expression extracts the scheme and host name from the URL
         # and optionally the port number and prefix:
@@ -491,6 +497,9 @@ class DICOMwebClient(object):
         elif service_name == 'stow':
             if self.stow_url_prefix is not None:
                 service_url += '/{}'.format(self.stow_url_prefix)
+        elif service_name == 'delete':
+            if self.delete_url_prefix is not None:
+                service_url += '/{}'.format(self.delete_url_prefix)
         else:
             raise ValueError(
                 'Unsupported DICOMweb service "{}".'.format(service_name)
@@ -1510,6 +1519,35 @@ class DICOMwebClient(object):
                 return _load_xml_dataset(tree)
         return pydicom.Dataset()
 
+    def _http_delete(self, url: str):
+        '''Performs a HTTP DELETE request to the specified URL.
+
+        Parameters
+        ----------
+        url: str
+            unique resource locator
+
+        Returns
+        -------
+        requests.models.Response
+            HTTP response message
+        '''
+        @retrying.retry(
+            retry_on_result=self._is_retriable_http_error,
+            wait_exponential_multiplier=self._wait_exponential_multiplier,
+            stop_max_attempt_number=self._max_attempts
+        )
+        def _invoke_delete_request(url: str) -> requests.models.Response:
+            return self._session.delete(url)
+
+        response = _invoke_delete_request(url)
+        if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
+            logger.error(
+              'Resource could not be deleted. The origin server may not support'
+              'deletion or you may not have the necessary permissions.')
+        response.raise_for_status()
+        return response
+
     def search_for_studies(
             self,
             fuzzymatching: Optional[bool] = None,
@@ -1745,6 +1783,35 @@ class DICOMwebClient(object):
         url += '/metadata'
         return self._http_get_application_json(url)
 
+    def delete_study(self, study_instance_uid: str) -> None:
+        '''Deletes specified study and its respective instances.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+
+        Returns
+        -------
+        requests.models.Response
+            HTTP response object returned.
+
+        Note
+        ----
+        The Delete Study resource is not part of the DICOM standard
+        and may not be supported by all origin servers.
+
+        WARNING
+        -------
+        This method performs a DELETE and should be used with caution.
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+              'Study Instance UID is required for deletion of a study.'
+            )
+        url = self._get_studies_url('delete', study_instance_uid)
+        return self._http_delete(url)
+
     def _assert_uid_format(self, uid: str) -> None:
         '''Checks whether a DICOM UID has the correct format.
 
@@ -1979,6 +2046,45 @@ class DICOMwebClient(object):
                 'retrieval of rendered series.'.format(common_media_type)
             )
 
+    def delete_series(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str
+        ) -> None:
+        '''Deletes specified series and its respective instances.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+
+        Note
+        ----
+        The Delete Series resource is not part of the DICOM standard
+        and may not be supported by all origin servers.
+        Returns
+        -------
+        requests.models.Response
+            HTTP response object returned.
+
+        WARNING
+        -------
+        This method performs a DELETE and should be used with caution.
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+              'Study Instance UID is required for deletion of a series.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for deletion of a series.'
+            )
+        url = self._get_series_url('delete', study_instance_uid,
+                                   series_instance_uid)
+        return self._http_delete(url)
+
     def search_for_instances(
             self,
             study_instance_uid: Optional[str] = None,
@@ -2144,6 +2250,53 @@ class DICOMwebClient(object):
             url,
             encoded_datasets
         )
+
+    def delete_instance(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str
+    ) -> None:
+        '''Deletes specified instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        sop_instance_uid: str
+            unique instance identifier
+
+        Returns
+        -------
+        requests.models.Response
+            HTTP response object returned.
+
+        Note
+        ----
+        The Delete Instance resource is not part of the DICOM standard
+        and may not be supported by all origin servers.
+
+        WARNING
+        -------
+        This method performs a DELETE and should be used with caution.
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+              'Study Instance UID is required for deletion of an instance.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for deletion of an instance.'
+            )
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for deletion of an instance.'
+            )
+        url = self._get_instances_url('delete', study_instance_uid,
+                                      series_instance_uid, sop_instance_uid)
+        return self._http_delete(url)
 
     def retrieve_instance_metadata(
             self,
