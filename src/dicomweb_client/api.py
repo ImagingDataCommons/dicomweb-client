@@ -1795,7 +1795,10 @@ class DICOMwebClient(object):
         -------
         requests.models.Response
             HTTP response object returned.
-
+        Note
+        ----
+        The Delete Study resource is not part of the DICOM standard
+        and may not be supported by all origin servers.
         WARNING
         -------
         This method performs a DELETE and should be used with caution.
@@ -2055,6 +2058,10 @@ class DICOMwebClient(object):
         series_instance_uid: str
             unique series identifier
 
+        Note
+        ----
+        The Delete Series resource is not part of the DICOM standard
+        and may not be supported by all origin servers.
         Returns
         -------
         requests.models.Response
@@ -2264,6 +2271,10 @@ class DICOMwebClient(object):
         requests.models.Response
             HTTP response object returned.
 
+        Note
+        ----
+        The Delete Instance resource is not part of the DICOM standard
+        and may not be supported by all origin servers.
         WARNING
         -------
         This method performs a DELETE and should be used with caution.
