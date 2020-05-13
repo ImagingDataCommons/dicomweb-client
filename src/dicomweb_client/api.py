@@ -1542,7 +1542,7 @@ class DICOMwebClient(object):
 
         response = _invoke_delete_request(url)
         if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
-          logger.error(
+            logger.error(
               'Resource could not be deleted. The origin server may not support'
               'deletion or you may not have the necessary permissions.')
         response.raise_for_status()
@@ -1800,15 +1800,15 @@ class DICOMwebClient(object):
         ----
         The Delete Study resource is not part of the DICOM standard
         and may not be supported by all origin servers.
-        
+
         WARNING
         -------
         This method performs a DELETE and should be used with caution.
         '''
         if study_instance_uid is None:
-          raise ValueError(
+            raise ValueError(
               'Study Instance UID is required for deletion of a study.'
-          )
+            )
         url = self._get_studies_url('delete', study_instance_uid)
         return self._http_delete(url)
 
@@ -2074,9 +2074,9 @@ class DICOMwebClient(object):
         This method performs a DELETE and should be used with caution.
         '''
         if study_instance_uid is None:
-          raise ValueError(
+            raise ValueError(
               'Study Instance UID is required for deletion of a series.'
-          )
+            )
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for deletion of a series.'
@@ -2252,11 +2252,11 @@ class DICOMwebClient(object):
         )
 
     def delete_instance(
-          self,
-          study_instance_uid: str,
-          series_instance_uid: str,
-          sop_instance_uid: str
-        ) -> None:
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str
+    ) -> None:
         '''Deletes specified instance.
 
         Parameters
@@ -2283,9 +2283,9 @@ class DICOMwebClient(object):
         This method performs a DELETE and should be used with caution.
         '''
         if study_instance_uid is None:
-          raise ValueError(
+            raise ValueError(
               'Study Instance UID is required for deletion of an instance.'
-          )
+            )
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for deletion of an instance.'
