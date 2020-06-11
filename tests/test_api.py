@@ -1,4 +1,4 @@
-import os
+import inspect
 import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
@@ -331,6 +331,85 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
         '/instances/{sop_instance_uid}/metadata'.format(**locals())
     )
     assert request.path == expected_path
+
+
+def test_retrieve_series(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        payload = f.read()
+    content = b''
+    for i in range(3):
+        content += b'\r\n--boundary\r\n'
+        content += b'Content-Type: application/dicom\r\n\r\n'
+        content += payload
+    content += b'\r\n--boundary--'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            'type="application/dicom"; '
+            'boundary="boundary" '
+        ),
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    results = client.retrieve_series(study_instance_uid, series_instance_uid)
+    assert isinstance(results, list)
+    assert len(results) == 3
+    for result in results:
+        with BytesIO() as fp:
+            pydicom.dcmwrite(fp, result)
+            raw_result = fp.getvalue()
+        assert raw_result == payload
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}/series/{series_instance_uid}'
+        .format(**locals())
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+
+
+def test_retrieve_series_iter(httpserver, cache_dir):
+    client = DICOMwebClient(httpserver.url, retrieve_iter=True)
+
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        payload = f.read()
+    content = b''
+    for i in range(3):
+        content += b'\r\n--boundary\r\n'
+        content += b'Content-Type: application/dicom\r\n\r\n'
+        content += payload
+    content += b'\r\n--boundary--'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            'type="application/dicom"; '
+            'boundary="boundary" '
+        ),
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    results = client.retrieve_series(study_instance_uid, series_instance_uid)
+    assert inspect.isgenerator(results)
+    results = list(results)
+    assert len(results) == 3
+    for result in results:
+        with BytesIO() as fp:
+            pydicom.dcmwrite(fp, result)
+            raw_result = fp.getvalue()
+        assert raw_result == payload
+    request = httpserver.requests[0]
+    expected_path = (
+        '/studies/{study_instance_uid}/series/{series_instance_uid}'
+        .format(**locals())
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
 
 
 def test_retrieve_instance(httpserver, client, cache_dir):
