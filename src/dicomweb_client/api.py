@@ -32,6 +32,31 @@ from dicomweb_client.error import DICOMJSONError
 logger = logging.getLogger(__name__)
 
 
+def _filter_header_parsing_error(record: logging.LogRecord) -> int:
+    '''Filter warnings of urllib3.exceptions.HeaderParsingError.
+
+    Parameters
+    ----------
+    record: logging.LogRecord
+        log record to filter
+
+    Returns
+    -------
+    int
+        zero if the record should be filtered, non-zero otherwise
+    '''
+    if 'Failed to parse headers' in record.getMessage():
+        return 0
+    return 1
+
+
+# Most DICOMweb servers' multipart responses trigger a urllib warning
+# Ref: https://github.com/urllib3/urllib3/issues/800
+logging.getLogger('urllib3.connectionpool').addFilter(
+    _filter_header_parsing_error
+)
+
+
 def _init_dataset():
     '''Creates an empty DICOM Data Set.
 
@@ -313,8 +338,7 @@ class DICOMwebClient(object):
             proxies: Optional[Dict[str, str]] = None,
             headers: Optional[Dict[str, str]] = None,
             callback: Optional[Callable] = None,
-            chunk_size: Optional[int] = None,
-            retrieve_iter: bool = False
+            chunk_size: Optional[int] = None
     ) -> None:
         '''
         Parameters
@@ -346,10 +370,6 @@ class DICOMwebClient(object):
             maximum number of bytes per data chunk using chunked transfer
             encoding (helpful for storing and retrieving large objects or large
             collections of objects such as studies or series)
-        retrieve_iter: bool
-            whether to return a generator over multipart response parts or to
-            preload all response parts and return results as a list instead with
-            `retrieve_bulkdata`, `retrieve_studies` or `retrieve_series`
 
         '''  # noqa
         if session is None:
@@ -401,7 +421,6 @@ class DICOMwebClient(object):
         if callback is not None:
             self._session.hooks = {'response': [callback, ]}
         self._chunk_size = chunk_size
-        self._retrieve_iter = retrieve_iter
         self.set_http_retry_params()
 
     def _parse_qido_query_parameters(
@@ -750,7 +769,7 @@ class DICOMwebClient(object):
             self,
             response: requests.Response
         ) -> Iterable[bytes]:
-        '''Extracts parts of a HTTP multipart response message.
+        '''Yields extracted parts of a HTTP multipart response message.
 
         Parameters
         ----------
@@ -782,49 +801,22 @@ class DICOMwebClient(object):
         else:
             # Some servers set the mimetype to multipart but don't provide a
             # boundary and just send a single frame in the body - return as is.
-            return [response.content]
-
-        parts = self._decode_multipart_message_iter(response, boundary)
-        return parts if self._retrieve_iter else list(parts)
-
-    def _decode_multipart_message_iter(
-            self,
-            response: requests.Response,
-            boundary: bytes
-        ) -> Iterable[bytes]:
-        '''Generator yielding parts from a HTTP multipart response message.
-
-        Parameters
-        ----------
-        response: requests.Response
-            HTTP response message
-        boundary: bytes
-            multipart message boundary
-
-        Returns
-        -------
-        Iterable[bytes]
-            message parts
-
-        '''
-        marker = b''.join((b'--', boundary))
-        delimiter = b''.join((b'\r\n', marker))
+            yield response.content
+            return
 
         def get_part_content(part: bytes) -> Optional[bytes]:
             '''Get the content of a single multipart message (strip headers)'''
             if part in (b'', b'--', b'\r\n') or part.startswith(b'--\r\n'):
                 return None
-            if part.startswith(marker):
-                # fix the first part
-                part = part[len(marker):]
             if b'\r\n\r\n' in part:
-                # ignore headers (if any) and return body
                 return part.split(b'\r\n\r\n')[1]
             raise ValueError('Multipart message does not contain CRLF CRLF')
 
+        marker = b''.join((b'--', boundary))
+        delimiter = b''.join((b'\r\n', marker))
         data = b''
+        chunk_size = self._chunk_size or 8 * 2**20  # default to 8MB
         with response:
-            chunk_size = self._chunk_size or 8 * 2**20  # default to 8MB
             for chunk in response.iter_content(chunk_size=chunk_size):
                 data += chunk
                 while delimiter in data:
@@ -1108,11 +1100,10 @@ class DICOMwebClient(object):
             ),
         }
         response = self._http_get(url, params, headers)
-        datasets = (
+        return (
             pydicom.dcmread(BytesIO(part))
             for part in self._decode_multipart_message(response)
         )
-        return datasets if self._retrieve_iter else list(datasets)
 
     def _http_get_multipart_application_octet_stream(
             self,
@@ -1706,6 +1697,36 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None
+        ) -> List[bytes]:
+        '''Retrieves bulk data from a given location.
+
+        Parameters
+        ----------
+        url: str
+            location of the bulk data
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+        byte_range: Tuple[int], optional
+            start and end of byte range
+
+        Returns
+        -------
+        List[bytes]
+            bulk data items
+
+        '''
+        return list(
+            self.retrieve_bulkdata_iter(
+                url, media_types=media_types, byte_range=byte_range
+            )
+        )
+
+    def retrieve_bulkdata_iter(
+            self,
+            url: str,
+            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+            byte_range: Optional[Tuple[int, int]] = None
         ) -> Iterable[bytes]:
         '''Retrieves bulk data from a given location.
 
@@ -1745,6 +1766,33 @@ class DICOMwebClient(object):
             )
 
     def retrieve_study(
+            self,
+            study_instance_uid: str,
+            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        ) -> List[pydicom.dataset.Dataset]:
+        '''Retrieves instances of a given DICOM study.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+
+        Returns
+        -------
+        List[pydicom.dataset.Dataset]
+            data sets
+
+        '''
+        return list(
+            self.retrieve_study_iter(
+                study_instance_uid, media_types=media_types
+            )
+        )
+
+    def retrieve_study_iter(
             self,
             study_instance_uid: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
@@ -1924,6 +1972,36 @@ class DICOMwebClient(object):
         return self._http_get_application_json(url, params)
 
     def retrieve_series(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str,
+            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        ) -> List[pydicom.dataset.Dataset]:
+        '''Retrieves instances of a given DICOM series.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+
+        Returns
+        -------
+        List[pydicom.dataset.Dataset]
+            data sets
+
+        '''
+        return list(
+            self.retrieve_series_iter(
+                study_instance_uid, series_instance_uid, media_types=media_types
+            )
+        )
+
+    def retrieve_series_iter(
             self,
             study_instance_uid: str,
             series_instance_uid: str,
@@ -2494,16 +2572,16 @@ class DICOMwebClient(object):
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += '/frames/{frame_list}'.format(frame_list=frame_list)
         if media_types is None:
-            return self._http_get_multipart_application_octet_stream(url)
+            return list(self._http_get_multipart_application_octet_stream(url))
         common_media_type = self._get_common_media_type(media_types)
         if common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
+            return list(self._http_get_multipart_application_octet_stream(
                 url, media_types
-            )
+            ))
         elif common_media_type.startswith('image'):
-            return self._http_get_multipart_image(url, media_types)
+            return list(self._http_get_multipart_image(url, media_types))
         elif common_media_type.startswith('video'):
-            return self._http_get_multipart_video(url, media_types)
+            return list(self._http_get_multipart_video(url, media_types))
         else:
             raise ValueError(
                 'Media type "{}" is not supported for '

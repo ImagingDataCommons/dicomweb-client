@@ -371,9 +371,7 @@ def test_retrieve_series(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
 
 
-def test_retrieve_series_iter(httpserver, cache_dir):
-    client = DICOMwebClient(httpserver.url, retrieve_iter=True)
-
+def test_retrieve_series_iter(client, httpserver, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         payload = f.read()
@@ -394,7 +392,9 @@ def test_retrieve_series_iter(httpserver, cache_dir):
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
-    results = client.retrieve_series(study_instance_uid, series_instance_uid)
+    results = client.retrieve_series_iter(
+        study_instance_uid, series_instance_uid
+    )
     assert inspect.isgenerator(results)
     results = list(results)
     assert len(results) == 3
