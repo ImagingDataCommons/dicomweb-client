@@ -13,7 +13,7 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Iterable,
+    Iterator,
     List,
     Optional,
     Set,
@@ -768,7 +768,7 @@ class DICOMwebClient(object):
     def _decode_multipart_message(
             self,
             response: requests.Response
-        ) -> Iterable[bytes]:
+        ) -> Iterator[bytes]:
         '''Yields extracted parts of a HTTP multipart response message.
 
         Parameters
@@ -778,7 +778,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Iterable[bytes]
+        Iterator[bytes]
             message parts
 
         '''
@@ -1049,7 +1049,7 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             params: Optional[Dict[str, Any]] = None
-        ) -> Iterable[pydicom.dataset.Dataset]:
+        ) -> Iterator[pydicom.dataset.Dataset]:
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/dicom" media type.
 
@@ -1066,7 +1066,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Iterable[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             DICOM data sets
 
         '''
@@ -1111,7 +1111,7 @@ class DICOMwebClient(object):
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None
-        ) -> Iterable[bytes]:
+        ) -> Iterator[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/octet-stream" media type.
 
@@ -1130,7 +1130,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Iterable[bytes]
+        Iterator[bytes]
             content of HTTP message body parts
 
         '''
@@ -1158,7 +1158,7 @@ class DICOMwebClient(object):
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None,
             rendered: bool = False
-        ) -> Iterable[bytes]:
+        ) -> Iterator[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         an image media type.
 
@@ -1178,7 +1178,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Iterable[bytes]
+        Iterator[bytes]
             content of HTTP message body parts
 
         '''
@@ -1223,7 +1223,7 @@ class DICOMwebClient(object):
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None,
             rendered: bool = False
-        ) -> Iterable[bytes]:
+        ) -> Iterator[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         a video media type.
 
@@ -1243,7 +1243,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        Iterable[bytes]
+        Iterator[bytes]
             content of HTTP message body parts
 
         '''
@@ -1697,7 +1697,7 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Retrieves bulk data from a given location.
 
         Parameters
@@ -1712,37 +1712,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
-            bulk data items
-
-        '''
-        return list(
-            self.retrieve_bulkdata_iter(
-                url, media_types=media_types, byte_range=byte_range
-            )
-        )
-
-    def retrieve_bulkdata_iter(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            byte_range: Optional[Tuple[int, int]] = None
-        ) -> Iterable[bytes]:
-        '''Retrieves bulk data from a given location.
-
-        Parameters
-        ----------
-        url: str
-            location of the bulk data
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
-        byte_range: Tuple[int], optional
-            start and end of byte range
-
-        Returns
-        -------
-        Iterable[bytes]
+        Iterator[bytes]
             bulk data items
 
         '''
@@ -1769,7 +1739,7 @@ class DICOMwebClient(object):
             self,
             study_instance_uid: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-        ) -> List[pydicom.dataset.Dataset]:
+        ) -> Iterator[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM study.
 
         Parameters
@@ -1782,34 +1752,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
-            data sets
-
-        '''
-        return list(
-            self.retrieve_study_iter(
-                study_instance_uid, media_types=media_types
-            )
-        )
-
-    def retrieve_study_iter(
-            self,
-            study_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-        ) -> Iterable[pydicom.dataset.Dataset]:
-        '''Retrieves instances of a given DICOM study.
-
-        Parameters
-        ----------
-        study_instance_uid: str
-            unique study identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
-
-        Returns
-        -------
-        Iterable[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             data sets
 
         '''
@@ -1976,7 +1919,7 @@ class DICOMwebClient(object):
             study_instance_uid: str,
             series_instance_uid: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> List[pydicom.dataset.Dataset]:
+        ) -> Iterator[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM series.
 
         Parameters
@@ -1991,37 +1934,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
-            data sets
-
-        '''
-        return list(
-            self.retrieve_series_iter(
-                study_instance_uid, series_instance_uid, media_types=media_types
-            )
-        )
-
-    def retrieve_series_iter(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> Iterable[pydicom.dataset.Dataset]:
-        '''Retrieves instances of a given DICOM series.
-
-        Parameters
-        ----------
-        study_instance_uid: str
-            unique study identifier
-        series_instance_uid: str
-            unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
-
-        Returns
-        -------
-        Iterable[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             data sets
 
         '''
