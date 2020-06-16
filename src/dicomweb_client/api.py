@@ -338,7 +338,7 @@ class DICOMwebClient(object):
             proxies: Optional[Dict[str, str]] = None,
             headers: Optional[Dict[str, str]] = None,
             callback: Optional[Callable] = None,
-            chunk_size: Optional[int] = None
+            chunk_size: int = 8 * 2**20
     ) -> None:
         '''
         Parameters
@@ -369,7 +369,7 @@ class DICOMwebClient(object):
         chunk_size: int, optional
             maximum number of bytes per data chunk using chunked transfer
             encoding (helpful for storing and retrieving large objects or large
-            collections of objects such as studies or series)
+            collections of objects such as studies or series, defaults to 8 MB)
 
         '''  # noqa
         if session is None:
@@ -784,10 +784,7 @@ class DICOMwebClient(object):
         '''
         # decoding logic adapted from requests_toolbelt.multipart.decoder
         # https://github.com/requests/toolbelt/blob/0.9.1/requests_toolbelt/multipart/decoder.py
-        content_type = response.headers.get('content-type', None)
-        if content_type is None:
-            raise ValueError('Response has no Content-Type header')
-
+        content_type = response.headers['content-type']
         mimetype, *ct_info = [ct.strip() for ct in content_type.split(';')]
         if mimetype.split('/')[0].lower() != 'multipart':
             raise ValueError(
@@ -815,9 +812,8 @@ class DICOMwebClient(object):
         marker = b''.join((b'--', boundary))
         delimiter = b''.join((b'\r\n', marker))
         data = b''
-        chunk_size = self._chunk_size or 8 * 2**20  # default to 8MB
         with response:
-            for chunk in response.iter_content(chunk_size=chunk_size):
+            for chunk in response.iter_content(chunk_size=self._chunk_size):
                 data += chunk
                 while delimiter in data:
                     part, data = data.split(delimiter, maxsplit=1)
@@ -2444,7 +2440,7 @@ class DICOMwebClient(object):
             sop_instance_uid: str,
             frame_numbers: Sequence[int],
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Retrieves one or more frames of an individual DICOM instance.
 
         Parameters
@@ -2463,7 +2459,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             pixel data for each frame
 
         '''
@@ -2485,16 +2481,16 @@ class DICOMwebClient(object):
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += '/frames/{frame_list}'.format(frame_list=frame_list)
         if media_types is None:
-            return list(self._http_get_multipart_application_octet_stream(url))
+            return self._http_get_multipart_application_octet_stream(url)
         common_media_type = self._get_common_media_type(media_types)
         if common_media_type == 'application/octet-stream':
-            return list(self._http_get_multipart_application_octet_stream(
+            return self._http_get_multipart_application_octet_stream(
                 url, media_types
-            ))
+            )
         elif common_media_type.startswith('image'):
-            return list(self._http_get_multipart_image(url, media_types))
+            return self._http_get_multipart_image(url, media_types)
         elif common_media_type.startswith('video'):
-            return list(self._http_get_multipart_video(url, media_types))
+            return self._http_get_multipart_video(url, media_types)
         else:
             raise ValueError(
                 'Media type "{}" is not supported for '

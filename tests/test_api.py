@@ -1,4 +1,3 @@
-import inspect
 import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
@@ -357,7 +356,6 @@ def test_retrieve_series(client, httpserver, cache_dir):
     results = client.retrieve_series(
         study_instance_uid, series_instance_uid
     )
-    assert inspect.isgenerator(results)
     results = list(results)
     assert len(results) == 3
     for result in results:
@@ -504,7 +502,7 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/jpeg', )
     )
-    assert result == [content]
+    assert list(result) == [content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
@@ -555,7 +553,7 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/jp2', )
     )
-    assert result == [content]
+    assert list(result) == [content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
