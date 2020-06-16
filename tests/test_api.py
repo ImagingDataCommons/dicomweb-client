@@ -415,9 +415,7 @@ def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
     sop_instance_uid = '1.2.5'
     client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        media_types=(
-            ('application/dicom', '*', ),
-        )
+        transfer_syntax_uids=('*', )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
@@ -437,9 +435,7 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
     sop_instance_uid = '1.2.5'
     client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        media_types=(
-            ('application/dicom', '1.2.840.10008.1.2.1', ),
-        )
+        transfer_syntax_uids=('1.2.840.10008.1.2.1', )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
@@ -459,29 +455,7 @@ def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
     with pytest.raises(ValueError):
         client.retrieve_instance(
             study_instance_uid, series_instance_uid, sop_instance_uid,
-            media_types=(
-                ('application/dicom', '1.2.3', ),
-            )
-        )
-
-
-def test_retrieve_instance_wrong_mime_type(httpserver, client, cache_dir):
-    cache_filename = str(cache_dir.joinpath('file.dcm'))
-    with open(cache_filename, 'rb') as f:
-        content = f.read()
-    headers = {
-        'content-type': 'multipart/related; type="image/dicom"',
-    }
-    httpserver.serve_content(content=content, code=200, headers=headers)
-    study_instance_uid = '1.2.3'
-    series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
-    with pytest.raises(ValueError):
-        client.retrieve_instance(
-            study_instance_uid, series_instance_uid, sop_instance_uid,
-            media_types=(
-                ('image/dicom', '1.2.840.10008.1.2.1', ),
-            )
+            transfer_syntax_uids=('1.2.3', ),
         )
 
 

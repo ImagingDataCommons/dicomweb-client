@@ -1734,7 +1734,7 @@ class DICOMwebClient(object):
     def retrieve_study(
             self,
             study_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+            transfer_syntax_uids: Optional[Tuple[str]] = None
         ) -> Iterator[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM study.
 
@@ -1742,9 +1742,8 @@ class DICOMwebClient(object):
         ----------
         study_instance_uid: str
             unique study identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
@@ -1757,30 +1756,50 @@ class DICOMwebClient(object):
                 'Study Instance UID is required for retrieval of study.'
             )
         url = self._get_studies_url('wado', study_instance_uid)
-        if media_types is None:
-            return self._http_get_multipart_application_dicom(url)
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/dicom':
-            return self._http_get_multipart_application_dicom(
-                url, media_types
-            )
-        elif common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
-                url, media_types
-            )
-        elif common_media_type.startswith('image'):
-            return self._http_get_multipart_image(
-                url, media_types
-            )
-        elif common_media_type.startswith('video'):
-            return self._http_get_multipart_video(
-                url, media_types
-            )
+        if transfer_syntax_uids is None:
+            media_types = None
         else:
-            raise ValueError(
-                'Media type "{}" is not supported for retrieval '
-                'of study.'.format(common_media_type)
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
             )
+        return self._http_get_multipart_application_dicom(url, media_types)
+
+    def retrieve_study_bulkdata(
+            self,
+            study_instance_uid: str,
+            transfer_syntax_uids: Optional[Tuple[str]] = None
+        ) -> Iterator[pydicom.dataset.Dataset]:
+        '''Retrieves bulk data of a given DICOM study.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
+
+        Returns
+        -------
+        Iterator[bytes]
+            bulk data
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of study.'
+            )
+        url = self._get_studies_url('wado', study_instance_uid)
+        if transfer_syntax_uids is None:
+            media_types = None
+        else:
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
+            )
+        return self._http_get_multipart_application_octet_stream(
+            url, media_types
+        )
 
     def retrieve_study_metadata(
             self,
@@ -1914,7 +1933,7 @@ class DICOMwebClient(object):
             self,
             study_instance_uid: str,
             series_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+            transfer_syntax_uids: Optional[Tuple[str]] = None
         ) -> Iterator[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM series.
 
@@ -1924,9 +1943,8 @@ class DICOMwebClient(object):
             unique study identifier
         series_instance_uid: str
             unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
@@ -1947,30 +1965,61 @@ class DICOMwebClient(object):
         url = self._get_series_url(
             'wado', study_instance_uid, series_instance_uid
         )
-        if media_types is None:
-            return self._http_get_multipart_application_dicom(url)
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/dicom':
-            return self._http_get_multipart_application_dicom(
-                url, media_types
-            )
-        elif common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
-                url, media_types
-            )
-        elif common_media_type.startswith('image'):
-            return self._http_get_multipart_image(
-                url, media_types
-            )
-        elif common_media_type.startswith('video'):
-            return self._http_get_multipart_video(
-                url, media_types
-            )
+        if transfer_syntax_uids is None:
+            media_types = None
         else:
-            raise ValueError(
-                'Media type "{}" is not supported for retrieval '
-                'of series.'.format(common_media_type)
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
             )
+        return self._http_get_multipart_application_dicom(url, media_types)
+
+    def retrieve_series_bulkdata(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str,
+            transfer_syntax_uids: Optional[Tuple[str]] = None
+        ) -> Iterator[pydicom.dataset.Dataset]:
+        '''Retrieves instances of a given DICOM series.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
+
+        Returns
+        -------
+        Iterator[bytes]
+            bulk data
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of series.'
+            )
+        self._assert_uid_format(study_instance_uid)
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of series.'
+            )
+        self._assert_uid_format(series_instance_uid)
+        url = self._get_series_url(
+            'wado', study_instance_uid, series_instance_uid
+        )
+        if transfer_syntax_uids is None:
+            media_types = None
+        else:
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
+            )
+        return self._http_get_multipart_application_octet_stream(
+            url, media_types
+        )
 
     def retrieve_series_metadata(
             self,
@@ -2170,7 +2219,7 @@ class DICOMwebClient(object):
             study_instance_uid: str,
             series_instance_uid: str,
             sop_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+            transfer_syntax_uids: Optional[Tuple[str]] = None
         ) -> pydicom.dataset.Dataset:
         '''Retrieves an individual DICOM instance.
 
@@ -2182,9 +2231,8 @@ class DICOMwebClient(object):
             unique series identifier
         sop_instance_uid: str
             unique instance identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
@@ -2211,34 +2259,72 @@ class DICOMwebClient(object):
         url = self._get_instances_url(
             'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
-        if media_types is None:
-            return list(self._http_get_multipart_application_dicom(url))[0]
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/dicom':
-            return list(self._http_get_multipart_application_dicom(
-                url, media_types
-            ))[0]
-        elif common_media_type == 'application/octet-stream':
-            return list(self._http_get_multipart_application_octet_stream(
-                url, media_types
-            ))[0]
-        elif common_media_type.startswith('image'):
-            frames = list(self._http_get_multipart_image(url, media_types))
-            if len(frames) > 1:
-                return frames
-            else:
-                return frames[0]
-        elif common_media_type.startswith('video'):
-            frames = list(self._http_get_multipart_video(url, media_types))
-            if len(frames) > 1:
-                return frames
-            else:
-                return frames[0]
+        if transfer_syntax_uids is None:
+            media_types = None
         else:
-            raise ValueError(
-                'Media type "{}" is not supported for retrieval '
-                'of instance.'.format(common_media_type)
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
             )
+        dicoms = self._http_get_multipart_application_dicom(url, media_types)
+        return next(dicoms)
+
+    def retrieve_instance_bulkdata(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str,
+            sop_instance_uid: str,
+            transfer_syntax_uids: Tuple[str] = None
+        ) -> bytes:
+        '''Retrieves bulk data of an individual DICOM instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        sop_instance_uid: str
+            unique instance identifier
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
+
+        Returns
+        -------
+        bytes
+            bulk data
+
+        '''
+
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(study_instance_uid)
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(series_instance_uid)
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(sop_instance_uid)
+        url = self._get_instances_url(
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+        )
+        if transfer_syntax_uids is None:
+            media_types = None
+        else:
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
+            )
+        octets = self._http_get_multipart_application_octet_stream(
+            url, media_types
+        )
+        return next(octets)
 
     def store_instances(
             self,
