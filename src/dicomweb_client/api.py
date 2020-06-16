@@ -1769,7 +1769,7 @@ class DICOMwebClient(object):
             self,
             study_instance_uid: str,
             transfer_syntax_uids: Optional[Tuple[str]] = None
-        ) -> Iterator[pydicom.dataset.Dataset]:
+        ) -> Iterator[bytes]:
         '''Retrieves bulk data of a given DICOM study.
 
         Parameters
@@ -1979,8 +1979,8 @@ class DICOMwebClient(object):
             study_instance_uid: str,
             series_instance_uid: str,
             transfer_syntax_uids: Optional[Tuple[str]] = None
-        ) -> Iterator[pydicom.dataset.Dataset]:
-        '''Retrieves instances of a given DICOM series.
+        ) -> Iterator[bytes]:
+        '''Retrieves bulk data of a given DICOM series.
 
         Parameters
         ----------
