@@ -1,9 +1,6 @@
 '''Application Programming Interface (API).'''
 import re
-import os
-import sys
 import logging
-import email
 from xml.etree.ElementTree import (
     Element,
     fromstring
@@ -16,8 +13,8 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
-    Mapping,
     Optional,
     Set,
     Sequence,
@@ -33,6 +30,31 @@ from dicomweb_client.error import DICOMJSONError
 
 
 logger = logging.getLogger(__name__)
+
+
+def _filter_header_parsing_error(record: logging.LogRecord) -> int:
+    '''Filter warnings of urllib3.exceptions.HeaderParsingError.
+
+    Parameters
+    ----------
+    record: logging.LogRecord
+        log record to filter
+
+    Returns
+    -------
+    int
+        zero if the record should be filtered, non-zero otherwise
+    '''
+    if 'Failed to parse headers' in record.getMessage():
+        return 0
+    return 1
+
+
+# Most DICOMweb servers' multipart responses trigger a urllib warning
+# Ref: https://github.com/urllib3/urllib3/issues/800
+logging.getLogger('urllib3.connectionpool').addFilter(
+    _filter_header_parsing_error
+)
 
 
 def _init_dataset():
@@ -316,7 +338,7 @@ class DICOMwebClient(object):
             proxies: Optional[Dict[str, str]] = None,
             headers: Optional[Dict[str, str]] = None,
             callback: Optional[Callable] = None,
-            chunk_size: Optional[int] = None
+            chunk_size: int = 8 * 2**20
     ) -> None:
         '''
         Parameters
@@ -328,7 +350,6 @@ class DICOMwebClient(object):
         session: requests.Session, optional
             session required to make connection to the DICOMweb service
             (see session_utils.py to create a valid session if necessary)
-        qido_url_prefix: str, optional
         qido_url_prefix: str, optional
             URL path prefix for QIDO RESTful services
         wado_url_prefix: str, optional
@@ -348,7 +369,7 @@ class DICOMwebClient(object):
         chunk_size: int, optional
             maximum number of bytes per data chunk using chunked transfer
             encoding (helpful for storing and retrieving large objects or large
-            collections of objects such as studies or series)
+            collections of objects such as studies or series, defaults to 8 MB)
 
         '''  # noqa
         if session is None:
@@ -746,40 +767,63 @@ class DICOMwebClient(object):
 
     def _decode_multipart_message(
             self,
-            body: bytes,
-            headers: Mapping[str, str]
-        ) -> List[bytes]:
-        '''Extracts parts of a HTTP multipart response message.
+            response: requests.Response
+        ) -> Iterator[bytes]:
+        '''Yields extracted parts of a HTTP multipart response message.
 
         Parameters
         ----------
-        body: bytes
-            HTTP response message body
-        headers: Dict[str, str]
-            HTTP response message headers
+        response: requests.Response
+            HTTP response message
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             message parts
 
         '''
-        header = ''.join([
-            '{}: {}\n'.format(key, value)
-            for key, value in headers.items()
-        ]).encode()
-        message = email.message_from_bytes(header + body)
-        elements = []
-        for part in message.walk():
-            if part.get_content_maintype() == 'multipart':
-                # Some servers don't handle this correctly.
-                # If only one frame number is provided, return a normal
-                # message body instead of a multipart message body.
-                if part.is_multipart():
-                    continue
-            payload = part.get_payload(decode=True)
-            elements.append(payload)
-        return elements
+        # decoding logic adapted from requests_toolbelt.multipart.decoder
+        # https://github.com/requests/toolbelt/blob/0.9.1/requests_toolbelt/multipart/decoder.py
+        content_type = response.headers['content-type']
+        mimetype, *ct_info = [ct.strip() for ct in content_type.split(';')]
+        if mimetype.split('/')[0].lower() != 'multipart':
+            raise ValueError(
+                'Unexpected mimetype in Content-Type: "{}"'.format(mimetype)
+            )
+        for item in ct_info:
+            attr, _, value = item.partition('=')
+            if attr.lower() == 'boundary':
+                boundary = value.strip('"').encode('utf-8')
+                break
+        else:
+            # Some servers set the mimetype to multipart but don't provide a
+            # boundary and just send a single frame in the body - return as is.
+            yield response.content
+            return
+
+        def get_part_content(part: bytes) -> Optional[bytes]:
+            '''Get the content of a single multipart message (strip headers)'''
+            if part in (b'', b'--', b'\r\n') or part.startswith(b'--\r\n'):
+                return None
+            if b'\r\n\r\n' in part:
+                return part.split(b'\r\n\r\n')[1]
+            raise ValueError('Multipart message does not contain CRLF CRLF')
+
+        marker = b''.join((b'--', boundary))
+        delimiter = b''.join((b'\r\n', marker))
+        data = b''
+        with response:
+            for chunk in response.iter_content(chunk_size=self._chunk_size):
+                data += chunk
+                while delimiter in data:
+                    part, data = data.split(delimiter, maxsplit=1)
+                    content = get_part_content(part)
+                    if content is not None:
+                        yield content
+
+        content = get_part_content(data)
+        if content is not None:
+            yield content
 
     def _encode_multipart_message(
             self,
@@ -1001,7 +1045,7 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             params: Optional[Dict[str, Any]] = None
-        ) -> List[pydicom.dataset.Dataset]:
+        ) -> Iterator[pydicom.dataset.Dataset]:
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/dicom" media type.
 
@@ -1018,7 +1062,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             DICOM data sets
 
         '''
@@ -1052,20 +1096,10 @@ class DICOMwebClient(object):
             ),
         }
         response = self._http_get(url, params, headers)
-        with response as r:
-            if self._chunk_size is not None:
-                logger.info('retrieve data in chunks')
-                content = b''.join([
-                    chunk
-                    for chunk in r.iter_content(chunk_size=self._chunk_size)
-                ])
-            else:
-                content = r.content
-        datasets = self._decode_multipart_message(
-            content,
-            response.headers
+        return (
+            pydicom.dcmread(BytesIO(part))
+            for part in self._decode_multipart_message(response)
         )
-        return [pydicom.dcmread(BytesIO(ds)) for ds in datasets]
 
     def _http_get_multipart_application_octet_stream(
             self,
@@ -1073,7 +1107,7 @@ class DICOMwebClient(object):
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         "applicaton/octet-stream" media type.
 
@@ -1092,7 +1126,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             content of HTTP message body parts
 
         '''
@@ -1111,10 +1145,7 @@ class DICOMwebClient(object):
         if byte_range is not None:
             headers['Range'] = self._build_range_header_field_value(byte_range)
         response = self._http_get(url, params, headers)
-        return self._decode_multipart_message(
-            response.content,
-            response.headers
-        )
+        return self._decode_multipart_message(response)
 
     def _http_get_multipart_image(
             self,
@@ -1123,7 +1154,7 @@ class DICOMwebClient(object):
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None,
             rendered: bool = False
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         an image media type.
 
@@ -1143,7 +1174,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             content of HTTP message body parts
 
         '''
@@ -1179,10 +1210,7 @@ class DICOMwebClient(object):
             supported_media_types
         )
         response = self._http_get(url, params, headers)
-        return self._decode_multipart_message(
-            response.content,
-            response.headers
-        )
+        return self._decode_multipart_message(response)
 
     def _http_get_multipart_video(
             self,
@@ -1191,7 +1219,7 @@ class DICOMwebClient(object):
             byte_range: Optional[Tuple[int, int]] = None,
             params: Optional[Dict[str, Any]] = None,
             rendered: bool = False
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Performs a HTTP GET request that accepts a multipart message with
         a video media type.
 
@@ -1211,7 +1239,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             content of HTTP message body parts
 
         '''
@@ -1244,10 +1272,7 @@ class DICOMwebClient(object):
             supported_media_types
         )
         response = self._http_get(url, params, headers)
-        return self._decode_multipart_message(
-            response.content,
-            response.headers
-        )
+        return self._decode_multipart_message(response)
 
     def _http_get_application_pdf(
             self,
@@ -1668,7 +1693,7 @@ class DICOMwebClient(object):
             url: str,
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
             byte_range: Optional[Tuple[int, int]] = None
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Retrieves bulk data from a given location.
 
         Parameters
@@ -1683,7 +1708,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             bulk data items
 
         '''
@@ -1709,21 +1734,20 @@ class DICOMwebClient(object):
     def retrieve_study(
             self,
             study_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-        ) -> List[pydicom.dataset.Dataset]:
+            transfer_syntax_uids: Optional[Tuple[str]] = None
+        ) -> Iterator[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM study.
 
         Parameters
         ----------
         study_instance_uid: str
             unique study identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             data sets
 
         '''
@@ -1732,30 +1756,50 @@ class DICOMwebClient(object):
                 'Study Instance UID is required for retrieval of study.'
             )
         url = self._get_studies_url('wado', study_instance_uid)
-        if media_types is None:
-            return self._http_get_multipart_application_dicom(url)
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/dicom':
-            return self._http_get_multipart_application_dicom(
-                url, media_types
-            )
-        elif common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
-                url, media_types
-            )
-        elif common_media_type.startswith('image'):
-            return self._http_get_multipart_image(
-                url, media_types
-            )
-        elif common_media_type.startswith('video'):
-            return self._http_get_multipart_video(
-                url, media_types
-            )
+        if transfer_syntax_uids is None:
+            media_types = None
         else:
-            raise ValueError(
-                'Media type "{}" is not supported for retrieval '
-                'of study.'.format(common_media_type)
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
             )
+        return self._http_get_multipart_application_dicom(url, media_types)
+
+    def retrieve_study_bulkdata(
+            self,
+            study_instance_uid: str,
+            transfer_syntax_uids: Optional[Tuple[str]] = None
+        ) -> Iterator[bytes]:
+        '''Retrieves bulk data of a given DICOM study.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
+
+        Returns
+        -------
+        Iterator[bytes]
+            bulk data
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of study.'
+            )
+        url = self._get_studies_url('wado', study_instance_uid)
+        if transfer_syntax_uids is None:
+            media_types = None
+        else:
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
+            )
+        return self._http_get_multipart_application_octet_stream(
+            url, media_types
+        )
 
     def retrieve_study_metadata(
             self,
@@ -1889,8 +1933,8 @@ class DICOMwebClient(object):
             self,
             study_instance_uid: str,
             series_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> List[pydicom.dataset.Dataset]:
+            transfer_syntax_uids: Optional[Tuple[str]] = None
+        ) -> Iterator[pydicom.dataset.Dataset]:
         '''Retrieves instances of a given DICOM series.
 
         Parameters
@@ -1899,13 +1943,12 @@ class DICOMwebClient(object):
             unique study identifier
         series_instance_uid: str
             unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             data sets
 
         '''
@@ -1922,30 +1965,61 @@ class DICOMwebClient(object):
         url = self._get_series_url(
             'wado', study_instance_uid, series_instance_uid
         )
-        if media_types is None:
-            return self._http_get_multipart_application_dicom(url)
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/dicom':
-            return self._http_get_multipart_application_dicom(
-                url, media_types
-            )
-        elif common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
-                url, media_types
-            )
-        elif common_media_type.startswith('image'):
-            return self._http_get_multipart_image(
-                url, media_types
-            )
-        elif common_media_type.startswith('video'):
-            return self._http_get_multipart_video(
-                url, media_types
-            )
+        if transfer_syntax_uids is None:
+            media_types = None
         else:
-            raise ValueError(
-                'Media type "{}" is not supported for retrieval '
-                'of series.'.format(common_media_type)
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
             )
+        return self._http_get_multipart_application_dicom(url, media_types)
+
+    def retrieve_series_bulkdata(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str,
+            transfer_syntax_uids: Optional[Tuple[str]] = None
+        ) -> Iterator[bytes]:
+        '''Retrieves bulk data of a given DICOM series.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
+
+        Returns
+        -------
+        Iterator[bytes]
+            bulk data
+
+        '''
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of series.'
+            )
+        self._assert_uid_format(study_instance_uid)
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of series.'
+            )
+        self._assert_uid_format(series_instance_uid)
+        url = self._get_series_url(
+            'wado', study_instance_uid, series_instance_uid
+        )
+        if transfer_syntax_uids is None:
+            media_types = None
+        else:
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
+            )
+        return self._http_get_multipart_application_octet_stream(
+            url, media_types
+        )
 
     def retrieve_series_metadata(
             self,
@@ -2145,7 +2219,7 @@ class DICOMwebClient(object):
             study_instance_uid: str,
             series_instance_uid: str,
             sop_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+            transfer_syntax_uids: Optional[Tuple[str]] = None
         ) -> pydicom.dataset.Dataset:
         '''Retrieves an individual DICOM instance.
 
@@ -2157,9 +2231,8 @@ class DICOMwebClient(object):
             unique series identifier
         sop_instance_uid: str
             unique instance identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
@@ -2186,38 +2259,72 @@ class DICOMwebClient(object):
         url = self._get_instances_url(
             'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
-        if media_types is None:
-            return self._http_get_multipart_application_dicom(url)[0]
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/dicom':
-            return self._http_get_multipart_application_dicom(
-                url, media_types
-            )[0]
-        elif common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
-                url, media_types
-            )[0]
-        elif common_media_type.startswith('image'):
-            frames = self._http_get_multipart_image(
-                url, media_types
-            )
-            if len(frames) > 1:
-                return frames
-            else:
-                return frames[0]
-        elif common_media_type.startswith('video'):
-            frames = self._http_get_multipart_video(
-                url, media_types
-            )
-            if len(frames) > 1:
-                return frames
-            else:
-                return frames[0]
+        if transfer_syntax_uids is None:
+            media_types = None
         else:
-            raise ValueError(
-                'Media type "{}" is not supported for retrieval '
-                'of instance.'.format(common_media_type)
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
             )
+        dicoms = self._http_get_multipart_application_dicom(url, media_types)
+        return next(dicoms)
+
+    def retrieve_instance_bulkdata(
+            self,
+            study_instance_uid: str,
+            series_instance_uid: str,
+            sop_instance_uid: str,
+            transfer_syntax_uids: Tuple[str] = None
+        ) -> bytes:
+        '''Retrieves bulk data of an individual DICOM instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            unique study identifier
+        series_instance_uid: str
+            unique series identifier
+        sop_instance_uid: str
+            unique instance identifier
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
+
+        Returns
+        -------
+        bytes
+            bulk data
+
+        '''
+
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(study_instance_uid)
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(series_instance_uid)
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(sop_instance_uid)
+        url = self._get_instances_url(
+            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+        )
+        if transfer_syntax_uids is None:
+            media_types = None
+        else:
+            media_types = tuple(
+                ('application/dicom', transfer_syntax_uid)
+                for transfer_syntax_uid in transfer_syntax_uids
+            )
+        octets = self._http_get_multipart_application_octet_stream(
+            url, media_types
+        )
+        return next(octets)
 
     def store_instances(
             self,
@@ -2419,7 +2526,7 @@ class DICOMwebClient(object):
             sop_instance_uid: str,
             frame_numbers: Sequence[int],
             media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> List[bytes]:
+        ) -> Iterator[bytes]:
         '''Retrieves one or more frames of an individual DICOM instance.
 
         Parameters
@@ -2438,7 +2545,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             pixel data for each frame
 
         '''
