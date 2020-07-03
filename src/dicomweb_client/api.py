@@ -691,6 +691,7 @@ class DICOMwebClient(object):
             ) -> requests.models.Response:
             # Setting stream allows for retrieval of data in chunks using
             # the iter_content() method
+            logger.debug('GET: {} {}'.format(url, headers))
             return self._session.get(url=url, headers=headers, stream=True)
 
         if headers is None:
@@ -698,7 +699,6 @@ class DICOMwebClient(object):
         if params is None:
             params = {}
         url += self._build_query_string(params)
-        logger.debug('GET: {} {}'.format(url, headers))
         response = _invoke_get_request(url, headers)
         logger.debug('request status code: {}'.format(response.status_code))
         response.raise_for_status()
@@ -1426,8 +1426,6 @@ class DICOMwebClient(object):
             HTTP response message
 
         '''
-        logger.debug('POST: {} {}'.format(url, headers))
-
         def serve_data_chunks(data):
             for i, offset in enumerate(range(0, len(data), self._chunk_size)):
                 end = offset + self._chunk_size
@@ -1443,6 +1441,7 @@ class DICOMwebClient(object):
                 data: bytes,
                 headers: Optional[Dict[str, str]] = None
             ) -> requests.models.Response:
+            logger.debug('POST: {} {}'.format(url, headers))
             return self._session.post(url, data=data, headers=headers)
 
         if self._chunk_size is not None and len(data) > self._chunk_size:
