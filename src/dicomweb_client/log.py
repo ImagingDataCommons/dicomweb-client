@@ -71,9 +71,8 @@ def configure_logging(verbosity: int) -> logging.Logger:
     pkg_logger = logging.getLogger(pkg_name)
     pkg_logger.setLevel(level)
 
-    if verbosity > 4:
-        requests_logger = logging.getLogger('urllib3')
-        requests_logger.setLevel(level)
-        requests_logger.propagate = True
+    requests_logger = logging.getLogger('urllib3')
+    requests_logger.setLevel(level)
+    requests_logger.propagate = True
 
     return pkg_logger
