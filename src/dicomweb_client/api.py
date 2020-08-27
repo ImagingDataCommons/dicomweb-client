@@ -350,6 +350,11 @@ class DICOMwebClient(object):
             encoding (helpful for storing and retrieving large objects or large
             collections of objects such as studies or series)
 
+        Warning
+        -------
+        Modifies the passed `session` (in particular header fields),
+        so be careful when reusing it outside the scope of an instance.
+
         '''  # noqa
         if session is None:
             logger.debug('initialize HTTP session')
@@ -392,13 +397,19 @@ class DICOMwebClient(object):
                 )
         url_components = urlparse(url)
         self.url_prefix = url_components.path
-        self._session.headers.update({'Host': self.host})
         if headers is not None:
             self._session.headers.update(headers)
         if proxies is not None:
             self._session.proxies = proxies
         if callback is not None:
             self._session.hooks = {'response': [callback, ]}
+        if chunk_size is not None:
+            # There is a bug in the requests library that sets the Host header
+            # again when using chunked transer encoding. Apparently this is
+            # tricky to fix (see https://github.com/psf/requests/issues/4392).
+            # As a temporary workaround we are only setting the header field,
+            # if we don't use chunked transfer encoding.
+            self._session.headers.update({'Host': self.host})
         self._chunk_size = chunk_size
         self.set_http_retry_params()
 
