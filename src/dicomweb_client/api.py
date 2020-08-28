@@ -403,7 +403,7 @@ class DICOMwebClient(object):
             self._session.proxies = proxies
         if callback is not None:
             self._session.hooks = {'response': [callback, ]}
-        if chunk_size is not None:
+        if chunk_size is None:
             # There is a bug in the requests library that sets the Host header
             # again when using chunked transer encoding. Apparently this is
             # tricky to fix (see https://github.com/psf/requests/issues/4392).
