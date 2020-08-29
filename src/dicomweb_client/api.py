@@ -1596,7 +1596,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             bulk data items
 
         """
@@ -1672,7 +1672,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             data sets
 
         """
@@ -1720,9 +1720,9 @@ class DICOMwebClient(object):
         return self._http_get_multipart_application_dicom(url, media_types)
 
     def retrieve_study_metadata(
-            self,
-            study_instance_uid: str
-        ) -> List[Dict[str, dict]]:
+        self,
+        study_instance_uid: str
+    ) -> List[Dict[str, dict]]:
         """Retrieves metadata of instances of a given DICOM study.
 
         Parameters
@@ -1799,14 +1799,14 @@ class DICOMwebClient(object):
             raise ValueError('DICOM UID has invalid format.')
 
     def search_for_series(
-            self,
-            study_instance_uid: Optional[str] = None,
-            fuzzymatching: Optional[bool] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            fields: Optional[Sequence[str]] = None,
-            search_filters: Optional[Dict[str, Any]] = None
-        ) -> List[Dict[str, dict]]:
+        self,
+        study_instance_uid: Optional[str] = None,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, dict]]:
         """Searches for DICOM series.
 
         Parameters
@@ -1849,11 +1849,11 @@ class DICOMwebClient(object):
         return self._http_get_application_json(url, params)
 
     def retrieve_series(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> List[pydicom.dataset.Dataset]:
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+    ) -> List[pydicom.dataset.Dataset]:
         """Retrieves instances of a given DICOM series.
 
         Parameters
@@ -1862,13 +1862,12 @@ class DICOMwebClient(object):
             unique study identifier
         series_instance_uid: str
             unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+        transfer_syntax_uids: Tuple[str], optional
+            acceptable transfer syntax UIDs
 
         Returns
         -------
-        List[pydicom.dataset.Dataset]
+        Iterator[pydicom.dataset.Dataset]
             data sets
 
         """
@@ -1881,11 +1880,11 @@ class DICOMwebClient(object):
         )
 
     def iter_series(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> Iterator[pydicom.dataset.Dataset]:
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+    ) -> Iterator[pydicom.dataset.Dataset]:
         """Iteratively retrieves instances of a given DICOM series.
 
         Parameters
@@ -1928,10 +1927,10 @@ class DICOMwebClient(object):
         return self._http_get_multipart_application_dicom(url, media_types)
 
     def retrieve_series_metadata(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-        ) -> List[Dict[str, dict]]:
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+    ) -> List[Dict[str, dict]]:
         """Retrieves metadata for instances of a given DICOM series.
 
         Parameters
@@ -1966,11 +1965,11 @@ class DICOMwebClient(object):
         return self._http_get_application_json(url)
 
     def retrieve_series_rendered(
-            self, study_instance_uid,
-            series_instance_uid,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None
-        ) -> bytes:
+        self, study_instance_uid,
+        series_instance_uid,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None
+    ) -> bytes:
         """Retrieves an individual, server-side rendered DICOM series.
 
         Parameters
@@ -2027,10 +2026,10 @@ class DICOMwebClient(object):
             )
 
     def delete_series(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str
-        ) -> None:
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str
+    ) -> None:
         """Deletes specified series and its respective instances.
 
         Parameters
@@ -2068,15 +2067,15 @@ class DICOMwebClient(object):
         return self._http_delete(url)
 
     def search_for_instances(
-            self,
-            study_instance_uid: Optional[str] = None,
-            series_instance_uid: Optional[str] = None,
-            fuzzymatching: Optional[bool] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            fields: Optional[Sequence[str]] = None,
-            search_filters: Optional[Dict[str, Any]] = None
-        ) -> List[Dict[str, dict]]:
+        self,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, dict]]:
         """Searches for DICOM instances.
 
         Parameters
@@ -2123,12 +2122,12 @@ class DICOMwebClient(object):
         return self._http_get_application_json(url, params)
 
     def retrieve_instance(
-            self,
-            study_instance_uid: str,
-            series_instance_uid: str,
-            sop_instance_uid: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
-        ) -> pydicom.dataset.Dataset:
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+    ) -> pydicom.dataset.Dataset:
         """Retrieves an individual DICOM instance.
 
         Parameters
@@ -2401,7 +2400,7 @@ class DICOMwebClient(object):
 
         Returns
         -------
-        List[bytes]
+        Iterator[bytes]
             pixel data for each frame
 
         """

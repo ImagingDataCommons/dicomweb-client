@@ -8,14 +8,14 @@ logger = logging.getLogger(__name__)
 
 
 def create_session() -> requests.Session:
-    '''Creates an unauthorized session.
+    """Creates an unauthorized session.
 
     Returns
     -------
     requests.Session
         unauthorized session
 
-    '''
+    """
     logger.debug('initialize HTTP session')
     return requests.Session()
 
@@ -23,7 +23,7 @@ def create_session() -> requests.Session:
 def create_session_from_auth(
         auth: requests.auth.AuthBase
     ) -> requests.Session:
-    '''Creates a session from a gicen AuthBase object.
+    """Creates a session from a gicen AuthBase object.
 
     Parameters
     ----------
@@ -36,7 +36,7 @@ def create_session_from_auth(
     requests.Session
         authorized session
 
-    '''
+    """
     logger.debug('initialize HTTP session')
     session = requests.Session()
     logger.debug('authenticate HTTP session')
@@ -48,7 +48,7 @@ def create_session_from_user_pass(
         username: str,
         password: str
     ) -> requests.Session:
-    '''Creates a session from a given username and password.
+    """Creates a session from a given username and password.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ def create_session_from_user_pass(
     requests.Session
         authorized session
 
-    '''
+    """
     logger.debug('initialize HTTP session')
     session = requests.Session()
     logger.debug('authenticate and authorize HTTP session')
@@ -75,7 +75,7 @@ def add_certs_to_session(
         ca_bundle: Optional[str] = None,
         cert: Optional[str] = None
     ) -> requests.Session:
-    '''Adds CA bundle and certificate to an existing session.
+    """Adds CA bundle and certificate to an existing session.
 
     Parameters
     ----------
@@ -91,7 +91,7 @@ def add_certs_to_session(
     requests.Session
         verified session
 
-    '''
+    """
     if ca_bundle is not None:
         ca_bundle = os.path.expanduser(os.path.expandvars(ca_bundle))
         if not os.path.exists(ca_bundle):
@@ -114,7 +114,7 @@ def add_certs_to_session(
 def create_session_from_gcp_credentials(
         google_credentials: Optional[Any] = None
     ) -> requests.Session:
-    '''Creates an authorized session for Google Cloud Platform.
+    """Creates an authorized session for Google Cloud Platform.
 
     Parameters
     ----------
@@ -129,7 +129,7 @@ def create_session_from_gcp_credentials(
     requests.Session
         Google cloud authorized session
 
-    '''
+    """
     try:
         from google.auth.transport import requests as google_requests
         if google_credentials is None:

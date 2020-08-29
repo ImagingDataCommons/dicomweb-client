@@ -1,10 +1,10 @@
-'''Utility functions for logging configuration'''
+"""Utility functions for logging configuration"""
 import sys
 import logging
 
 
 def _filter_header_parsing_error(record: logging.LogRecord) -> int:
-    '''Filters warnings of ``urllib3.exceptions.HeaderParsingError``.
+    """Filters warnings of ``urllib3.exceptions.HeaderParsingError``.
 
     Parameters
     ----------
@@ -16,14 +16,14 @@ def _filter_header_parsing_error(record: logging.LogRecord) -> int:
     int
         zero if the record should be filtered, non-zero otherwise
 
-    '''
+    """
     if 'Failed to parse headers' in record.getMessage():
         return 0
     return 1
 
 
 def _map_logging_verbosity(verbosity: int) -> int:
-    '''Maps logging verbosity to logging level.
+    """Maps logging verbosity to logging level.
 
     Parameters
     ----------
@@ -35,7 +35,7 @@ def _map_logging_verbosity(verbosity: int) -> int:
     int
         logging level (e.g. ``logging.INFO``)
 
-    '''
+    """
     levels = (logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG)
     try:
         return levels[verbosity]
@@ -44,7 +44,7 @@ def _map_logging_verbosity(verbosity: int) -> int:
 
 
 def configure_logging(verbosity: int) -> logging.Logger:
-    '''Configures the root logger with a "stderr" stream handler that directs
+    """Configures the root logger with a "stderr" stream handler that directs
     logging messages to standard error (to allow capturing program standard
     output, e.g. in order to redirect it to a file).
 
@@ -66,7 +66,7 @@ def configure_logging(verbosity: int) -> logging.Logger:
     logging.Logger
         package root logger
 
-    '''
+    """
     if verbosity > 3:
         fmt = (
             '%(asctime)s | %(levelname)-8s | %(name)-40s | '
