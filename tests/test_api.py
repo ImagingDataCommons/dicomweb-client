@@ -356,7 +356,6 @@ def test_retrieve_series(client, httpserver, cache_dir):
     results = client.retrieve_series(
         study_instance_uid, series_instance_uid
     )
-    results = list(results)
     assert len(results) == 3
     for result in results:
         with BytesIO() as fp:
@@ -389,6 +388,7 @@ def test_retrieve_instance(httpserver, client, cache_dir):
     result = client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid
     )
+    print(result)
     with BytesIO() as fp:
         pydicom.dcmwrite(fp, result)
         raw_result = fp.getvalue()
@@ -414,8 +414,10 @@ def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     client.retrieve_instance(
-        study_instance_uid, series_instance_uid, sop_instance_uid,
-        transfer_syntax_uids=('*', )
+        study_instance_uid,
+        series_instance_uid,
+        sop_instance_uid,
+        media_types=(('application/dicom', '*', ), )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
@@ -435,7 +437,7 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
     sop_instance_uid = '1.2.5'
     client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        transfer_syntax_uids=('1.2.840.10008.1.2.1', )
+        media_types=(('application/dicom', '1.2.840.10008.1.2.1', ), )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
@@ -455,7 +457,7 @@ def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
     with pytest.raises(ValueError):
         client.retrieve_instance(
             study_instance_uid, series_instance_uid, sop_instance_uid,
-            transfer_syntax_uids=('1.2.3', ),
+            media_types=(('application/dicom', '1.2.3', ), )
         )
 
 
@@ -473,10 +475,13 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
     frame_numbers = [114]
     frame_list = ','.join([str(n) for n in frame_numbers])
     result = client.retrieve_instance_frames(
-        study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/jpeg', )
+        study_instance_uid,
+        series_instance_uid,
+        sop_instance_uid,
+        frame_numbers,
+        media_types=('image/jpeg', )
     )
-    assert list(result) == [content]
+    assert result == [content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
@@ -527,7 +532,7 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
         study_instance_uid, series_instance_uid, sop_instance_uid,
         frame_numbers, media_types=('image/jp2', )
     )
-    assert list(result) == [content]
+    assert result == [content]
     request = httpserver.requests[0]
     expected_path = (
         '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
@@ -796,7 +801,7 @@ def test_load_json_dataset_pn_vm2_empty(httpserver, client, cache_dir):
         },
     }
     dataset = load_json_dataset(dicom_json)
-    assert dataset.ConsultingPhysicianName == []
+    assert dataset.ConsultingPhysicianName == ''
 
 
 def test_load_xml_response(httpserver, client, cache_dir):

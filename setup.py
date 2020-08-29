@@ -49,7 +49,7 @@ setuptools.setup(
     },
     python_requires='>3.5',
     install_requires=[
-        'pydicom>=1.0',
+        'pydicom>=2.0',
         'requests>=2.18',
         'retrying>=1.3.3',
     ]

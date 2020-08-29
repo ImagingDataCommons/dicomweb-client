@@ -1,4 +1,4 @@
-'''Command Line Interface (CLI)'''
+"""Command Line Interface (CLI)"""
 import os
 import sys
 import json
@@ -23,13 +23,13 @@ logger = logging.getLogger(__name__)
 
 
 def _get_parser():
-    '''Builds the object for parsing command line arguments.
+    """Builds the object for parsing command line arguments.
 
     Returns
     -------
     argparse.ArgumentParser
 
-    '''
+    """
     parser = argparse.ArgumentParser(
         description='Client for DICOMweb RESTful services.',
         prog='dicomweb_client'
@@ -454,21 +454,21 @@ def _create_headers(args):
 
 
 def _search_for_studies(client, args):
-    '''Searches for *Studies* and writes metadata to standard output.'''
+    """Searches for *Studies* and writes metadata to standard output."""
     params = _parse_search_parameters(args)
     studies = client.search_for_studies(**params)
     _print_metadata(studies, args.prettify, args.dicomize)
 
 
 def _search_for_series(client, args):
-    '''Searches for Series and writes metadata to standard output.'''
+    """Searches for Series and writes metadata to standard output."""
     params = _parse_search_parameters(args)
     series = client.search_for_series(args.study_instance_uid, **params)
     _print_metadata(series, args.prettify, args.dicomize)
 
 
 def _search_for_instances(client, args):
-    '''Searches for Instances and writes metadata to standard output.'''
+    """Searches for Instances and writes metadata to standard output."""
     params = _parse_search_parameters(args)
     instances = client.search_for_instances(
         args.study_instance_uid, args.series_instance_uid, **params
@@ -477,41 +477,41 @@ def _search_for_instances(client, args):
 
 
 def _retrieve_study(client, args):
-    '''Retrieves all Instances of a given Study and either writes them to
+    """Retrieves all Instances of a given Study and either writes them to
     standard output or to files on disk.
-    '''
-    instances = client.retrieve_study(
+    """
+    iterator = client.iter_study(
         args.study_instance_uid,
         media_types=args.media_types,
     )
-    for inst in instances:
-        sop_instance_uid = inst.SOPInstanceUID
+    for instance in iterator:
+        sop_instance_uid = instance.SOPInstanceUID
         if args.save:
-            _save_instance(inst, args.output_dir, sop_instance_uid)
+            _save_instance(instance, args.output_dir, sop_instance_uid)
         else:
-            _print_instance(inst)
+            _print_instance(instance)
 
 
 def _retrieve_series(client, args):
-    '''Retrieves all Instances of a given Series and either writes them to
+    """Retrieves all Instances of a given Series and either writes them to
     standard output or to files on disk.
-    '''
-    instances = client.retrieve_series(
+    """
+    iterator = client.iter_series(
         args.study_instance_uid, args.series_instance_uid,
         media_types=args.media_types,
     )
-    for inst in instances:
-        sop_instance_uid = inst.SOPInstanceUID
+    for instance in iterator:
+        sop_instance_uid = instance.SOPInstanceUID
         if args.save:
-            _save_instance(inst, args.output_dir, sop_instance_uid)
+            _save_instance(instance, args.output_dir, sop_instance_uid)
         else:
-            _print_instance(inst)
+            _print_instance(instance)
 
 
 def _retrieve_instance(client, args):
-    '''Retrieves an Instances and either writes it to standard output or to a
+    """Retrieves an Instances and either writes it to standard output or to a
     file on disk.
-    '''
+    """
     instance = client.retrieve_instance(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid,
@@ -524,9 +524,9 @@ def _retrieve_instance(client, args):
 
 
 def _retrieve_study_metadata(client, args):
-    '''Retrieves metadata for all Instances of a given Study and either
+    """Retrieves metadata for all Instances of a given Study and either
     writes it to standard output or to files on disk.
-    '''
+    """
     metadata = client.retrieve_study_metadata(args.study_instance_uid)
     if args.save:
         for md in metadata:
@@ -541,9 +541,9 @@ def _retrieve_study_metadata(client, args):
 
 
 def _retrieve_series_metadata(client, args):
-    '''Retrieves metadata for all Instances of a given Series and either
+    """Retrieves metadata for all Instances of a given Series and either
     writes it to standard output or to files on disk.
-    '''
+    """
     metadata = client.retrieve_series_metadata(
         args.study_instance_uid, args.series_instance_uid
     )
@@ -560,9 +560,9 @@ def _retrieve_series_metadata(client, args):
 
 
 def _retrieve_instance_metadata(client, args):
-    '''Retrieves metadata for an individual Instances and either
+    """Retrieves metadata for an individual Instances and either
     writes it to standard output or to a file on disk.
-    '''
+    """
     metadata = client.retrieve_instance_metadata(
         args.study_instance_uid, args.series_instance_uid,
         args.sop_instance_uid
@@ -577,13 +577,13 @@ def _retrieve_instance_metadata(client, args):
 
 
 def _retrieve_instance_frames(client, args):
-    '''Retrieves frames for an individual instances and either
+    """Retrieves frames for an individual instances and either
     writes them to standard output or files on disk or displays them in a GUI
     (depending on the requested content type).
     Frames can only be saved and shown if they are retrieved using
     image media types.
-    '''
-    pixel_data = client.retrieve_instance_frames(
+    """
+    iterator = client.iter_instance_frames(
         args.study_instance_uid,
         args.series_instance_uid,
         args.sop_instance_uid,
@@ -591,14 +591,14 @@ def _retrieve_instance_frames(client, args):
         media_types=args.media_types,
     )
 
-    for i, data in enumerate(pixel_data):
+    for i, frame in enumerate(iterator):
         if args.save:
-            if data[:2] == b'\xFF\xD8':       # SOI marker => JPEG
-                if data[2:4] == b'\xFF\xF7':  # SOF 55 marker => JPEG-LS
+            if frame[:2] == b'\xFF\xD8':       # SOI marker => JPEG
+                if frame[2:4] == b'\xFF\xF7':  # SOF 55 marker => JPEG-LS
                     extension = 'jls'
                 else:
                     extension = 'jpg'
-            elif data[:2] == b'\xFF\x4F':     # SOC marker => JPEG 2000
+            elif frame[:2] == b'\xFF\x4F':     # SOC marker => JPEG 2000
                 extension = 'jp2'
             else:
                 extension = 'dat'
@@ -611,22 +611,22 @@ def _retrieve_instance_frames(client, args):
             )
             filepath = os.path.join(args.output_dir, filename)
             with open(filepath, 'bw') as fp:
-                fp.write(data)
+                fp.write(frame)
         else:
-            _print_pixel_data(data)
+            _print_pixel_data(frame)
 
 
 def _retrieve_bulkdata(client, args):
-    '''Retrieves bulk data and either writes them to standard output or to a
+    """Retrieves bulk data and either writes them to standard output or to a
     file on disk.
-    '''
+    """
     data = client.retrieve_bulkdata(args.bulkdata_uri, args.media_type)
     print(data)
     print('\n')
 
 
 def _store_instances(client, args):
-    '''Loads Instances from files on disk and stores them.'''
+    """Loads Instances from files on disk and stores them."""
     datasets = [pydicom.dcmread(f) for f in args.files]
     client.store_instances(datasets)
 
@@ -638,7 +638,7 @@ def _main():
 
 
 def main(args):
-    '''Main entry point for the ``dicomweb_client`` command line program.'''
+    """Main entry point for the ``dicomweb_client`` command line program."""
 
     configure_logging(args.logging_verbosity)
 
