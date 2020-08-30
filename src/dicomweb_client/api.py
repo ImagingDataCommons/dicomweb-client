@@ -190,7 +190,7 @@ class DICOMwebClient(object):
         proxies: Optional[Dict[str, str]] = None,
         headers: Optional[Dict[str, str]] = None,
         callback: Optional[Callable] = None,
-        chunk_size: int = 8 * 2**20
+        chunk_size: Optional[int] = None
     ) -> None:
         """
         Parameters
@@ -221,7 +221,7 @@ class DICOMwebClient(object):
         chunk_size: int, optional
             maximum number of bytes per data chunk using chunked transfer
             encoding (helpful for storing and retrieving large objects or large
-            collections of objects such as studies or series, defaults to 8 MB)
+            collections of objects such as studies or series)
 
         Warning
         -------
@@ -570,12 +570,16 @@ class DICOMwebClient(object):
             stop_max_attempt_number=self._max_attempts
         )
         def _invoke_get_request(
-                url: str,
-                headers: Optional[Dict[str, str]] = None
-            ) -> requests.models.Response:
-            # Setting stream allows for retrieval of data in chunks using
-            # the iter_content() method
+            url: str,
+            headers: Optional[Dict[str, str]] = None
+        ) -> requests.models.Response:
             logger.debug('GET: {} {}'.format(url, headers))
+            # Setting stream allows for retrieval of data using chunked transer
+            # encoding. The iter_content() method can be used to iterate over
+            # chunks. If stream is not set, iter_content() will return the
+            # full payload at once.
+            if self._chunk_size is None:
+                return self._session.get(url=url, headers=headers, stream=False)
             return self._session.get(url=url, headers=headers, stream=True)
 
         if headers is None:
@@ -648,10 +652,11 @@ class DICOMwebClient(object):
         # decoding logic adapted from requests_toolbelt.multipart.decoder
         # https://github.com/requests/toolbelt/blob/0.9.1/requests_toolbelt/multipart/decoder.py
         content_type = response.headers['content-type']
-        mimetype, *ct_info = [ct.strip() for ct in content_type.split(';')]
-        if mimetype.split('/')[0].lower() != 'multipart':
+        media_type, *ct_info = [ct.strip() for ct in content_type.split(';')]
+        if media_type.lower() != 'multipart/related':
             raise ValueError(
-                'Unexpected mimetype in Content-Type: "{}"'.format(mimetype)
+                f'Unexpected media type: "{media_type}". '
+                'Experted "multipart/related".'
             )
         for item in ct_info:
             attr, _, value = item.partition('=')
@@ -659,7 +664,7 @@ class DICOMwebClient(object):
                 boundary = value.strip('"').encode('utf-8')
                 break
         else:
-            # Some servers set the mimetype to multipart but don't provide a
+            # Some servers set the media type to multipart but don't provide a
             # boundary and just send a single frame in the body - return as is.
             yield response.content
             return
@@ -1614,7 +1619,7 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> Iterator[bytes]:
-        """Iteratively retrieves bulk data from a given location.
+        """Iterates over retrieved bulk data from a given location.
 
         Parameters
         ----------
@@ -1688,7 +1693,7 @@ class DICOMwebClient(object):
         study_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Iteratively retrieves instances of a given DICOM study.
+        """Iterates over retrieved instances of a given DICOM study.
 
         Parameters
         ----------
@@ -1885,7 +1890,7 @@ class DICOMwebClient(object):
         series_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Iteratively retrieves instances of a given DICOM series.
+        """Iterates over retrieved instances of a given DICOM series.
 
         Parameters
         ----------
@@ -2422,8 +2427,7 @@ class DICOMwebClient(object):
         frame_numbers: Sequence[int],
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
     ) -> Iterator[bytes]:
-        """Iteratively retrieves one or more frames of an individual DICOM
-        instance.
+        """Iterates over retrieved frames of an individual DICOM instance.
 
         Parameters
         ----------
