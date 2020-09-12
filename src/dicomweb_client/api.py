@@ -699,7 +699,7 @@ class DICOMwebClient(object):
         if media_type.lower() != 'multipart/related':
             raise ValueError(
                 f'Unexpected media type: "{media_type}". '
-                'Experted "multipart/related".'
+                'Expected "multipart/related".'
             )
         for item in ct_info:
             attr, _, value = item.partition('=')
