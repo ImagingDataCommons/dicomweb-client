@@ -29,7 +29,6 @@ setuptools.setup(
         'Topic :: Multimedia :: Graphics',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
@@ -47,7 +46,7 @@ setuptools.setup(
             'google-oauth>=1.0',
         ],
     },
-    python_requires='>3.5',
+    python_requires='>3.6',
     install_requires=[
         'pydicom>=2.0',
         'requests>=2.18',
