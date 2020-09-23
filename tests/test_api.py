@@ -329,7 +329,6 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('retrieve_instance_metadata.json'))
     with open(cache_filename, 'r') as f:
         content = f.read()
-    parsed_content = json.loads(content)
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -375,7 +374,6 @@ def test_iter_series(client, httpserver, cache_dir):
     httpserver.serve_content(content=chunked_message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
     iterator = client.iter_series(
         study_instance_uid, series_instance_uid
     )
@@ -418,7 +416,6 @@ def test_retrieve_series(client, httpserver, cache_dir):
     httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
     response = client.retrieve_series(
         study_instance_uid, series_instance_uid
     )
