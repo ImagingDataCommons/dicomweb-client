@@ -124,6 +124,20 @@ class DICOMwebClient(object):
 
     """
 
+    def set_chunk_size(self, chunk_size: int) -> None:
+        """Sets value of `chunk_size` attribute.
+
+        Parameters
+        ----------
+        chunk_size: int
+            maximum number of bytes that should be transferred per data chunk
+            when streaming data from the server using chunked transfer encoding
+            (used by ``iter_*()`` methods as well as the ``store_instances()``
+            method)
+
+        """
+        self._chunk_size = chunk_size
+
     def set_http_retry_params(
         self,
         retry: bool = True,
@@ -263,13 +277,13 @@ class DICOMwebClient(object):
         )
         match = re.match(pattern, self.base_url)
         if match is None:
-            raise ValueError('Malformed URL: {}'.format(self.base_url))
+            raise ValueError(f'Malformed URL: {self.base_url}')
         try:
             self.protocol = match.group('scheme')
             self.host = match.group('host')
             port = match.group('port')
         except AttributeError:
-            raise ValueError('Malformed URL: {}'.format(self.base_url))
+            raise ValueError(f'Malformed URL: {self.base_url}')
         if port:
             self.port = int(port)
         else:
@@ -279,7 +293,7 @@ class DICOMwebClient(object):
                 self.port = 443
             else:
                 raise ValueError(
-                    'URL scheme "{}" is not supported.'.format(self.protocol)
+                    f'URL scheme "{self.protocol}" is not supported.'
                 )
         url_components = urlparse(url)
         self.url_prefix = url_components.path
@@ -380,19 +394,19 @@ class DICOMwebClient(object):
         service_url = self.base_url
         if service_name == 'qido':
             if self.qido_url_prefix is not None:
-                service_url += '/{}'.format(self.qido_url_prefix)
+                service_url += f'/{self.qido_url_prefix}'
         elif service_name == 'wado':
             if self.wado_url_prefix is not None:
-                service_url += '/{}'.format(self.wado_url_prefix)
+                service_url += f'/{self.wado_url_prefix}'
         elif service_name == 'stow':
             if self.stow_url_prefix is not None:
-                service_url += '/{}'.format(self.stow_url_prefix)
+                service_url += f'/{self.stow_url_prefix}'
         elif service_name == 'delete':
             if self.delete_url_prefix is not None:
-                service_url += '/{}'.format(self.delete_url_prefix)
+                service_url += f'/{self.delete_url_prefix}'
         else:
             raise ValueError(
-                'Unsupported DICOMweb service "{}".'.format(service_name)
+                f'Unsupported DICOMweb service "{service_name}".'
             )
         return service_url
 
@@ -583,7 +597,7 @@ class DICOMwebClient(object):
             url: str,
             headers: Optional[Dict[str, str]] = None
         ) -> requests.models.Response:
-            logger.debug('GET: {} {}'.format(url, headers))
+            logger.debug(f'GET: {url} {headers}')
             # Setting stream allows for retrieval of data using chunked transer
             # encoding. The iter_content() method can be used to iterate over
             # chunks. If stream is not set, iter_content() will return the
@@ -597,8 +611,10 @@ class DICOMwebClient(object):
         if params is None:
             params = {}
         url += self._build_query_string(params)
+        if stream:
+            logger.debug('use chunked transfer encoding')
         response = _invoke_get_request(url, headers)
-        logger.debug('request status code: {}'.format(response.status_code))
+        logger.debug(f'request status code: {response.status_code}')
         response.raise_for_status()
         if response.status_code == 204:
             logger.warning('empty response')
@@ -700,7 +716,8 @@ class DICOMwebClient(object):
             message parts
 
         """
-        # decoding logic adapted from requests_toolbelt.multipart.decoder
+        logger.debug('decode multipart message')
+        logger.debug('decode message header')
         content_type = response.headers['content-type']
         media_type, *ct_info = [ct.strip() for ct in content_type.split(';')]
         if media_type.lower() != 'multipart/related':
@@ -723,11 +740,14 @@ class DICOMwebClient(object):
         delimiter = b''.join((b'\r\n', marker))
         data = b''
         with response:
+            logger.debug('decode message content')
             if stream:
                 iterator = response.iter_content(chunk_size=self._chunk_size)
             else:
-                iterator = response.iter_content()
-            for chunk in iterator:
+                iterator = [response.content]
+            for i, chunk in enumerate(iterator):
+                if stream:
+                    logger.debug(f'decode message content chunk #{i}')
                 data += chunk
                 while delimiter in data:
                     part, data = data.split(delimiter, maxsplit=1)
@@ -760,14 +780,14 @@ class DICOMwebClient(object):
             HTTP request message body
 
         """
-        content_type_fields = content_type.split(';')
-        if content_type_fields[0] != 'multipart/related':
+        media_type, *ct_info = [ct.strip() for ct in content_type.split(';')]
+        if media_type != 'multipart/related':
             raise ValueError(
                 'No "multipart/related" usage found in content type field'
             )
         parameters = {}
-        for field in content_type_fields[1:]:
-            name, value = field.strip(' ').split('=')
+        for item in ct_info:
+            name, value = item.split('=')
             parameters[name.lower()] = value.strip('"')
         try:
             content_type = parameters['type']
@@ -804,7 +824,7 @@ class DICOMwebClient(object):
             when `media_type` is invalid
 
         """
-        error_message = 'Not a valid media type: "{}"'.format(media_type)
+        error_message = f'Not a valid media type: "{media_type}"'
         sep_index = media_type.find('/')
         if sep_index == -1:
             raise ValueError(error_message)
@@ -838,7 +858,7 @@ class DICOMwebClient(object):
                 end = str(byte_range[1])
             except IndexError:
                 end = ''
-            range_header_field_value = 'bytes={}-{}'.format(start, end)
+            range_header_field_value = f'bytes={start}-{end}'
         else:
             range_header_field_value = 'bytes=0-'
         return range_header_field_value
@@ -872,14 +892,14 @@ class DICOMwebClient(object):
         for media_type in media_types:
             if not isinstance(media_type, str):
                 raise TypeError(
-                    'Media type "{}" is not supported for '
-                    'requested resource'.format(media_type)
+                    f'Media type "{media_type}" is not supported for '
+                    'requested resource'
                 )
             cls._assert_media_type_is_valid(media_type)
             if media_type not in supported_media_types:
                 raise ValueError(
-                    'Media type "{}" is not supported for '
-                    'requested resource'.format(media_type)
+                    f'Media type "{media_type}" is not supported for '
+                    'requested resource'
                 )
             field_value_parts.append(media_type)
         return ', '.join(field_value_parts)
@@ -957,9 +977,7 @@ class DICOMwebClient(object):
                                 'is not supported for media '
                                 f'type "{media_type}".'
                             )
-                    field_value += '; transfer-syntax={}'.format(
-                        transfer_syntax_uid
-                    )
+                    field_value += f'; transfer-syntax={transfer_syntax_uid}'
             else:
                 if media_type not in supported_media_types:
                     raise ValueError(
@@ -1458,7 +1476,7 @@ class DICOMwebClient(object):
                 data: bytes,
                 headers: Optional[Dict[str, str]] = None
             ) -> requests.models.Response:
-            logger.debug('POST: {} {}'.format(url, headers))
+            logger.debug(f'POST: {url} {headers}')
             return self._session.post(url, data=data, headers=headers)
 
         if len(data) > self._chunk_size:
@@ -1477,7 +1495,7 @@ class DICOMwebClient(object):
             # if we don't use chunked transfer encoding.
             headers['Host'] = self.host
             response = _invoke_post_request(url, data, headers)
-        logger.debug('request status code: {}'.format(response.status_code))
+        logger.debug(f'request status code: {response.status_code}')
         response.raise_for_status()
         if not response.ok:
             logger.warning('storage was not successful for all instances')
@@ -1684,7 +1702,7 @@ class DICOMwebClient(object):
                 common_media_types.append(media_type)
             else:
                 mtype, msubtype = cls._parse_media_type(media_type)
-                common_media_types.append('{}/'.format(mtype))
+                common_media_types.append(f'{mtype}/')
         if len(set(common_media_types)) == 0:
             raise ValueError(
                 'No common acceptable media type could be identified.'
@@ -2267,8 +2285,8 @@ class DICOMwebClient(object):
             return self._http_get_application_pdf(url, params)
         else:
             raise ValueError(
-                'Media type "{}" is not supported for '
-                'retrieval of rendered series.'.format(common_media_type)
+                f'Media type "{common_media_type}" is not supported for '
+                'retrieval of rendered series.'
             )
 
     def delete_series(
@@ -2616,8 +2634,8 @@ class DICOMwebClient(object):
             return self._http_get_application_pdf(url, params)
         else:
             raise ValueError(
-                'Media type "{}" is not supported for '
-                'retrieval of rendered instance.'.format(common_media_type)
+                f'Media type "{common_media_type}" is not supported for '
+                'retrieval of rendered instance.'
             )
 
     def _get_instance_frames(
@@ -2670,7 +2688,7 @@ class DICOMwebClient(object):
             'wado', study_instance_uid, series_instance_uid, sop_instance_uid
         )
         frame_list = ','.join([str(n) for n in frame_numbers])
-        url += '/frames/{frame_list}'.format(frame_list=frame_list)
+        url += f'/frames/{frame_list}'
         if media_types is None:
             return self._http_get_multipart_application_octet_stream(
                 url,
@@ -2697,8 +2715,8 @@ class DICOMwebClient(object):
             )
         else:
             raise ValueError(
-                'Media type "{}" is not supported for '
-                'retrieval of frames.'.format(common_media_type)
+                f'Media type "{common_media_types}" is not supported for '
+                'retrieval of frames.'
             )
 
     def retrieve_instance_frames(
@@ -2855,8 +2873,8 @@ class DICOMwebClient(object):
             return self._http_get_video(url, media_types, params)
         else:
             raise ValueError(
-                'Media type "{}" is not supported for '
-                'retrieval of rendered frame.'.format(common_media_type)
+                f'Media type "{common_media_type}" is not supported for '
+                'retrieval of rendered frame.'
             )
 
     @staticmethod
