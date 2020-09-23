@@ -744,7 +744,7 @@ class DICOMwebClient(object):
             if stream:
                 iterator = response.iter_content(chunk_size=self._chunk_size)
             else:
-                iterator = [response.content]
+                iterator = iter([response.content])
             for i, chunk in enumerate(iterator):
                 if stream:
                     logger.debug(f'decode message content chunk #{i}')
@@ -965,8 +965,8 @@ class DICOMwebClient(object):
                         ]
                         if expected_media_type != media_type:
                             have_same_type = (
-                                self._parse_media_type(media_type)[0] ==
-                                self._parse_media_type(expected_media_type)[0]
+                                cls._parse_media_type(media_type)[0] ==
+                                cls._parse_media_type(expected_media_type)[0]
                             )
                             if (have_same_type and
                                     (media_type.endswith('/*') or
@@ -1712,6 +1712,7 @@ class DICOMwebClient(object):
         return common_media_types[0]
 
     def _get_bulkdata(
+        self,
         url: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
@@ -2715,7 +2716,7 @@ class DICOMwebClient(object):
             )
         else:
             raise ValueError(
-                f'Media type "{common_media_types}" is not supported for '
+                f'Media type "{common_media_type}" is not supported for '
                 'retrieval of frames.'
             )
 
