@@ -70,6 +70,7 @@ def _get_parser():
     )
     parser.add_argument(
         '--chunk-size', dest='chunk_size', type=int, metavar='NUM',
+        default=10**6,
         help='maximum size of a network transfer chunk in bytes'
     )
 
