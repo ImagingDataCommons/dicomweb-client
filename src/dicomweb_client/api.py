@@ -116,6 +116,11 @@ class DICOMwebClient(object):
         URL path prefix for STOW-RS (not part of `base_url`)
     delete_url_prefix: Union[str, None]
         URL path prefix for DELETE (not part of `base_url`)
+    chunk_size: int
+        maximum number of bytes that should be transferred per data chunk
+        when streaming data from the server using chunked transfer encoding
+        (used by ``iter_*()`` methods as well as the ``store_instances()``
+        method)
 
     """
 
@@ -149,6 +154,7 @@ class DICOMwebClient(object):
             exponential multiplier applied to delay between attempts in ms.
         retriable_error_codes: tuple, optional
             tuple of HTTP error codes to retry if raised.
+
         """
         self._http_retry = retry
         if retry:
@@ -176,6 +182,7 @@ class DICOMwebClient(object):
         -------
         bool
             Whether the HTTP request should be retried.
+
         """
         return response.status_code in self._http_retrable_errors
 
@@ -220,9 +227,9 @@ class DICOMwebClient(object):
             (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
         chunk_size: int, optional
             maximum number of bytes that should be transferred per data chunk
-            when using chunked transfer encoding (chunked transfer encoding
-            is used by ``iter_*()`` methods as well as the ``store_instances()``
-            method)
+            when streaming data from the server using chunked transfer encoding
+            (used by ``iter_*()`` methods as well as the ``store_instances()``
+            method); defaults to ``10**6`` bytes (10MB)
 
         Warning
         -------
@@ -735,15 +742,15 @@ class DICOMwebClient(object):
     @classmethod
     def _encode_multipart_message(
         cls,
-        data: Sequence[bytes],
+        content: Sequence[bytes],
         content_type: str
     ) -> bytes:
         """Encodes the payload of a HTTP multipart response message.
 
         Parameters
         ----------
-        data: Sequence[bytes]
-            data
+        content: Sequence[bytes]
+            content of each part
         content_type: str
             content type of the multipart HTTP request message
 
@@ -753,20 +760,33 @@ class DICOMwebClient(object):
             HTTP request message body
 
         """
-        multipart, content_type_field, boundary_field = content_type.split(';')
-        content_type = content_type_field.split('=')[1].strip('"')
-        boundary = boundary_field.split('=')[1]
-        body = b''
-        for payload in data:
-            body += (
-                '\r\n--{boundary}'
-                '\r\nContent-Type: {content_type}\r\n\r\n'.format(
-                    boundary=boundary,
-                    content_type=content_type
-                ).encode('utf-8')
+        content_type_fields = content_type.split(';')
+        if content_type_fields[0] != 'multipart/related':
+            raise ValueError(
+                'No "multipart/related" usage found in content type field'
             )
-            body += payload
-        body += '\r\n--{boundary}--'.format(boundary=boundary).encode('utf-8')
+        parameters = {}
+        for field in content_type_fields[1:]:
+            name, value = field.strip(' ').split('=')
+            parameters[name.lower()] = value.strip('"')
+        try:
+            content_type = parameters['type']
+        except KeyError:
+            raise ValueError(
+                'No "type" parameter in found in content-type field'
+            )
+        try:
+            boundary = parameters['boundary']
+        except KeyError:
+            raise ValueError(
+                'No "boundary" parameter in found in content-type field'
+            )
+        body = b''
+        for part in content:
+            body += f'\r\n--{boundary}'.encode('utf-8')
+            body += f'\r\nContent-Type: {content_type}\r\n\r\n'.encode('utf-8')
+            body += part
+        body += f'\r\n--{boundary}--'.encode('utf-8')
         return body
 
     @classmethod
@@ -904,23 +924,21 @@ class DICOMwebClient(object):
                 except IndexError:
                     transfer_syntax_uid = None
             cls._assert_media_type_is_valid(media_type)
-            field_value = 'multipart/related; type="{}"'.format(media_type)
+            field_value = f'multipart/related; type="{media_type}"'
             if isinstance(supported_media_types, dict):
                 if media_type not in supported_media_types.values():
                     if (not media_type.endswith('/*') or
                             not media_type.endswith('/')):
                         raise ValueError(
-                            'Media type "{}" is not supported for '
-                            'requested resource.'.format(media_type)
+                            f'Media type "{media_type}" is not supported for '
+                            'requested resource.'
                         )
                 if transfer_syntax_uid is not None:
                     if transfer_syntax_uid != '*':
                         if transfer_syntax_uid not in supported_media_types:
                             raise ValueError(
-                                'Transfer syntax "{}" is not supported '
-                                'for requested resource.'.format(
-                                    transfer_syntax_uid
-                                )
+                                f'Transfer syntax "{transfer_syntax_uid}" '
+                                'is not supported for requested resource.'
                             )
                         expected_media_type = supported_media_types[
                             transfer_syntax_uid
@@ -935,10 +953,9 @@ class DICOMwebClient(object):
                                         media_type.endswith('/'))):
                                 continue
                             raise ValueError(
-                                'Transfer syntax "{}" is not supported '
-                                'for media type "{}".'.format(
-                                    transfer_syntax_uid, media_type
-                                )
+                                f'Transfer syntax "{transfer_syntax_uid}" '
+                                'is not supported for media '
+                                f'type "{media_type}".'
                             )
                     field_value += '; transfer-syntax={}'.format(
                         transfer_syntax_uid
@@ -946,8 +963,8 @@ class DICOMwebClient(object):
             else:
                 if media_type not in supported_media_types:
                     raise ValueError(
-                        'Media type "{}" is not supported for '
-                        'requested resource.'.format(media_type)
+                        f'Media type "{media_type}" is not supported for '
+                        'requested resource.'
                     )
             field_value_parts.append(field_value)
         return ', '.join(field_value_parts)
@@ -1507,7 +1524,7 @@ class DICOMwebClient(object):
         content_type = (
             'multipart/related; '
             'type="application/dicom"; '
-            'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
+            'boundary="0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1"'
         )
         content = self._encode_multipart_message(data, content_type)
         response = self._http_post(
@@ -1518,7 +1535,7 @@ class DICOMwebClient(object):
         if response.content:
             content_type = response.headers['Content-Type']
             if content_type in ('application/dicom+json', 'application/json', ):
-                return load_json_dataset(response.json())
+                return pydicom.Dataset.from_json(response.json())
             elif content_type in ('application/dicom+xml', 'application/xml', ):
                 tree = fromstring(response.content)
                 return _load_xml_dataset(tree)

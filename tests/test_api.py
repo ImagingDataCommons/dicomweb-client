@@ -2,7 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
 from http import HTTPStatus
-from typing import Generator
+from typing import Generator, Sequence
 
 import pytest
 import pydicom
@@ -14,6 +14,19 @@ from dicomweb_client.api import (
     load_json_dataset,
     _load_xml_dataset
 )
+
+
+def _chunk_message(message: bytes, chunk_size: int) -> bytes:
+    chunked_message = b''
+    for i in range(0, len(message), chunk_size):
+        content = message[i:i + chunk_size]
+        chunk = hex(len(content)).encode('utf-8')
+        chunk += b'\r\n'
+        chunk += content
+        chunk += b'\r\n'
+        chunked_message += chunk
+    chunked_message += b'0\r\n\r\n'
+    return chunked_message
 
 
 def test_url(httpserver):
@@ -300,8 +313,9 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
     assert result == parsed_content[0]
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/metadata'.format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}/metadata'
     )
     assert request.path == expected_path
     assert all(
@@ -326,9 +340,10 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
     )
     request = httpserver.requests[0]
     expected_path = (
-        '/wadors/studies/{study_instance_uid}'
-        '/series/{series_instance_uid}'
-        '/instances/{sop_instance_uid}/metadata'.format(**locals())
+        '/wadors'
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}/metadata'
     )
     assert request.path == expected_path
 
@@ -336,21 +351,28 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
 def test_iter_series(client, httpserver, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
-        payload = f.read()
-    content = b''
-    for i in range(3):
-        content += b'\r\n--boundary\r\n'
-        content += b'Content-Type: application/dicom\r\n\r\n'
-        content += payload
-    content += b'\r\n--boundary--'
+        data = f.read()
+
+    n_resources = 3
+    chunk_size = 10**3
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
         'content-type': (
             'multipart/related; '
-            'type="application/dicom"; '
-            'boundary="boundary" '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
         ),
+        'transfer-encoding': 'chunked'
     }
-    httpserver.serve_content(content=content, code=200, headers=headers)
+
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    chunked_message = _chunk_message(message, chunk_size)
+
+    httpserver.serve_content(content=chunked_message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
@@ -358,85 +380,96 @@ def test_iter_series(client, httpserver, cache_dir):
         study_instance_uid, series_instance_uid
     )
     assert isinstance(iterator, Generator)
-    for result in iterator:
+    response = list(iterator)
+    for instance in response:
         with BytesIO() as fp:
-            pydicom.dcmwrite(fp, result)
+            pydicom.dcmwrite(fp, instance)
             raw_result = fp.getvalue()
-        assert raw_result == payload
+        assert raw_result == data
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}'
-        .format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert len(response) == n_resources
 
 
 def test_retrieve_series(client, httpserver, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
-        payload = f.read()
-    content = b''
-    for i in range(3):
-        content += b'\r\n--boundary\r\n'
-        content += b'Content-Type: application/dicom\r\n\r\n'
-        content += payload
-    content += b'\r\n--boundary--'
+        data = f.read()
+
+    n_resources = 3
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
         'content-type': (
             'multipart/related; '
-            'type="application/dicom"; '
-            'boundary="boundary" '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
         ),
     }
-    httpserver.serve_content(content=content, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
-    results = client.retrieve_series(
+    response = client.retrieve_series(
         study_instance_uid, series_instance_uid
     )
-    assert len(results) == 3
-    for result in results:
+    for resource in response:
         with BytesIO() as fp:
-            pydicom.dcmwrite(fp, result)
+            pydicom.dcmwrite(fp, resource)
             raw_result = fp.getvalue()
-        assert raw_result == payload
+        assert raw_result == data
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}'
-        .format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert len(response) == n_resources
 
 
 def test_retrieve_instance(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
-        content = f.read()
+        data = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
         'content-type': (
             'multipart/related; '
-            'type="application/dicom"'
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
         ),
     }
-    httpserver.serve_content(content=content, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
-    result = client.retrieve_instance(
+    response = client.retrieve_instance(
         study_instance_uid, series_instance_uid, sop_instance_uid
     )
-    print(result)
     with BytesIO() as fp:
-        pydicom.dcmwrite(fp, result)
+        pydicom.dcmwrite(fp, response)
         raw_result = fp.getvalue()
-    assert raw_result == content
+    assert raw_result == data
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}'.format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
@@ -445,11 +478,21 @@ def test_retrieve_instance(httpserver, client, cache_dir):
 def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
-        content = f.read()
+        data = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
-        'content-type': 'multipart/related; type="application/dicom"',
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
     }
-    httpserver.serve_content(content=content, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
@@ -457,7 +500,7 @@ def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
         study_instance_uid,
         series_instance_uid,
         sop_instance_uid,
-        media_types=(('application/dicom', '*', ), )
+        media_types=((media_type, '*', ), )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
@@ -467,11 +510,21 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
                                                    cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
-        content = f.read()
+        data = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
-        'content-type': 'multipart/related; type="application/dicom"',
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
     }
-    httpserver.serve_content(content=content, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
@@ -487,8 +540,14 @@ def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
-        'content-type': 'multipart/related; type="application/dicom"',
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -504,31 +563,50 @@ def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
 def test_iter_instance_frames_jpeg(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
-        content = f.read()
+        data = f.read()
+
+    n_resources = 2
+    chunk_size = 10**2
+    media_type = 'image/jpeg'
+    boundary = 'boundary'
     headers = {
-        'content-type': 'multipart/related; type="image/jpeg"',
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+        'transfer-encoding': 'chunked'
     }
-    httpserver.serve_content(content=content, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    chunked_message = _chunk_message(message, chunk_size)
+    httpserver.serve_content(content=chunked_message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
-    frame_numbers = [114]
+    frame_numbers = [x + 1 for x in range(n_resources)]
     frame_list = ','.join([str(n) for n in frame_numbers])
     iterator = client.iter_instance_frames(
         study_instance_uid,
         series_instance_uid,
         sop_instance_uid,
         frame_numbers,
-        media_types=('image/jpeg', )
+        media_types=(media_type, )
     )
-    assert isinstance(iterator, Generator)
+    response = list(iterator)
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+        f'/frames/{frame_list}'
     )
+    assert isinstance(iterator, Generator)
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
+    assert len(response) == n_resources
 
 
 def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
@@ -554,8 +632,10 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
     assert list(result) == [content]
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+        f'/frames/{frame_list}'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
@@ -605,8 +685,10 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
     assert list(result) == [content]
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_list}'.format(**locals())
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+        f'/frames/{frame_list}'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
@@ -616,29 +698,28 @@ def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
+    media_type = 'image/jpeg'
     headers = {
-        'content-type': 'image/jpeg',
+        'content-type': media_type,
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     frame_numbers = [1]
+    frame_list = ','.join([str(n) for n in frame_numbers])
     result = client.retrieve_instance_frames_rendered(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/jpeg', )
+        frame_numbers, media_types=(media_type, )
     )
-    assert result == content
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_numbers}/rendered'.format(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            sop_instance_uid=sop_instance_uid,
-            frame_numbers=','.join([str(n) for n in frame_numbers])
-        )
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+        f'/frames/{frame_list}/rendered'
     )
+    assert result == content
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:11] == headers['content-type'][:11]
 
@@ -662,28 +743,27 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.png'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
+    media_type = 'image/png'
     headers = {
-        'content-type': 'image/png',
+        'content-type': media_type,
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
     frame_numbers = [1]
+    frame_list = ','.join([str(n) for n in frame_numbers])
     result = client.retrieve_instance_frames_rendered(
         study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=('image/png', )
+        frame_numbers, media_types=(media_type, )
     )
     assert result == content
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}/frames/{frame_numbers}/rendered'.format(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            sop_instance_uid=sop_instance_uid,
-            frame_numbers=','.join([str(n) for n in frame_numbers])
-        )
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+        f'/frames/{frame_list}/rendered'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:10] == headers['content-type'][:10]
@@ -743,10 +823,7 @@ def test_delete_study_error(httpserver, client, cache_dir):
         client.delete_study(study_instance_uid=study_instance_uid)
     assert len(httpserver.requests) == 1
     request = httpserver.requests[0]
-    expected_path = (
-        '/studies/{study_instance_uid}'.format(
-            study_instance_uid=study_instance_uid)
-    )
+    expected_path = f'/studies/{study_instance_uid}'
     assert request.path == expected_path
     assert request.method == 'DELETE'
 
@@ -765,9 +842,8 @@ def test_delete_series_error(httpserver, client, cache_dir):
     assert len(httpserver.requests) == 1
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}'.format(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid)
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
     )
     assert request.path == expected_path
     assert request.method == 'DELETE'
@@ -789,11 +865,9 @@ def test_delete_instance_error(httpserver, client, cache_dir):
     assert len(httpserver.requests) == 1
     request = httpserver.requests[0]
     expected_path = (
-        '/studies/{study_instance_uid}/series/{series_instance_uid}/instances'
-        '/{sop_instance_uid}'.format(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            sop_instance_uid=sop_instance_uid,)
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
     )
     assert request.path == expected_path
     assert request.method == 'DELETE'
