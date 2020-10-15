@@ -947,8 +947,8 @@ class DICOMwebClient(object):
             field_value = f'multipart/related; type="{media_type}"'
             if isinstance(supported_media_types, dict):
                 if media_type not in supported_media_types.values():
-                    if (not media_type.endswith('/*') or
-                            not media_type.endswith('/')):
+                    if not (media_type.endswith('/*') or
+                            media_type.endswith('/')):
                         raise ValueError(
                             f'Media type "{media_type}" is not supported for '
                             'requested resource.'
