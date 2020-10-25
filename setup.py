@@ -46,7 +46,7 @@ setuptools.setup(
             'google-oauth>=1.0',
         ],
     },
-    python_requires='>3.6',
+    python_requires='>=3.6',
     install_requires=[
         'pydicom>=2.0',
         'requests>=2.18',
