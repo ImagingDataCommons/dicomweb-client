@@ -16,6 +16,12 @@ from dicomweb_client.api import (
 )
 
 
+def test_content_extraction_from_part():
+    part = b'xyz\r\n\r\n\x00\x01\x00\x02\x0d\x0a\x0d\x0a\x00\x01\x00\x02'
+    content = DICOMwebClient._extract_part_content(part)
+    assert len(content) == 12
+
+
 def _chunk_message(message: bytes, chunk_size: int) -> bytes:
     chunked_message = b''
     for i in range(0, len(message), chunk_size):
