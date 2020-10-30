@@ -691,8 +691,9 @@ class DICOMwebClient(object):
         """
         if part in (b'', b'--', b'\r\n') or part.startswith(b'--\r\n'):
             return None
-        if b'\r\n\r\n' in part:
-            return part.split(b'\r\n\r\n')[1]
+        idx = part.index(b'\r\n\r\n')
+        if idx > -1:
+            return part[idx + 4:]
         raise ValueError('Message part does not contain CRLF CRLF')
 
     def _decode_multipart_message(
