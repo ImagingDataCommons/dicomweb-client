@@ -1,11 +1,10 @@
-from dicomweb_path import Path, Type
+from dicomweb_path.path import Path, Type
 
 import pytest
 
-# Support alphanumeric characters in DICOM UIDs.
-_STUDY_UID = '1.2.3a'
-_SERIES_UID = '4.5.6b'
-_INSTANCE_UID = '7.8.9c'
+_STUDY_UID = '1.2.3'
+_SERIES_UID = '4.5.6'
+_INSTANCE_UID = '7.8.9'
 
 # DICOMweb URLs constructed from the UIDs above.
 _SERVICE_URL = 'https://lalalala.com'
@@ -13,20 +12,45 @@ _STUDY_URL = f'{_SERVICE_URL}/studies/{_STUDY_UID}'
 _SERIES_URL = f'{_STUDY_URL}/series/{_SERIES_UID}'
 _INSTANCE_URL = f'{_SERIES_URL}/instances/{_INSTANCE_UID}'
 
-# '/' is not allowed because the parsing logic in the class uses '/' to
-# tokenize the path.
-# '@' is not allowed due to a potential security vulnerability.
 
-
-@pytest.mark.parametrize('illegal_char', ['/', '@'])
-def test_no_forward_slash_or_at(illegal_char):
-    """Checks *ValueError* is raised when an attribute contains '/' or '@'."""
+@pytest.mark.parametrize('illegal_char', ['/', '@', 'a', 'A'])
+def test_uid_illegal_character(illegal_char):
+    """Checks *ValueError* is raised when a UID contains an illegal char."""
     with pytest.raises(ValueError, match=r'\'study_uid\' must match'):
         Path(_SERVICE_URL, f'1.2{illegal_char}3')
     with pytest.raises(ValueError, match=r'\'series_uid\' must match'):
         Path(_SERVICE_URL, '1.2.3', f'4.5{illegal_char}6')
     with pytest.raises(ValueError, match=r'\'instance_uid\' must match'):
         Path(_SERVICE_URL, '1.2.3', '4.5.6', f'7.8{illegal_char}9')
+
+
+@pytest.mark.parametrize('illegal_uid', ['.23', '1.2..4', '1.2.', '.'])
+def test_uid_illegal_format(illegal_uid):
+    """Checks *ValueError* is raised when a UID contains an illegal char."""
+    with pytest.raises(ValueError, match=r'\'study_uid\' must match'):
+        Path(_SERVICE_URL, illegal_uid)
+    with pytest.raises(ValueError, match=r'\'series_uid\' must match'):
+        Path(_SERVICE_URL, '1.2.3', illegal_uid)
+    with pytest.raises(ValueError, match=r'\'instance_uid\' must match'):
+        Path(_SERVICE_URL, '1.2.3', '4.5.6', illegal_uid)
+
+
+def test_uid_length():
+    """Checks that UIDs longer than 64 characters are disallowed."""
+    # Success with 64 characters.
+    uid_64 = '1' * 64
+    Path(_SERVICE_URL, uid_64)
+    Path(_SERVICE_URL, '1.2.3', uid_64)
+    Path(_SERVICE_URL, '1.2.3', '4.5.6', uid_64)
+
+    # Failure with 65 characters.
+    uid_65 = '1' * 65
+    with pytest.raises(ValueError, match='UID cannot have more'):
+        Path(_SERVICE_URL, uid_65)
+    with pytest.raises(ValueError, match='UID cannot have more'):
+        Path(_SERVICE_URL, '1.2.3', uid_65)
+    with pytest.raises(ValueError, match='UID cannot have more'):
+        Path(_SERVICE_URL, '1.2.3', '4.5.6', uid_65)
 
 
 def test_uid_missing_error():

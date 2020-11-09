@@ -14,14 +14,18 @@ class Type(enum.Enum):
 
 
 # Used for DICOM UIDs validation
-# '/' is not allowed because the parsing logic in the class uses '/' to tokenize
-# the path.
-# '@' is not allowed due to security concerns: theoretically it could lead to
-# the part before '@' being interpreted as the username, and the part after -
-# as the server address, which is a potential vulnerability.
-_REGEX_UID = r'[^/@]+'
+_MAX_UID_LENGTH = 64
+_REGEX_UID = r'[0-9]+([.][0-9]+)*'
+
+
+def _uid_length_validator(instance: 'Path', attribute: str, value: str) -> None:
+    if len(value) > _MAX_UID_LENGTH:
+        raise ValueError('UID cannot have more than 64 chars. '
+                         f'Actual count: {len(value)}')
+
+
 _ATTR_VALIDATOR_UID = attr.validators.optional(
-    attr.validators.matches_re(_REGEX_UID))
+    [attr.validators.matches_re(_REGEX_UID), _uid_length_validator])
 
 
 @attr.s(frozen=True)
@@ -37,19 +41,20 @@ class Path(object):
     - '<service_url>/studies/<study_uid>/series/<series_uid>/instances/ \
         <instance_uid>'
 
+    As per the DICOM Standard, the Study, Series, and Instance UIDs must be a
+    series of numeric components ("0"-"9") separated by the period "."
+    character, with a maximum length of 64 characters.
+
     Attributes
     ----------
     service_url: str
         DICOMweb service HTTPS URL. Trailing forward slashes are not permitted.
     study_uid: str
-        DICOM Study UID. Alphanumeric characters with '.' separator are
-        permitted.
+        DICOM Study UID.
     series_uid: str
-        DICOM Series UID. Alphanumeric characters with '.' separator are
-        permitted.
+        DICOM Series UID.
     instance_uid: str
-        DICOM Instance UID. Alphanumeric character with '.' separator are
-        permitted.
+        DICOM Instance UID.
 
     Raises
     ------
@@ -60,6 +65,8 @@ class Path(object):
         - *service_url* is incompatible with the DICOMweb standard.
         - *series_uid* is supplied without *study_uid*.
         - *instance_uid* is supplied without *study_uid* or *series_uid*.
+        - Any one of *study_uid*, *series_uid*, or *instance_uid`* does not meet
+          the DICOM Standard UID spec in the docstring.
     """
     service_url = attr.ib(type=str)
     study_uid = attr.ib(
@@ -73,13 +80,13 @@ class Path(object):
     def _not_https(self, _, value: str):
         parse_result = urlparse.urlparse(value)
         if parse_result.scheme != 'https':
-            raise ValueError(f'Not an HTTPS url: {value}')
+            raise ValueError(f'Not an HTTPS url: {value!r}')
 
     @service_url.validator
     def _trailing_forward_slash(self, _, value: str):
         if value.endswith('/'):
             raise ValueError(
-                f'Service URL cannot have a trailing forward slash: {value}')
+                f'Service URL cannot have a trailing forward slash: {value!r}')
 
     @study_uid.validator
     def _study_uid_missing(self, _, value: Optional[str]):
@@ -87,14 +94,14 @@ class Path(object):
                                   self.instance_uid is None):
             raise ValueError(
                 'study_uid missing with non-empty series_uid or instance_uid. '
-                f'series_uid: {self.series_uid}, instance_uid: '
-                f'{self.instance_uid}')
+                f'series_uid: {self.series_uid!r}, instance_uid: '
+                f'{self.instance_uid!r}')
 
     @series_uid.validator
     def _series_uid_missing(self, _, value: Optional[str]) -> None:
         if value is None and self.instance_uid is not None:
             raise ValueError('series_uid missing with non-empty instance_uid. '
-                             f'instance_uid: {self.instance_uid}')
+                             f'instance_uid: {self.instance_uid!r}')
 
     def __str__(self):
         """Returns the text representation of the path."""
@@ -163,7 +170,7 @@ class Path(object):
         study_uid, series_uid, instance_uid = None, None, None
         # The URL format validation will happen when *Path* is returned at the
         # end.
-        service_url_and_suffix = dicomweb_url.split('/studies/', maxsplit=1)
+        service_url_and_suffix = dicomweb_url.rsplit('/studies/', maxsplit=1)
         service_url = service_url_and_suffix[0]
 
         if len(service_url_and_suffix) > 1:
@@ -179,14 +186,14 @@ class Path(object):
                     instance_uid = parts.pop(0)
                 else:
                     raise ValueError(
-                        f'Error parsing the suffix "{dicomweb_suffix}" from '
-                        f'URL: {dicomweb_url}')
+                        f'Error parsing the suffix {dicomweb_suffix!r} from '
+                        f'URL: {dicomweb_url!r}')
 
         path = cls(service_url, study_uid, series_uid, instance_uid)
-        # Validate that the path is of the right type of the type is specified.
+        # Validate that the path is of the specified type, if applicable.
         if path_type is not None and path.type != path_type:
             raise ValueError(
-                f'Unexpected path type. Expected: {path_type}, Actual: '
-                f'{path.type}. Path: {dicomweb_url}')
+                f'Unexpected path type. Expected: {path_type!r}, Actual: '
+                f'{path.type!r}. Path: {dicomweb_url!r}')
 
         return path
