@@ -26,7 +26,7 @@ def test_uid_illegal_character(illegal_char):
 
 @pytest.mark.parametrize('illegal_uid', ['.23', '1.2..4', '1.2.', '.'])
 def test_uid_illegal_format(illegal_uid):
-    """Checks *ValueError* is raised when a UID contains an illegal char."""
+    """Checks *ValueError* is raised if a UID is in an illegal format."""
     with pytest.raises(ValueError, match=r'\'study_uid\' must match'):
         Path(_SERVICE_URL, illegal_uid)
     with pytest.raises(ValueError, match=r'\'series_uid\' must match'):
