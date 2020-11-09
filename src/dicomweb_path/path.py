@@ -13,7 +13,7 @@ class Type(enum.Enum):
     INSTANCE = 'instance'
 
 
-# Used for DICOM UIDs validation
+# For DICOM Standard spec validation of path UID components.
 _MAX_UID_LENGTH = 64
 _REGEX_UID = r'[0-9]+([.][0-9]+)*'
 
