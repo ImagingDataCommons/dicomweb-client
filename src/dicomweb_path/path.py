@@ -65,7 +65,7 @@ class Path(object):
         - *service_url* is incompatible with the DICOMweb standard.
         - *series_uid* is supplied without *study_uid*.
         - *instance_uid* is supplied without *study_uid* or *series_uid*.
-        - Any one of *study_uid*, *series_uid*, or *instance_uid`* does not meet
+        - Any one of *study_uid*, *series_uid*, or *instance_uid* does not meet
           the DICOM Standard UID spec in the docstring.
     """
     service_url = attr.ib(type=str)
@@ -77,19 +77,19 @@ class Path(object):
         default=None, type=Optional[str], validator=_ATTR_VALIDATOR_UID)
 
     @service_url.validator
-    def _not_https(self, _, value: str):
+    def _not_https(self, _, value: str) -> None:
         parse_result = urlparse.urlparse(value)
         if parse_result.scheme != 'https':
             raise ValueError(f'Not an HTTPS url: {value!r}')
 
     @service_url.validator
-    def _trailing_forward_slash(self, _, value: str):
+    def _trailing_forward_slash(self, _, value: str) -> None:
         if value.endswith('/'):
             raise ValueError(
                 f'Service URL cannot have a trailing forward slash: {value!r}')
 
     @study_uid.validator
-    def _study_uid_missing(self, _, value: Optional[str]):
+    def _study_uid_missing(self, _, value: Optional[str]) -> None:
         if value is None and not (self.series_uid is None and
                                   self.instance_uid is None):
             raise ValueError(
@@ -103,7 +103,7 @@ class Path(object):
             raise ValueError('series_uid missing with non-empty instance_uid. '
                              f'instance_uid: {self.instance_uid!r}')
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns the text representation of the path."""
         parts = (('studies', self.study_uid), ('series', self.series_uid),
                  ('instances', self.instance_uid))
