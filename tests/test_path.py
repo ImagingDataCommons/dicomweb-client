@@ -80,9 +80,9 @@ def test_from_string_service_path():
     assert service_path.type == Type.SERVICE
     assert str(service_path) == _SERVICE_URL
     assert str(service_path.get_service_path()) == _SERVICE_URL
-    with pytest.raises(ValueError, match='Cannot get a study path'):
+    with pytest.raises(ValueError, match='Cannot get a Study path'):
         service_path.get_study_path()
-    with pytest.raises(ValueError, match='Cannot get a series path'):
+    with pytest.raises(ValueError, match='Cannot get a Series path'):
         service_path.get_series_path()
 
 
@@ -97,7 +97,7 @@ def test_from_string_study_path():
     assert str(study_path) == _STUDY_URL
     assert str(study_path.get_service_path()) == _SERVICE_URL
     assert str(study_path.get_study_path()) == _STUDY_URL
-    with pytest.raises(ValueError, match='Cannot get a series path'):
+    with pytest.raises(ValueError, match='Cannot get a Series path'):
         study_path.get_series_path()
 
 
@@ -143,7 +143,7 @@ def test_from_string_invalid_resource_delimiter(resource_url):
 @pytest.mark.parametrize('service', ['', 'http://'])
 def test_from_string_invalid(service):
     """Checks *ValueError* raised when the path string is invalid."""
-    with pytest.raises(ValueError, match='Not an HTTPS url'):
+    with pytest.raises(ValueError, match='Not an HTTPS URL'):
         Path.from_string(f'{service}invalid_url')
 
 

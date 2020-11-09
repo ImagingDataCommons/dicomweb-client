@@ -21,7 +21,7 @@ _REGEX_UID = r'[0-9]+([.][0-9]+)*'
 def _uid_length_validator(instance: 'Path', attribute: str, value: str) -> None:
     if len(value) > _MAX_UID_LENGTH:
         raise ValueError('UID cannot have more than 64 chars. '
-                         f'Actual count: {len(value)}')
+                         f'Actual count in {value!r}: {len(value)}')
 
 
 _ATTR_VALIDATOR_UID = attr.validators.optional(
@@ -29,7 +29,7 @@ _ATTR_VALIDATOR_UID = attr.validators.optional(
 
 
 @attr.s(frozen=True)
-class Path(object):
+class Path:
     """Represents a fully qualified HTTPS URL to a DICOMweb resource.
 
     http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
@@ -49,12 +49,12 @@ class Path(object):
     ----------
     service_url: str
         DICOMweb service HTTPS URL. Trailing forward slashes are not permitted.
-    study_uid: str
+    study_uid: Optional[str]
         DICOM Study UID.
-    series_uid: str
+    series_uid: Optional[str]
         DICOM Series UID.
-    instance_uid: str
-        DICOM Instance UID.
+    instance_uid: Optional[str]
+        DICOM SOP Instance UID.
 
     Raises
     ------
@@ -80,7 +80,7 @@ class Path(object):
     def _not_https(self, _, value: str) -> None:
         parse_result = urlparse.urlparse(value)
         if parse_result.scheme != 'https':
-            raise ValueError(f'Not an HTTPS url: {value!r}')
+            raise ValueError(f'Not an HTTPS URL: {value!r}')
 
     @service_url.validator
     def _trailing_forward_slash(self, _, value: str) -> None:
@@ -104,7 +104,7 @@ class Path(object):
                              f'instance_uid: {self.instance_uid!r}')
 
     def __str__(self) -> str:
-        """Returns the text representation of the path."""
+        """Returns the path as a DICOMweb URL string."""
         parts = (('studies', self.study_uid), ('series', self.series_uid),
                  ('instances', self.instance_uid))
         dicomweb_suffix = '/'.join(
@@ -115,7 +115,7 @@ class Path(object):
 
     @property
     def type(self) -> Type:
-        """Type of the DICOM resource corresponding to the path."""
+        """The *Type* of DICOM resource referenced by the path."""
         if self.study_uid is None:
             return Type.SERVICE
         elif self.series_uid is None:
@@ -131,14 +131,14 @@ class Path(object):
     def get_study_path(self) -> 'Path':
         """Returns the sub-path for the DICOM Study within this path."""
         if self.type == Type.SERVICE:
-            raise ValueError('Cannot get a study path from a service path.')
+            raise ValueError('Cannot get a Study path from a Service path.')
         return Path(self.service_url, self.study_uid)
 
     def get_series_path(self) -> 'Path':
         """Returns the sub-path for the DICOM Series within this path."""
         if self.type in (Type.SERVICE, Type.STUDY):
             raise ValueError(
-                f'Cannot get a series path from a {self.type} path.')
+                f'Cannot get a Series path from a {self.type!r} path.')
         return Path(self.service_url, self.study_uid, self.series_uid)
 
     @classmethod
@@ -154,8 +154,10 @@ class Path(object):
         ----------
         dicomweb_url: str
             An HTTPS DICOMweb-compatible URL.
-        path_type: Type
-            The expected type of the path.
+        path_type: Optional[Type]
+            The expected DICOM resource type referenced by the path. If set, it
+            validates that the resource-scope of the *dicomweb_url* matches the
+            expected type.
 
         Returns
         -------
