@@ -1,6 +1,7 @@
 """Utilities for DICOMweb path manipulation."""
 import attr
 import enum
+import re
 from typing import Optional
 import urllib.parse as urlparse
 
@@ -15,20 +16,9 @@ class Type(enum.Enum):
 
 # For DICOM Standard spec validation of path UID components.
 _MAX_UID_LENGTH = 64
-_REGEX_UID = r'[0-9]+([.][0-9]+)*'
+_REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 
 
-def _uid_length_validator(instance: 'Path', attribute: str, value: str) -> None:
-    if len(value) > _MAX_UID_LENGTH:
-        raise ValueError('UID cannot have more than 64 chars. '
-                         f'Actual count in {value!r}: {len(value)}')
-
-
-_ATTR_VALIDATOR_UID = attr.validators.optional(
-    [attr.validators.matches_re(_REGEX_UID), _uid_length_validator])
-
-
-@attr.s(frozen=True)
 class Path:
     """Represents a fully qualified HTTPS URL to a DICOMweb resource.
 
@@ -40,68 +30,50 @@ class Path:
     - '<service_url>/studies/<study_uid>/series/<series_uid>'
     - '<service_url>/studies/<study_uid>/series/<series_uid>/instances/ \
         <instance_uid>'
-
-    As per the DICOM Standard, the Study, Series, and Instance UIDs must be a
-    series of numeric components ("0"-"9") separated by the period "."
-    character, with a maximum length of 64 characters.
-
-    Attributes
-    ----------
-    service_url: str
-        DICOMweb service HTTPS URL. Trailing forward slashes are not permitted.
-    study_uid: Optional[str]
-        DICOM Study UID.
-    series_uid: Optional[str]
-        DICOM Series UID.
-    instance_uid: Optional[str]
-        DICOM SOP Instance UID.
-
-    Raises
-    ------
-    ValueError:
-        In the following cases:
-        - *service_url* has a trailing slash.
-        - *service_url* does not use the HTTPS addressing scheme.
-        - *service_url* is incompatible with the DICOMweb standard.
-        - *series_uid* is supplied without *study_uid*.
-        - *instance_uid* is supplied without *study_uid* or *series_uid*.
-        - Any one of *study_uid*, *series_uid*, or *instance_uid* does not meet
-          the DICOM Standard UID spec in the docstring.
     """
-    service_url = attr.ib(type=str)
-    study_uid = attr.ib(
-        default=None, type=Optional[str], validator=_ATTR_VALIDATOR_UID)
-    series_uid = attr.ib(
-        default=None, type=Optional[str], validator=_ATTR_VALIDATOR_UID)
-    instance_uid = attr.ib(
-        default=None, type=Optional[str], validator=_ATTR_VALIDATOR_UID)
 
-    @service_url.validator
-    def _not_https(self, _, value: str) -> None:
-        parse_result = urlparse.urlparse(value)
-        if parse_result.scheme != 'https':
-            raise ValueError(f'Not an HTTPS URL: {value!r}')
+    def __init__(
+            self,
+            service_url: str,
+            study_uid: Optional[str] = None,
+            series_uid: Optional[str] = None,
+            instance_uid: Optional[str] = None):
+        """Instantiates an object.
 
-    @service_url.validator
-    def _trailing_forward_slash(self, _, value: str) -> None:
-        if value.endswith('/'):
-            raise ValueError(
-                f'Service URL cannot have a trailing forward slash: {value!r}')
+        As per the DICOM Standard, the Study, Series, and Instance UIDs must be
+        a series of numeric components ("0"-"9") separated by the period "."
+        character, with a maximum length of 64 characters.
 
-    @study_uid.validator
-    def _study_uid_missing(self, _, value: Optional[str]) -> None:
-        if value is None and not (self.series_uid is None and
-                                  self.instance_uid is None):
-            raise ValueError(
-                'study_uid missing with non-empty series_uid or instance_uid. '
-                f'series_uid: {self.series_uid!r}, instance_uid: '
-                f'{self.instance_uid!r}')
+        Attributes
+        ----------
+        service_url: str
+            DICOMweb service HTTPS URL. Trailing forward slashes are not
+            permitted.
+        study_uid: Optional[str]
+            DICOM Study UID.
+        series_uid: Optional[str]
+            DICOM Series UID.
+        instance_uid: Optional[str]
+            DICOM SOP Instance UID.
 
-    @series_uid.validator
-    def _series_uid_missing(self, _, value: Optional[str]) -> None:
-        if value is None and self.instance_uid is not None:
-            raise ValueError('series_uid missing with non-empty instance_uid. '
-                             f'instance_uid: {self.instance_uid!r}')
+        Raises
+        ------
+        ValueError:
+            In the following cases:
+            - *service_url* has a trailing slash.
+            - *service_url* does not use the HTTPS addressing scheme.
+            - *service_url* is incompatible with the DICOMweb standard.
+            - *series_uid* is supplied without *study_uid*.
+            - *instance_uid* is supplied without *study_uid* or *series_uid*.
+            - Any one of *study_uid*, *series_uid*, or *instance_uid* does not
+              meet the DICOM Standard UID spec in the docstring.
+        """
+        _validate_service_url(service_url)
+        _validate_uids(study_uid, series_uid, instance_uid)
+        self._service_url = service_url
+        self._study_uid = study_uid
+        self._series_uid = series_uid
+        self._instance_uid = instance_uid
 
     def __str__(self) -> str:
         """Returns the path as a DICOMweb URL string."""
@@ -112,6 +84,26 @@ class Path:
             if part_uid is not None)
         # Remove the trailing slash in case the suffix is empty.
         return f'{self.service_url}/{dicomweb_suffix}'.rstrip('/')
+
+    @property
+    def service_url(self) -> str:
+        """Returns the Service URL."""
+        return self._service_url
+
+    @property
+    def study_uid(self) -> Optional[str]:
+        """Returns the Study UID, if available."""
+        return self._study_uid
+
+    @property
+    def series_uid(self) -> Optional[str]:
+        """Returns the Series UID, if available."""
+        return self._series_uid
+
+    @property
+    def instance_uid(self) -> Optional[str]:
+        """Returns the Instance UID, if available."""
+        return self._instance_uid
 
     @property
     def type(self) -> Type:
@@ -199,3 +191,41 @@ class Path:
                 f'{path.type!r}. Path: {dicomweb_url!r}')
 
         return path
+
+
+def _validate_service_url(url: str) -> None:
+    """Validates the Service URL supplied to `Path`."""
+    parse_result = urlparse.urlparse(url)
+    if parse_result.scheme != 'https':
+        raise ValueError(f'Not an HTTPS URL: {url!r}')
+    if url.endswith('/'):
+        raise ValueError(
+            f'Service URL cannot have a trailing forward slash: {url!r}')
+
+
+def _validate_uids(
+        study_uid: Optional[str],
+        series_uid: Optional[str],
+        instance_uid: Optional[str]) -> None:
+    """Validates UID parameters for the `Path` constructor."""
+    if study_uid is None and not (series_uid is None and instance_uid is None):
+        raise ValueError(
+            'study_uid missing with non-empty series_uid or instance_uid. '
+            f'series_uid: {series_uid!r}, instance_uid: {instance_uid!r}')
+
+    if series_uid is None and instance_uid is not None:
+        raise ValueError('series_uid missing with non-empty instance_uid. '
+                         f'instance_uid: {instance_uid!r}')
+
+    for uid in (study_uid, series_uid, instance_uid):
+        if uid is not None:
+            _validate_uid(uid)
+
+
+def _validate_uid(uid: str):
+    """Validates a DICOM UID."""
+    if len(uid) > _MAX_UID_LENGTH:
+        raise ValueError('UID cannot have more than 64 chars. '
+                         f'Actual count in {uid!r}: {len(uid)}')
+    if not _REGEX_UID.fullmatch(uid):
+        raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r}.')

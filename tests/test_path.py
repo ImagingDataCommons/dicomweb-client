@@ -1,4 +1,4 @@
-from dicomweb_path.path import Path, Type
+from dicomweb_client.path import Path, Type
 
 import pytest
 
@@ -16,22 +16,22 @@ _INSTANCE_URL = f'{_SERIES_URL}/instances/{_INSTANCE_UID}'
 @pytest.mark.parametrize('illegal_char', ['/', '@', 'a', 'A'])
 def test_uid_illegal_character(illegal_char):
     """Checks *ValueError* is raised when a UID contains an illegal char."""
-    with pytest.raises(ValueError, match=r'\'study_uid\' must match'):
+    with pytest.raises(ValueError, match='must match'):
         Path(_SERVICE_URL, f'1.2{illegal_char}3')
-    with pytest.raises(ValueError, match=r'\'series_uid\' must match'):
+    with pytest.raises(ValueError, match='must match'):
         Path(_SERVICE_URL, '1.2.3', f'4.5{illegal_char}6')
-    with pytest.raises(ValueError, match=r'\'instance_uid\' must match'):
+    with pytest.raises(ValueError, match='must match'):
         Path(_SERVICE_URL, '1.2.3', '4.5.6', f'7.8{illegal_char}9')
 
 
 @pytest.mark.parametrize('illegal_uid', ['.23', '1.2..4', '1.2.', '.'])
 def test_uid_illegal_format(illegal_uid):
     """Checks *ValueError* is raised if a UID is in an illegal format."""
-    with pytest.raises(ValueError, match=r'\'study_uid\' must match'):
+    with pytest.raises(ValueError, match='must match'):
         Path(_SERVICE_URL, illegal_uid)
-    with pytest.raises(ValueError, match=r'\'series_uid\' must match'):
+    with pytest.raises(ValueError, match='must match'):
         Path(_SERVICE_URL, '1.2.3', illegal_uid)
-    with pytest.raises(ValueError, match=r'\'instance_uid\' must match'):
+    with pytest.raises(ValueError, match='must match'):
         Path(_SERVICE_URL, '1.2.3', '4.5.6', illegal_uid)
 
 
