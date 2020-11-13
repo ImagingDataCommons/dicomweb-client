@@ -44,7 +44,7 @@ class Path:
         a series of numeric components ("0"-"9") separated by the period "."
         character, with a maximum length of 64 characters.
 
-        Attributes
+        Parameters
         ----------
         service_url: str
             DICOMweb service HTTPS URL. Trailing forward slashes are not
