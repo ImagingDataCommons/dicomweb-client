@@ -158,6 +158,18 @@ def test_parent(child, parent):
     assert str(child.parent()) == str(parent)
 
 
+@pytest.mark.parametrize(
+    'path,parts',
+    [(Path.from_string(_BASE_URL), (_BASE_URL,)),
+     (Path.from_string(_STUDY_URL), (_BASE_URL, _STUDY_UID)),
+     (Path.from_string(_SERIES_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID)),
+     (Path.from_string(_INSTANCE_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID,
+                                        _INSTANCE_UID))])
+def test_parts(path, parts):
+    """Validates the expected parts from call to `parts()`."""
+    assert str(path.parts()) == str(parts)
+
+
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
     for path_type in Type:

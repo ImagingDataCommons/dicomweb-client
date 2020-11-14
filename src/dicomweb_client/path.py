@@ -2,7 +2,7 @@
 import attr
 import enum
 import re
-from typing import Optional
+from typing import Optional, Tuple
 import urllib.parse as urlparse
 
 
@@ -151,16 +151,34 @@ class Path:
 
         Returns
         -------
-        An instance of the parent resource sub-path.
+        Path
+            An instance of the parent resource sub-path.
         """
         if self.type == Type.SERVICE:
-          return self
+            return self
         elif self.type == Type.STUDY:
-          return self.get_base_path()
+            return self.get_base_path()
         elif self.type == Type.SERIES:
-          return self.get_study_path()
+            return self.get_study_path()
         else:
-          return self.get_series_path()
+            return self.get_series_path()
+
+    def parts(self) -> Tuple[str]:
+        """Returns the sequence of Path components in a *tuple*.
+
+        For example, if the path is:
+        https://service.com/studies/1.2.3/series/4.5.6
+
+        then the method returns ['https://service.com', '1.2.3', '4.5.6']
+
+        Returns
+        -------
+        Tuple[str]
+            Sequence of Path components.
+        """
+        return tuple(part for part in (self.base_url, self.study_uid,
+                                       self.series_uid, self.instance_uid)
+                     if part is not None)
 
     @classmethod
     def from_string(cls,
@@ -182,7 +200,8 @@ class Path:
 
         Returns
         -------
-        The newly constructed *Path* object.
+        Path
+            The newly constructed *Path* object.
 
         Raises
         ------
