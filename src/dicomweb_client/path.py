@@ -24,17 +24,17 @@ class Path:
 
     http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
 
-    Given an HTTPS *service_url*, a valid DICOMweb-compatible URL would be:
-    - '<service_url>' (no DICOMWeb suffix)
-    - '<service_url>/studies/<study_uid>'
-    - '<service_url>/studies/<study_uid>/series/<series_uid>'
-    - '<service_url>/studies/<study_uid>/series/<series_uid>/instances/ \
+    Given an HTTPS *base_url*, a valid DICOMweb-compatible URL would be:
+    - '<base_url>' (no DICOMWeb suffix)
+    - '<base_url>/studies/<study_uid>'
+    - '<base_url>/studies/<study_uid>/series/<series_uid>'
+    - '<base_url>/studies/<study_uid>/series/<series_uid>/instances/ \
         <instance_uid>'
     """
 
     def __init__(
             self,
-            service_url: str,
+            base_url: str,
             study_uid: Optional[str] = None,
             series_uid: Optional[str] = None,
             instance_uid: Optional[str] = None):
@@ -46,7 +46,7 @@ class Path:
 
         Parameters
         ----------
-        service_url: str
+        base_url: str
             DICOMweb service HTTPS URL. Trailing forward slashes are not
             permitted.
         study_uid: str, optional
@@ -60,17 +60,17 @@ class Path:
         ------
         ValueError:
             In the following cases:
-            - *service_url* has a trailing slash.
-            - *service_url* does not use the HTTPS addressing scheme.
-            - *service_url* is incompatible with the DICOMweb standard.
+            - *base_url* has a trailing slash.
+            - *base_url* does not use the HTTPS addressing scheme.
+            - *base_url* is incompatible with the DICOMweb standard.
             - *series_uid* is supplied without *study_uid*.
             - *instance_uid* is supplied without *study_uid* or *series_uid*.
             - Any one of *study_uid*, *series_uid*, or *instance_uid* does not
               meet the DICOM Standard UID spec in the docstring.
         """
-        _validate_service_url(service_url)
+        _validate_base_url(base_url)
         _validate_uids(study_uid, series_uid, instance_uid)
-        self._service_url = service_url
+        self._base_url = base_url
         self._study_uid = study_uid
         self._series_uid = series_uid
         self._instance_uid = instance_uid
@@ -83,12 +83,12 @@ class Path:
             f'{part}/{part_uid}' for part, part_uid in parts
             if part_uid is not None)
         # Remove the trailing slash in case the suffix is empty.
-        return f'{self.service_url}/{dicomweb_suffix}'.rstrip('/')
+        return f'{self.base_url}/{dicomweb_suffix}'.rstrip('/')
 
     @property
-    def service_url(self) -> str:
-        """Returns the Service URL."""
-        return self._service_url
+    def base_url(self) -> str:
+        """Returns the Base (DICOMweb service) URL."""
+        return self._base_url
 
     @property
     def study_uid(self) -> Optional[str]:
@@ -118,20 +118,21 @@ class Path:
 
     def get_service_path(self) -> 'Path':
         """Returns the sub-path for the DICOMweb service within this path."""
-        return Path(self.service_url)
+        return Path(self.base_url)
 
     def get_study_path(self) -> 'Path':
         """Returns the sub-path for the DICOM Study within this path."""
         if self.type == Type.SERVICE:
-            raise ValueError('Cannot get a Study path from a Service path.')
-        return Path(self.service_url, self.study_uid)
+            raise ValueError('Cannot get a Study path from a Base (DICOMweb '
+                             'service) path.')
+        return Path(self.base_url, self.study_uid)
 
     def get_series_path(self) -> 'Path':
         """Returns the sub-path for the DICOM Series within this path."""
         if self.type in (Type.SERVICE, Type.STUDY):
             raise ValueError(
                 f'Cannot get a Series path from a {self.type!r} path.')
-        return Path(self.service_url, self.study_uid, self.series_uid)
+        return Path(self.base_url, self.study_uid, self.series_uid)
 
     @classmethod
     def from_string(cls,
@@ -164,11 +165,11 @@ class Path:
         study_uid, series_uid, instance_uid = None, None, None
         # The URL format validation will happen when *Path* is returned at the
         # end.
-        service_url_and_suffix = dicomweb_url.rsplit('/studies/', maxsplit=1)
-        service_url = service_url_and_suffix[0]
+        base_url_and_suffix = dicomweb_url.rsplit('/studies/', maxsplit=1)
+        base_url = base_url_and_suffix[0]
 
-        if len(service_url_and_suffix) > 1:
-            dicomweb_suffix = f'studies/{service_url_and_suffix[1]}'
+        if len(base_url_and_suffix) > 1:
+            dicomweb_suffix = f'studies/{base_url_and_suffix[1]}'
             parts = dicomweb_suffix.split('/')
             while parts:
                 part = parts.pop(0)
@@ -183,7 +184,7 @@ class Path:
                         f'Error parsing the suffix {dicomweb_suffix!r} from '
                         f'URL: {dicomweb_url!r}')
 
-        path = cls(service_url, study_uid, series_uid, instance_uid)
+        path = cls(base_url, study_uid, series_uid, instance_uid)
         # Validate that the path is of the specified type, if applicable.
         if path_type is not None and path.type != path_type:
             raise ValueError(
@@ -193,14 +194,14 @@ class Path:
         return path
 
 
-def _validate_service_url(url: str) -> None:
-    """Validates the Service URL supplied to `Path`."""
+def _validate_base_url(url: str) -> None:
+    """Validates the Base (DICOMweb service) URL supplied to `Path`."""
     parse_result = urlparse.urlparse(url)
     if parse_result.scheme != 'https':
         raise ValueError(f'Not an HTTPS URL: {url!r}')
     if url.endswith('/'):
-        raise ValueError(
-            f'Service URL cannot have a trailing forward slash: {url!r}')
+        raise ValueError('Base (DICOMweb service) URL cannot have a trailing '
+                         f'forward slash: {url!r}')
 
 
 def _validate_uids(
