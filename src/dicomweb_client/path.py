@@ -116,18 +116,18 @@ class Path:
             return Type.SERIES
         return Type.INSTANCE
 
-    def get_base_path(self) -> 'Path':
+    def base_subpath(self) -> 'Path':
         """Returns the sub-path for the DICOMweb service within this path."""
         return Path(self.base_url)
 
-    def get_study_path(self) -> 'Path':
+    def study_subpath(self) -> 'Path':
         """Returns the sub-path for the DICOM Study within this path."""
         if self.type == Type.SERVICE:
             raise ValueError('Cannot get a Study path from a Base (DICOMweb '
                              'service) path.')
         return Path(self.base_url, self.study_uid)
 
-    def get_series_path(self) -> 'Path':
+    def series_subpath(self) -> 'Path':
         """Returns the sub-path for the DICOM Series within this path."""
         if self.type in (Type.SERVICE, Type.STUDY):
             raise ValueError(
@@ -158,11 +158,11 @@ class Path:
         if self.type == Type.SERVICE:
             return self
         elif self.type == Type.STUDY:
-            return self.get_base_path()
+            return self.base_subpath()
         elif self.type == Type.SERIES:
-            return self.get_study_path()
+            return self.study_subpath()
         else:
-            return self.get_series_path()
+            return self.series_subpath()
 
     @property
     def parts(self) -> Tuple[str]:
