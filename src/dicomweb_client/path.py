@@ -134,6 +134,34 @@ class Path:
                 f'Cannot get a Series path from a {self.type!r} path.')
         return Path(self.base_url, self.study_uid, self.series_uid)
 
+    def parent(self) -> 'Path':
+        """Returns a sub-path to the "parent" resource.
+
+        Depending on the `type` of the current path, the sub-path of the parent
+        resource is defined as:
+
+        +--------------------+
+        | Current  | Parent  |
+        +--------------------+
+        | Service  | Service |
+        | Study    | Service |
+        | Series   | Study   |
+        | Instance | Series  |
+        +--------------------+
+
+        Returns
+        -------
+        An instance of the parent resource sub-path.
+        """
+        if self.type == Type.SERVICE:
+          return self
+        elif self.type == Type.STUDY:
+          return self.get_base_path()
+        elif self.type == Type.SERIES:
+          return self.get_study_path()
+        else:
+          return self.get_series_path()
+
     @classmethod
     def from_string(cls,
                     dicomweb_url: str,

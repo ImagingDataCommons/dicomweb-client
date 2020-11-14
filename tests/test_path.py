@@ -147,6 +147,17 @@ def test_from_string_invalid(service):
         Path.from_string(f'{service}invalid_url')
 
 
+@pytest.mark.parametrize(
+    'child,parent',
+    [(Path.from_string(_BASE_URL), Path.from_string(_BASE_URL)),
+     (Path.from_string(_STUDY_URL), Path.from_string(_BASE_URL)),
+     (Path.from_string(_SERIES_URL), Path.from_string(_STUDY_URL)),
+     (Path.from_string(_INSTANCE_URL), Path.from_string(_SERIES_URL))])
+def test_parent(child, parent):
+    """Validates the expected parent sub-path from `parent()`."""
+    assert str(child.parent()) == str(parent)
+
+
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
     for path_type in Type:
