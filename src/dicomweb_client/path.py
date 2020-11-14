@@ -49,11 +49,11 @@ class Path:
         service_url: str
             DICOMweb service HTTPS URL. Trailing forward slashes are not
             permitted.
-        study_uid: Optional[str]
+        study_uid: str, optional
             DICOM Study UID.
-        series_uid: Optional[str]
+        series_uid: str, optional
             DICOM Series UID.
-        instance_uid: Optional[str]
+        instance_uid: str, optional
             DICOM SOP Instance UID.
 
         Raises
@@ -146,7 +146,7 @@ class Path:
         ----------
         dicomweb_url: str
             An HTTPS DICOMweb-compatible URL.
-        path_type: Optional[Type]
+        path_type: Type, optional
             The expected DICOM resource type referenced by the path. If set, it
             validates that the resource-scope of the *dicomweb_url* matches the
             expected type.
