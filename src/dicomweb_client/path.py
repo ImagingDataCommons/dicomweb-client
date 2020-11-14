@@ -116,7 +116,7 @@ class Path:
             return Type.SERIES
         return Type.INSTANCE
 
-    def get_service_path(self) -> 'Path':
+    def get_base_path(self) -> 'Path':
         """Returns the sub-path for the DICOMweb service within this path."""
         return Path(self.base_url)
 
