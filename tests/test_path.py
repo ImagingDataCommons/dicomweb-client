@@ -154,8 +154,8 @@ def test_from_string_invalid(service):
      (Path.from_string(_SERIES_URL), Path.from_string(_STUDY_URL)),
      (Path.from_string(_INSTANCE_URL), Path.from_string(_SERIES_URL))])
 def test_parent(child, parent):
-    """Validates the expected parent sub-path from `parent()`."""
-    assert str(child.parent()) == str(parent)
+    """Validates the expected parent sub-path from `parent` attribute."""
+    assert str(child.parent) == str(parent)
 
 
 @pytest.mark.parametrize(
@@ -166,8 +166,8 @@ def test_parent(child, parent):
      (Path.from_string(_INSTANCE_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID,
                                         _INSTANCE_UID))])
 def test_parts(path, parts):
-    """Validates the expected parts from call to `parts()`."""
-    assert str(path.parts()) == str(parts)
+    """Validates the expected parts from `parts` attribute."""
+    assert str(path.parts) == str(parts)
 
 
 def test_from_string_type_error():

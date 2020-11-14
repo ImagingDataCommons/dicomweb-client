@@ -134,6 +134,7 @@ class Path:
                 f'Cannot get a Series path from a {self.type!r} path.')
         return Path(self.base_url, self.study_uid, self.series_uid)
 
+    @property
     def parent(self) -> 'Path':
         """Returns a sub-path to the "parent" resource.
 
@@ -163,6 +164,7 @@ class Path:
         else:
             return self.get_series_path()
 
+    @property
     def parts(self) -> Tuple[str]:
         """Returns the sequence of Path components in a *tuple*.
 
