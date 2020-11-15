@@ -85,6 +85,11 @@ class Path:
         # Remove the trailing slash in case the suffix is empty.
         return f'{self.base_url}/{dicomweb_suffix}'.rstrip('/')
 
+    def __hash__(self) -> int:
+        """Returns a hash for the object."""
+        return hash((self.base_url, self.study_uid,
+                     self.series_uid, self.instance_uid))
+
     @property
     def base_url(self) -> str:
         """Returns the Base (DICOMweb service) URL."""

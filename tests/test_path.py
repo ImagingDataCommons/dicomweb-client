@@ -170,6 +170,19 @@ def test_parts(path, parts):
     assert str(path.parts) == str(parts)
 
 
+@pytest.mark.parametrize(
+    'path,hash_args',
+    [(Path.from_string(_BASE_URL), (_BASE_URL, None, None, None)),
+     (Path.from_string(_STUDY_URL), (_BASE_URL, _STUDY_UID, None, None)),
+     (Path.from_string(_SERIES_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID,
+                                      None)),
+     (Path.from_string(_INSTANCE_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID,
+                                        _INSTANCE_UID))])
+def test_hash(path, hash_args):
+    """Locks down the implementation of `__hash__()`."""
+    assert hash(path) == hash((*hash_args,))
+
+
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
     for path_type in PathType:
