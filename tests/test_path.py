@@ -1,4 +1,4 @@
-from dicomweb_client.path import Path, Type
+from dicomweb_client.path import Path, PathType
 
 import pytest
 
@@ -77,7 +77,7 @@ def test_from_string_service_path():
     assert service_path.study_uid is None
     assert service_path.series_uid is None
     assert service_path.instance_uid is None
-    assert service_path.type == Type.SERVICE
+    assert service_path.type == PathType.SERVICE
     assert str(service_path) == _BASE_URL
     assert str(service_path.base_subpath()) == _BASE_URL
     with pytest.raises(ValueError, match='Cannot get a Study path'):
@@ -93,7 +93,7 @@ def test_from_string_study_path():
     assert study_path.study_uid == _STUDY_UID
     assert study_path.series_uid is None
     assert study_path.instance_uid is None
-    assert study_path.type == Type.STUDY
+    assert study_path.type == PathType.STUDY
     assert str(study_path) == _STUDY_URL
     assert str(study_path.base_subpath()) == _BASE_URL
     assert str(study_path.study_subpath()) == _STUDY_URL
@@ -108,7 +108,7 @@ def test_from_string_series_path():
     assert series_path.study_uid == _STUDY_UID
     assert series_path.series_uid == _SERIES_UID
     assert series_path.instance_uid is None
-    assert series_path.type == Type.SERIES
+    assert series_path.type == PathType.SERIES
     assert str(series_path) == _SERIES_URL
     assert str(series_path.base_subpath()) == _BASE_URL
     assert str(series_path.study_subpath()) == _STUDY_URL
@@ -122,7 +122,7 @@ def test_from_string_instance_path():
     assert instance_path.study_uid == _STUDY_UID
     assert instance_path.series_uid == _SERIES_UID
     assert instance_path.instance_uid == _INSTANCE_UID
-    assert instance_path.type == Type.INSTANCE
+    assert instance_path.type == PathType.INSTANCE
     assert str(instance_path) == _INSTANCE_URL
     assert str(instance_path.base_subpath()) == _BASE_URL
     assert str(instance_path.study_subpath()) == _STUDY_URL
@@ -172,16 +172,16 @@ def test_parts(path, parts):
 
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
-    for path_type in Type:
-        if path_type != Type.SERVICE:
+    for path_type in PathType:
+        if path_type != PathType.SERVICE:
             with pytest.raises(ValueError, match='Unexpected path type'):
                 Path.from_string(_BASE_URL, path_type)
-        if path_type != Type.STUDY:
+        if path_type != PathType.STUDY:
             with pytest.raises(ValueError, match='Unexpected path type'):
                 Path.from_string(_STUDY_URL, path_type)
-        if path_type != Type.SERIES:
+        if path_type != PathType.SERIES:
             with pytest.raises(ValueError, match='Unexpected path type'):
                 Path.from_string(_SERIES_URL, path_type)
-        if path_type != Type.INSTANCE:
+        if path_type != PathType.INSTANCE:
             with pytest.raises(ValueError, match='Unexpected path type'):
                 Path.from_string(_INSTANCE_URL, path_type)

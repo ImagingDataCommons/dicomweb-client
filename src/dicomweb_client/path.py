@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import urllib.parse as urlparse
 
 
-class Type(enum.Enum):
+class PathType(enum.Enum):
     """Type of DICOM resource the path points to."""
     SERVICE = 'service'
     STUDY = 'study'
@@ -106,15 +106,15 @@ class Path:
         return self._instance_uid
 
     @property
-    def type(self) -> Type:
-        """The *Type* of DICOM resource referenced by the path."""
+    def type(self) -> PathType:
+        """The *PathType* of DICOM resource referenced by the path."""
         if self.study_uid is None:
-            return Type.SERVICE
+            return PathType.SERVICE
         elif self.series_uid is None:
-            return Type.STUDY
+            return PathType.STUDY
         elif self.instance_uid is None:
-            return Type.SERIES
-        return Type.INSTANCE
+            return PathType.SERIES
+        return PathType.INSTANCE
 
     def base_subpath(self) -> 'Path':
         """Returns the sub-path for the DICOMweb service within this path."""
@@ -122,14 +122,14 @@ class Path:
 
     def study_subpath(self) -> 'Path':
         """Returns the sub-path for the DICOM Study within this path."""
-        if self.type == Type.SERVICE:
+        if self.type == PathType.SERVICE:
             raise ValueError('Cannot get a Study path from a Base (DICOMweb '
                              'service) path.')
         return Path(self.base_url, self.study_uid)
 
     def series_subpath(self) -> 'Path':
         """Returns the sub-path for the DICOM Series within this path."""
-        if self.type in (Type.SERVICE, Type.STUDY):
+        if self.type in (PathType.SERVICE, PathType.STUDY):
             raise ValueError(
                 f'Cannot get a Series path from a {self.type!r} path.')
         return Path(self.base_url, self.study_uid, self.series_uid)
@@ -155,11 +155,11 @@ class Path:
         Path
             An instance of the parent resource sub-path.
         """
-        if self.type == Type.SERVICE:
+        if self.type == PathType.SERVICE:
             return self
-        elif self.type == Type.STUDY:
+        elif self.type == PathType.STUDY:
             return self.base_subpath()
-        elif self.type == Type.SERIES:
+        elif self.type == PathType.SERIES:
             return self.study_subpath()
         else:
             return self.series_subpath()
@@ -185,7 +185,7 @@ class Path:
     @classmethod
     def from_string(cls,
                     dicomweb_url: str,
-                    path_type: Optional[Type] = None) -> 'Path':
+                    path_type: Optional[PathType] = None) -> 'Path':
         """Parses the string to return the Path.
 
         Any valid DICOMweb compatible HTTPS URL is permitted, e.g.,
@@ -195,7 +195,7 @@ class Path:
         ----------
         dicomweb_url: str
             An HTTPS DICOMweb-compatible URL.
-        path_type: Type, optional
+        path_type: PathType, optional
             The expected DICOM resource type referenced by the path. If set, it
             validates that the resource-scope of the *dicomweb_url* matches the
             expected type.
