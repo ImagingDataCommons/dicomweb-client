@@ -90,6 +90,13 @@ class Path:
         return hash((self.base_url, self.study_uid,
                      self.series_uid, self.instance_uid))
 
+    def __repr__(self) -> str:
+        """Returns an "official" string representation of this object."""
+        return (f'dicomweb_client.Path(base_url={self.base_url!r}, '
+                f'study_uid={self.study_uid!r}, '
+                f'series_uid={self.series_uid!r}, '
+                f'instance_uid={self.instance_uid!r})')
+
     @property
     def base_url(self) -> str:
         """Returns the Base (DICOMweb service) URL."""

@@ -183,6 +183,22 @@ def test_hash(path, hash_args):
     assert hash(path) == hash((*hash_args,))
 
 
+@pytest.mark.parametrize(
+    'path,init_args',
+    [(Path.from_string(_BASE_URL), (_BASE_URL, None, None, None)),
+     (Path.from_string(_STUDY_URL), (_BASE_URL, _STUDY_UID, None, None)),
+     (Path.from_string(_SERIES_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID,
+                                      None)),
+     (Path.from_string(_INSTANCE_URL), (_BASE_URL, _STUDY_UID, _SERIES_UID,
+                                        _INSTANCE_UID))])
+def test_repr(path, init_args):
+    """Locks down the implementation of `__repr__()`."""
+    expected_repr = ('dicomweb_client.Path(base_url={}, study_uid={}, '
+                     'series_uid={}, instance_uid={})').format(
+                         *(repr(arg) for arg in init_args))
+    assert repr(path) == expected_repr
+
+
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
     for path_type in PathType:
