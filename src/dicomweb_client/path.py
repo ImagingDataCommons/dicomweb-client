@@ -20,7 +20,7 @@ _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 
 
 class Path:
-    """Represents a fully qualified HTTPS URL to a DICOMweb resource.
+    """Class to represent a fully qualified HTTPS URL to a DICOMweb resource.
 
     http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
 
@@ -272,10 +272,10 @@ def _validate_uids(
             _validate_uid(uid)
 
 
-def _validate_uid(uid: str):
+def _validate_uid(uid: str) -> None:
     """Validates a DICOM UID."""
     if len(uid) > _MAX_UID_LENGTH:
         raise ValueError('UID cannot have more than 64 chars. '
                          f'Actual count in {uid!r}: {len(uid)}')
-    if not _REGEX_UID.fullmatch(uid):
+    if _REGEX_UID.fullmatch(uid) is None:
         raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r}.')
