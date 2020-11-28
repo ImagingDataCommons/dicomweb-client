@@ -2,7 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
 from http import HTTPStatus
-from typing import Generator, Sequence
+from typing import Generator
 
 import pytest
 import pydicom
