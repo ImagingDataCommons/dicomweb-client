@@ -738,6 +738,7 @@ class DICOMwebClient(object):
         marker = b''.join((b'--', boundary))
         delimiter = b''.join((b'\r\n', marker))
         data = b''
+        j = 0
         with response:
             logger.debug('decode message content')
             if stream:
@@ -749,8 +750,12 @@ class DICOMwebClient(object):
                     logger.debug(f'decode message content chunk #{i}')
                 data += chunk
                 while delimiter in data:
+                    logger.debug(f'decode part #{j}')
                     part, data = data.split(delimiter, maxsplit=1)
                     content = self._extract_part_content(part)
+                    n_bytes = len(content)
+                    logger.debug(f'extracted {n_bytes} bytes from part #{j}')
+                    j += 1
                     if content is not None:
                         yield content
 
