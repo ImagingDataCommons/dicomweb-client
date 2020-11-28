@@ -750,13 +750,14 @@ class DICOMwebClient(object):
                     logger.debug(f'decode message content chunk #{i}')
                 data += chunk
                 while delimiter in data:
-                    logger.debug(f'decode part #{j}')
+                    logger.debug(f'decode message part #{j}')
                     part, data = data.split(delimiter, maxsplit=1)
                     content = self._extract_part_content(part)
-                    n_bytes = len(content)
-                    logger.debug(f'extracted {n_bytes} bytes from part #{j}')
                     j += 1
                     if content is not None:
+                        logger.debug(
+                            f'extracted {len(content)} bytes from part #{j}'
+                        )
                         yield content
 
         content = self._extract_part_content(data)
