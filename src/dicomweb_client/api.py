@@ -1057,6 +1057,22 @@ class DICOMwebClient(object):
             headers=headers,
             stream=stream
         )
+        # The response of the Retrieve Instance transaction is supposed to
+        # contain a message body with Content-Type "multipart/related", even
+        # if it only contains a single part. However, some origin servers
+        # violate the standard and send the part non-encapsulated.
+        # Unfortunately, an error was introduced into the standard via
+        # Supplement 183 as part of re-documentation efforts, which stated that
+        # this behavior was allowed. We will support this behavior at least
+        # until the standard is fixed via a Correction Proposal 2040.
+        if response.headers['Content-Type'] == 'application/dicom':
+            logger.error(
+                'message sent by origin server in response to retrieve '
+                'instance request was not compliant with the standard, '
+                'message body shall have "multipart/related" Content-Type'
+            )
+            part = pydicom.dcmread(BytesIO(response.content))
+            return iter([part])
         return (
             pydicom.dcmread(BytesIO(part))
             for part in self._decode_multipart_message(response, stream=stream)
@@ -1118,14 +1134,14 @@ class DICOMwebClient(object):
         return self._decode_multipart_message(response, stream=stream)
 
     def _http_get_multipart_image(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            byte_range: Optional[Tuple[int, int]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            rendered: bool = False,
-            stream: bool = False
-        ) -> Iterator[bytes]:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        rendered: bool = False,
+        stream: bool = False
+    ) -> Iterator[bytes]:
         """Performs a HTTP GET request that accepts a multipart message with
         an image media type.
 
@@ -1192,14 +1208,14 @@ class DICOMwebClient(object):
         return self._decode_multipart_message(response, stream=stream)
 
     def _http_get_multipart_video(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            byte_range: Optional[Tuple[int, int]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            rendered: bool = False,
-            stream: bool = False
-        ) -> Iterator[bytes]:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        rendered: bool = False,
+        stream: bool = False
+    ) -> Iterator[bytes]:
         """Performs a HTTP GET request that accepts a multipart message with
         a video media type.
 
@@ -1263,11 +1279,11 @@ class DICOMwebClient(object):
         return self._decode_multipart_message(response, stream=stream)
 
     def _http_get_application_pdf(
-            self,
-            url: str,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with
         "applicaton/pdf" media type.
 
@@ -1298,12 +1314,12 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_get_image(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with an image
         media type.
 
@@ -1347,12 +1363,12 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_get_video(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with an video
         media type.
 
@@ -1395,12 +1411,12 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_get_text(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with an text
         media type.
 
@@ -1443,11 +1459,11 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_post(
-            self,
-            url: str,
-            data: bytes,
-            headers: Dict[str, str]
-        ) -> requests.models.Response:
+        self,
+        url: str,
+        data: bytes,
+        headers: Dict[str, str]
+    ) -> requests.models.Response:
         """Performs a HTTP POST request.
 
         Parameters
@@ -1477,10 +1493,10 @@ class DICOMwebClient(object):
             stop_max_attempt_number=self._max_attempts
         )
         def _invoke_post_request(
-                url: str,
-                data: bytes,
-                headers: Optional[Dict[str, str]] = None
-            ) -> requests.models.Response:
+            url: str,
+            data: bytes,
+            headers: Optional[Dict[str, str]] = None
+        ) -> requests.models.Response:
             logger.debug(f'POST: {url} {headers}')
             return self._session.post(url, data=data, headers=headers)
 
@@ -1524,10 +1540,10 @@ class DICOMwebClient(object):
         return response
 
     def _http_post_multipart_application_dicom(
-            self,
-            url: str,
-            data: Sequence[bytes]
-        ) -> pydicom.Dataset:
+        self,
+        url: str,
+        data: Sequence[bytes]
+    ) -> pydicom.Dataset:
         """Performs a HTTP POST request with a multipart payload with
         "application/dicom" media type.
 
@@ -1594,13 +1610,13 @@ class DICOMwebClient(object):
         return response
 
     def search_for_studies(
-            self,
-            fuzzymatching: Optional[bool] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            fields: Optional[Sequence[str]] = None,
-            search_filters: Optional[Dict[str, Any]] = None
-        ) -> List[Dict[str, dict]]:
+        self,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, dict]]:
         """Searches for DICOM studies.
 
         Parameters
@@ -1665,9 +1681,9 @@ class DICOMwebClient(object):
 
     @classmethod
     def _get_common_media_type(
-            cls,
-            media_types: Tuple[Union[str, Tuple[str, str]]]
-        ) -> str:
+        cls,
+        media_types: Tuple[Union[str, Tuple[str, str]]]
+    ) -> str:
         """Gets common type of acceptable media types and asserts that only
         one type of a given category of DICOM data (``"application/dicom"``),
         compressed bulkdata (``"image/"``, ``"video/"``) or uncompressed
