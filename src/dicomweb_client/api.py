@@ -1065,7 +1065,7 @@ class DICOMwebClient(object):
         # Supplement 183 as part of re-documentation efforts, which stated that
         # this behavior was allowed. We will support this behavior at least
         # until the standard is fixed via a Correction Proposal 2040.
-        if response.headers['Content-Type'] == 'application/dicom':
+        if response.headers['Content-Type'].startswith('application/dicom'):
             logger.error(
                 'message sent by origin server in response to retrieve '
                 'instance request was not compliant with the standard, '
