@@ -1066,11 +1066,14 @@ class DICOMwebClient(object):
         # this behavior was allowed. We will support this behavior at least
         # until the standard is fixed via a Correction Proposal 2040.
         if response.headers['Content-Type'].startswith('application/dicom'):
-            logger.error(
-                'message sent by origin server in response to retrieve '
-                'instance request was not compliant with the standard, '
-                'message body shall have "multipart/related" Content-Type'
+            warning_message = (
+                'message sent by origin server in response to GET request '
+                'of Retrieve Instance transaction was not compliant with the '
+                'DICOM standard, message body shall have Content-Type '
+                '\'multipart/related; type="application/dicom"\' rather than '
+                '"application/dicom"'
             )
+            warn(warning_message, category=UserWarning)
             part = pydicom.dcmread(BytesIO(response.content))
             return iter([part])
         return (
