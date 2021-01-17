@@ -98,6 +98,10 @@ class URI:
                 f'series_instance_uid={self.series_instance_uid!r}, '
                 f'sop_instance_uid={self.sop_instance_uid!r})')
 
+    def __eq__(self, other: 'URI') -> bool:
+        """Compares the object for equality with *other*."""
+        return str(self) == str(other)
+
     @property
     def base_url(self) -> str:
         """Returns the Base (DICOMweb service) URI."""

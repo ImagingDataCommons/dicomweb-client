@@ -196,6 +196,29 @@ def test_repr(path, init_args):
     assert repr(path) == expected_repr
 
 
+@pytest.mark.parametrize('params', [
+    (_BASE_URL, None, None, None),
+    (_BASE_URL, _STUDY_UID, None, None),
+    (_BASE_URL, _STUDY_UID, _SERIES_UID, None),
+    (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID),
+])
+def test_eq_true(params):
+    """Tests the `==` operator implementation for successful comparison."""
+    assert URI(*params) == URI(*params)
+
+
+@pytest.mark.parametrize('params', [
+    (_BASE_URL, None, None, None),
+    (_BASE_URL, _STUDY_UID, None, None),
+    (_BASE_URL, _STUDY_UID, _SERIES_UID, None),
+    (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID),
+])
+def test_eq_false(params):
+    """Tests the `==` operator implementation for failed comparison."""
+    other_params = (None if param is None else param + '1' for param in params)
+    assert URI(*params) != URI(*other_params)
+
+
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
     for path_type in URIType:
