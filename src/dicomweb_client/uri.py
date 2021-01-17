@@ -13,7 +13,7 @@ class URIType(enum.Enum):
     INSTANCE = 'instance'
 
 
-# For DICOM Standard spec validation of UID components in `URI`.
+# For DICOM Standard spec validation of UID components in *URI*.
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 
@@ -134,14 +134,14 @@ class URI:
         return URIType.INSTANCE
 
     def study_uri(self) -> 'URI':
-        """Returns `URI` for the DICOM Study within this object."""
+        """Returns *URI* for the DICOM Study within this object."""
         if self.type == URIType.SERVICE:
             raise ValueError('Cannot get a Study URI from a Base (DICOMweb '
                              'service) URL.')
         return URI(self.base_url, self.study_instance_uid)
 
     def series_uri(self) -> 'URI':
-        """Returns `URI` for the DICOM Series within this object."""
+        """Returns *URI* for the DICOM Series within this object."""
         if self.type in (URIType.SERVICE, URIType.STUDY):
             raise ValueError(
                 f'Cannot get a Series URI from a {self.type!r} URI.')
@@ -153,37 +153,37 @@ class URI:
                study_instance_uid: Optional[str] = None,
                series_instance_uid: Optional[str] = None,
                sop_instance_uid: Optional[str] = None) -> 'URI':
-        """Creates a new `URI` object based on the current one.
+        """Creates a new *URI* object based on the current one.
 
-        Replaces the specified `URI` components in the current `URI` to create
+        Replaces the specified *URI* components in the current *URI* to create
         the new one.
 
         Parameters
         ----------
         base_url: str, optional
-            DICOMweb service HTTPS URL to use in the new `URI` or `None` if the
-            *base_url* from the current `URI` should be used.
+            DICOMweb service HTTPS URL to use in the new *URI* or *None* if the
+            *base_url* from the current *URI* should be used.
         study_instance_uid: str, optional
-            Study Instance UID to use in the new `URI` or `None` if the
-            *study_instance_uid* from the current `URI` should be used.
+            Study Instance UID to use in the new *URI* or *None* if the
+            *study_instance_uid* from the current *URI* should be used.
         series_instance_uid: str, optional
-            Series Instance UID to use in the new `URI` or `None` if the
-            *series_instance_uid* from the current `URI` should be used.
+            Series Instance UID to use in the new *URI* or *None* if the
+            *series_instance_uid* from the current *URI* should be used.
         sop_instance_uid: str, optional
-            SOP Instance UID to use in the new `URI` or `None` if the
-            *sop_instance_uid* from the current `URI` should be used.
+            SOP Instance UID to use in the new *URI* or *None* if the
+            *sop_instance_uid* from the current *URI* should be used.
 
         Returns
         -------
         URI
-          The newly constructed `URI` object.
+          The newly constructed *URI* object.
 
         Raises
         ------
         ValueError:
-            If the new `URI` is invalid (e.g., if only the SOP Instance UID is
+            If the new *URI* is invalid (e.g., if only the SOP Instance UID is
             specified, but the Series Instance UID is missing in the current
-            `URI`).
+            *URI*).
         """
         return URI(
             base_url if base_url is not None else self.base_url,
@@ -199,7 +199,7 @@ class URI:
     def parent(self) -> 'URI':
         """Returns a URI to the "parent" resource.
 
-        Depending on the `type` of the current `URI`, the `URI` of the parent
+        Depending on the *type* of the current *URI*, the *URI* of the parent
         resource is defined as:
 
         +--------------------+
@@ -311,7 +311,7 @@ class URI:
 
 
 def _validate_base_url(url: str) -> None:
-    """Validates the Base (DICOMweb service) URI supplied to `URI`."""
+    """Validates the Base (DICOMweb service) URI supplied to *URI*."""
     parse_result = urlparse.urlparse(url)
     if parse_result.scheme != 'https':
         raise ValueError(f'Not an HTTPS URI: {url!r}')
@@ -323,7 +323,7 @@ def _validate_base_url(url: str) -> None:
 def _validate_uids(study_instance_uid: Optional[str],
                    series_instance_uid: Optional[str],
                    sop_instance_uid: Optional[str]) -> None:
-    """Validates UID parameters for the `URI` constructor."""
+    """Validates UID parameters for the *URI* constructor."""
     if study_instance_uid is None and not (series_instance_uid is None
                                            and sop_instance_uid is None):
         raise ValueError(
