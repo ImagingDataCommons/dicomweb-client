@@ -1,5 +1,4 @@
 """Utilities for DICOMweb path manipulation."""
-import attr
 import enum
 import re
 from typing import Optional, Tuple
@@ -26,18 +25,16 @@ class URI:
 
     Given an HTTPS *base_url*, a valid DICOMweb-compatible URI would be:
     - '<base_url>' (no DICOMWeb suffix)
-    - '<base_url>/studies/<study_uid>'
-    - '<base_url>/studies/<study_uid>/series/<series_uid>'
-    - '<base_url>/studies/<study_uid>/series/<series_uid>/instances/ \
-        <instance_uid>'
+    - '<base_url>/studies/<study_instance_uid>'
+    - '<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>'
+    - '<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/ \
+        instances/<sop_instance_uid>'
     """
-
-    def __init__(
-            self,
-            base_url: str,
-            study_uid: Optional[str] = None,
-            series_uid: Optional[str] = None,
-            instance_uid: Optional[str] = None):
+    def __init__(self,
+                 base_url: str,
+                 study_instance_uid: Optional[str] = None,
+                 series_instance_uid: Optional[str] = None,
+                 sop_instance_uid: Optional[str] = None):
         """Instantiates an object.
 
         As per the DICOM Standard, the Study, Series, and Instance UIDs must be
@@ -49,11 +46,11 @@ class URI:
         base_url: str
             DICOMweb service HTTPS URI. Trailing forward slashes are not
             permitted.
-        study_uid: str, optional
+        study_instance_uid: str, optional
             DICOM Study UID.
-        series_uid: str, optional
+        series_instance_uid: str, optional
             DICOM Series UID.
-        instance_uid: str, optional
+        sop_instance_uid: str, optional
             DICOM SOP Instance UID.
 
         Raises
@@ -63,39 +60,43 @@ class URI:
             - *base_url* has a trailing slash.
             - *base_url* does not use the HTTPS addressing scheme.
             - *base_url* is incompatible with the DICOMweb standard.
-            - *series_uid* is supplied without *study_uid*.
-            - *instance_uid* is supplied without *study_uid* or *series_uid*.
-            - Any one of *study_uid*, *series_uid*, or *instance_uid* does not
-              meet the DICOM Standard UID spec in the docstring.
+            - *series_instance_uid* is supplied without *study_instance_uid*.
+            - *sop_instance_uid* is supplied without *study_instance_uid* or
+              *series_instance_uid*.
+            - Any one of *study_instance_uid*, *series_instance_uid*, or
+              *sop_instance_uid* does not meet the DICOM Standard UID spec in
+              the docstring.
         """
         _validate_base_url(base_url)
-        _validate_uids(study_uid, series_uid, instance_uid)
+        _validate_uids(study_instance_uid, series_instance_uid,
+                       sop_instance_uid)
         self._base_url = base_url
-        self._study_uid = study_uid
-        self._series_uid = series_uid
-        self._instance_uid = instance_uid
+        self._study_instance_uid = study_instance_uid
+        self._series_instance_uid = series_instance_uid
+        self._instance_uid = sop_instance_uid
 
     def __str__(self) -> str:
         """Returns the path as a DICOMweb URI string."""
-        parts = (('studies', self.study_uid), ('series', self.series_uid),
-                 ('instances', self.instance_uid))
-        dicomweb_suffix = '/'.join(
-            f'{part}/{part_uid}' for part, part_uid in parts
-            if part_uid is not None)
+        parts = (('studies', self.study_instance_uid),
+                 ('series', self.series_instance_uid), ('instances',
+                                                        self.sop_instance_uid))
+        dicomweb_suffix = '/'.join(f'{part}/{part_uid}'
+                                   for part, part_uid in parts
+                                   if part_uid is not None)
         # Remove the trailing slash in case the suffix is empty.
         return f'{self.base_url}/{dicomweb_suffix}'.rstrip('/')
 
     def __hash__(self) -> int:
         """Returns a hash for the object."""
-        return hash((self.base_url, self.study_uid,
-                     self.series_uid, self.instance_uid))
+        return hash((self.base_url, self.study_instance_uid,
+                     self.series_instance_uid, self.sop_instance_uid))
 
     def __repr__(self) -> str:
         """Returns an "official" string representation of this object."""
         return (f'dicomweb_client.URI(base_url={self.base_url!r}, '
-                f'study_uid={self.study_uid!r}, '
-                f'series_uid={self.series_uid!r}, '
-                f'instance_uid={self.instance_uid!r})')
+                f'study_instance_uid={self.study_instance_uid!r}, '
+                f'series_instance_uid={self.series_instance_uid!r}, '
+                f'sop_instance_uid={self.sop_instance_uid!r})')
 
     @property
     def base_url(self) -> str:
@@ -103,28 +104,28 @@ class URI:
         return self._base_url
 
     @property
-    def study_uid(self) -> Optional[str]:
+    def study_instance_uid(self) -> Optional[str]:
         """Returns the Study UID, if available."""
-        return self._study_uid
+        return self._study_instance_uid
 
     @property
-    def series_uid(self) -> Optional[str]:
+    def series_instance_uid(self) -> Optional[str]:
         """Returns the Series UID, if available."""
-        return self._series_uid
+        return self._series_instance_uid
 
     @property
-    def instance_uid(self) -> Optional[str]:
+    def sop_instance_uid(self) -> Optional[str]:
         """Returns the Instance UID, if available."""
         return self._instance_uid
 
     @property
     def type(self) -> URIType:
         """The *URIType* of DICOM resource referenced by the path."""
-        if self.study_uid is None:
+        if self.study_instance_uid is None:
             return URIType.SERVICE
-        elif self.series_uid is None:
+        elif self.series_instance_uid is None:
             return URIType.STUDY
-        elif self.instance_uid is None:
+        elif self.sop_instance_uid is None:
             return URIType.SERIES
         return URIType.INSTANCE
 
@@ -137,14 +138,15 @@ class URI:
         if self.type == URIType.SERVICE:
             raise ValueError('Cannot get a Study path from a Base (DICOMweb '
                              'service) path.')
-        return URI(self.base_url, self.study_uid)
+        return URI(self.base_url, self.study_instance_uid)
 
     def series_subpath(self) -> 'URI':
         """Returns the sub-path for the DICOM Series within this path."""
         if self.type in (URIType.SERVICE, URIType.STUDY):
             raise ValueError(
                 f'Cannot get a Series path from a {self.type!r} path.')
-        return URI(self.base_url, self.study_uid, self.series_uid)
+        return URI(self.base_url, self.study_instance_uid,
+                   self.series_instance_uid)
 
     @property
     def parent(self) -> 'URI':
@@ -189,8 +191,9 @@ class URI:
         Tuple[str]
             Sequence of URI components.
         """
-        return tuple(part for part in (self.base_url, self.study_uid,
-                                       self.series_uid, self.instance_uid)
+        return tuple(part for part in (self.base_url, self.study_instance_uid,
+                                       self.series_instance_uid,
+                                       self.sop_instance_uid)
                      if part is not None)
 
     @classmethod
@@ -222,7 +225,9 @@ class URI:
             If the path cannot be parsed or the actual path type doesn't match
             the specified expected *path_type*.
         """
-        study_uid, series_uid, instance_uid = None, None, None
+        study_instance_uid, series_instance_uid, sop_instance_uid = (None,
+                                                                     None,
+                                                                     None)
         # The URI format validation will happen when *URI* is returned at the
         # end.
         base_url_and_suffix = dicomweb_url.rsplit('/studies/', maxsplit=1)
@@ -234,17 +239,20 @@ class URI:
             while parts:
                 part = parts.pop(0)
                 if part == 'studies' and parts:
-                    study_uid = parts.pop(0)
-                elif part == 'series' and study_uid is not None and parts:
-                    series_uid = parts.pop(0)
-                elif part == 'instances' and series_uid is not None and parts:
-                    instance_uid = parts.pop(0)
+                    study_instance_uid = parts.pop(0)
+                elif (part == 'series' and
+                      study_instance_uid is not None and parts):
+                    series_instance_uid = parts.pop(0)
+                elif (part == 'instances' and
+                      series_instance_uid is not None and parts):
+                    sop_instance_uid = parts.pop(0)
                 else:
                     raise ValueError(
                         f'Error parsing the suffix {dicomweb_suffix!r} from '
                         f'URI: {dicomweb_url!r}')
 
-        path = cls(base_url, study_uid, series_uid, instance_uid)
+        path = cls(base_url, study_instance_uid, series_instance_uid,
+                   sop_instance_uid)
         # Validate that the path is of the specified type, if applicable.
         if path_type is not None and path.type != path_type:
             raise ValueError(
@@ -264,21 +272,23 @@ def _validate_base_url(url: str) -> None:
                          f'forward slash: {url!r}')
 
 
-def _validate_uids(
-        study_uid: Optional[str],
-        series_uid: Optional[str],
-        instance_uid: Optional[str]) -> None:
+def _validate_uids(study_instance_uid: Optional[str],
+                   series_instance_uid: Optional[str],
+                   sop_instance_uid: Optional[str]) -> None:
     """Validates UID parameters for the `URI` constructor."""
-    if study_uid is None and not (series_uid is None and instance_uid is None):
+    if study_instance_uid is None and not (series_instance_uid is None and
+                                           sop_instance_uid is None):
         raise ValueError(
-            'study_uid missing with non-empty series_uid or instance_uid. '
-            f'series_uid: {series_uid!r}, instance_uid: {instance_uid!r}')
+            'study_instance_uid missing with non-empty series_instance_uid or '
+            f'sop_instance_uid. series_instance_uid: {series_instance_uid!r}, '
+            f'sop_instance_uid: {sop_instance_uid!r}')
 
-    if series_uid is None and instance_uid is not None:
-        raise ValueError('series_uid missing with non-empty instance_uid. '
-                         f'instance_uid: {instance_uid!r}')
+    if series_instance_uid is None and sop_instance_uid is not None:
+        raise ValueError(
+            'series_instance_uid missing with non-empty sop_instance_uid. '
+            f'sop_instance_uid: {sop_instance_uid!r}')
 
-    for uid in (study_uid, series_uid, instance_uid):
+    for uid in (study_instance_uid, series_instance_uid, sop_instance_uid):
         if uid is not None:
             _validate_uid(uid)
 

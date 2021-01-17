@@ -55,11 +55,11 @@ def test_uid_length():
 
 def test_uid_missing_error():
     """Checks *ValueError* is raised when an expected UID is missing."""
-    with pytest.raises(ValueError, match='study_uid missing with'):
+    with pytest.raises(ValueError, match='study_instance_uid missing with'):
         URI(_BASE_URL, None, '4.5.6')
-    with pytest.raises(ValueError, match='study_uid missing with'):
+    with pytest.raises(ValueError, match='study_instance_uid missing with'):
         URI(_BASE_URL, None, '4.5.6', '7.8.9')
-    with pytest.raises(ValueError, match='series_uid missing with'):
+    with pytest.raises(ValueError, match='series_instance_uid missing with'):
         URI(_BASE_URL, '4.5.6', None, '7.8.9')
 
 
@@ -74,9 +74,9 @@ def test_from_string_service_path():
     """Checks that Service path is parsed correctly and behaves as expected."""
     service_path = URI.from_string(_BASE_URL)
     assert service_path.base_url == _BASE_URL
-    assert service_path.study_uid is None
-    assert service_path.series_uid is None
-    assert service_path.instance_uid is None
+    assert service_path.study_instance_uid is None
+    assert service_path.series_instance_uid is None
+    assert service_path.sop_instance_uid is None
     assert service_path.type == URIType.SERVICE
     assert str(service_path) == _BASE_URL
     assert str(service_path.base_subpath()) == _BASE_URL
@@ -90,9 +90,9 @@ def test_from_string_study_path():
     """Checks that Study path is parsed correctly and behaves as expected."""
     study_path = URI.from_string(_STUDY_URI)
     assert study_path.base_url == _BASE_URL
-    assert study_path.study_uid == _STUDY_UID
-    assert study_path.series_uid is None
-    assert study_path.instance_uid is None
+    assert study_path.study_instance_uid == _STUDY_UID
+    assert study_path.series_instance_uid is None
+    assert study_path.sop_instance_uid is None
     assert study_path.type == URIType.STUDY
     assert str(study_path) == _STUDY_URI
     assert str(study_path.base_subpath()) == _BASE_URL
@@ -105,9 +105,9 @@ def test_from_string_series_path():
     """Checks that Series path is parsed correctly and behaves as expected."""
     series_path = URI.from_string(_SERIES_URI)
     assert series_path.base_url == _BASE_URL
-    assert series_path.study_uid == _STUDY_UID
-    assert series_path.series_uid == _SERIES_UID
-    assert series_path.instance_uid is None
+    assert series_path.study_instance_uid == _STUDY_UID
+    assert series_path.series_instance_uid == _SERIES_UID
+    assert series_path.sop_instance_uid is None
     assert series_path.type == URIType.SERIES
     assert str(series_path) == _SERIES_URI
     assert str(series_path.base_subpath()) == _BASE_URL
@@ -119,9 +119,9 @@ def test_from_string_instance_path():
     """Checks Instance path is parsed correctly and behaves as expected."""
     instance_path = URI.from_string(_INSTANCE_URI)
     assert instance_path.base_url == _BASE_URL
-    assert instance_path.study_uid == _STUDY_UID
-    assert instance_path.series_uid == _SERIES_UID
-    assert instance_path.instance_uid == _INSTANCE_UID
+    assert instance_path.study_instance_uid == _STUDY_UID
+    assert instance_path.series_instance_uid == _SERIES_UID
+    assert instance_path.sop_instance_uid == _INSTANCE_UID
     assert instance_path.type == URIType.INSTANCE
     assert str(instance_path) == _INSTANCE_URI
     assert str(instance_path.base_subpath()) == _BASE_URL
@@ -190,8 +190,8 @@ def test_hash(path, hash_args):
 ])
 def test_repr(path, init_args):
     """Locks down the implementation of `__repr__()`."""
-    expected_repr = ('dicomweb_client.URI(base_url={}, study_uid={}, '
-                     'series_uid={}, instance_uid={})').format(
+    expected_repr = ('dicomweb_client.URI(base_url={}, study_instance_uid={}, '
+                     'series_instance_uid={}, sop_instance_uid={})').format(
                          *(repr(arg) for arg in init_args))
     assert repr(path) == expected_repr
 
