@@ -246,7 +246,7 @@ class URI:
 
     @classmethod
     def from_string(cls,
-                    dicomweb_url: str,
+                    dicomweb_uri: str,
                     uri_type: Optional[URIType] = None) -> 'URI':
         """Parses the string to return the URI.
 
@@ -255,11 +255,11 @@ class URI:
 
         Parameters
         ----------
-        dicomweb_url: str
+        dicomweb_uri: str
             An HTTPS DICOMweb-compatible URI.
         uri_type: URIType, optional
             The expected DICOM resource type referenced by the object. If set, it
-            validates that the resource-scope of the *dicomweb_url* matches the
+            validates that the resource-scope of the *dicomweb_uri* matches the
             expected type.
 
         Returns
@@ -278,7 +278,7 @@ class URI:
                                                                      None)
         # The URI format validation will happen when *URI* is returned at the
         # end.
-        base_url_and_suffix = dicomweb_url.rsplit('/studies/', maxsplit=1)
+        base_url_and_suffix = dicomweb_uri.rsplit('/studies/', maxsplit=1)
         base_url = base_url_and_suffix[0]
 
         if len(base_url_and_suffix) > 1:
@@ -297,7 +297,7 @@ class URI:
                 else:
                     raise ValueError(
                         f'Error parsing the suffix {dicomweb_suffix!r} from '
-                        f'URI: {dicomweb_url!r}')
+                        f'URI: {dicomweb_uri!r}')
 
         uri = cls(base_url, study_instance_uid, series_instance_uid,
                    sop_instance_uid)
@@ -305,7 +305,7 @@ class URI:
         if uri_type is not None and uri.type != uri_type:
             raise ValueError(
                 f'Unexpected URI type. Expected: {uri_type!r}, Actual: '
-                f'{uri.type!r}. URI: {dicomweb_url!r}')
+                f'{uri.type!r}. URI: {dicomweb_uri!r}')
 
         return uri
 
