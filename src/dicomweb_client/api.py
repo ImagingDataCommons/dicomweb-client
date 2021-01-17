@@ -8,7 +8,6 @@ from xml.etree.ElementTree import (
 from collections import OrderedDict
 from io import BytesIO
 from http import HTTPStatus
-from urllib.parse import quote_plus, urlparse
 from typing import (
     Any,
     Callable,
@@ -21,13 +20,12 @@ from typing import (
     Union,
     Tuple,
 )
+from urllib.parse import quote_plus, urlparse
 from warnings import warn
 
 import requests
 import retrying
 import pydicom
-
-from dicomweb_client.error import DICOMJSONError
 
 
 logger = logging.getLogger(__name__)
@@ -740,6 +738,7 @@ class DICOMwebClient(object):
         marker = b''.join((b'--', boundary))
         delimiter = b''.join((b'\r\n', marker))
         data = b''
+        j = 0
         with response:
             logger.debug('decode message content')
             if stream:
@@ -751,9 +750,14 @@ class DICOMwebClient(object):
                     logger.debug(f'decode message content chunk #{i}')
                 data += chunk
                 while delimiter in data:
+                    logger.debug(f'decode message part #{j}')
                     part, data = data.split(delimiter, maxsplit=1)
                     content = self._extract_part_content(part)
+                    j += 1
                     if content is not None:
+                        logger.debug(
+                            f'extracted {len(content)} bytes from part #{j}'
+                        )
                         yield content
 
         content = self._extract_part_content(data)
@@ -1053,6 +1057,25 @@ class DICOMwebClient(object):
             headers=headers,
             stream=stream
         )
+        # The response of the Retrieve Instance transaction is supposed to
+        # contain a message body with Content-Type "multipart/related", even
+        # if it only contains a single part. However, some origin servers
+        # violate the standard and send the part non-encapsulated.
+        # Unfortunately, an error was introduced into the standard via
+        # Supplement 183 as part of re-documentation efforts, which stated that
+        # this behavior was allowed. We will support this behavior at least
+        # until the standard is fixed via a Correction Proposal 2040.
+        if response.headers['Content-Type'].startswith('application/dicom'):
+            warning_message = (
+                'message sent by origin server in response to GET request '
+                'of Retrieve Instance transaction was not compliant with the '
+                'DICOM standard, message body shall have Content-Type '
+                '\'multipart/related; type="application/dicom"\' rather than '
+                '"application/dicom"'
+            )
+            warn(warning_message, category=UserWarning)
+            part = pydicom.dcmread(BytesIO(response.content))
+            return iter([part])
         return (
             pydicom.dcmread(BytesIO(part))
             for part in self._decode_multipart_message(response, stream=stream)
@@ -1114,14 +1137,14 @@ class DICOMwebClient(object):
         return self._decode_multipart_message(response, stream=stream)
 
     def _http_get_multipart_image(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            byte_range: Optional[Tuple[int, int]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            rendered: bool = False,
-            stream: bool = False
-        ) -> Iterator[bytes]:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        rendered: bool = False,
+        stream: bool = False
+    ) -> Iterator[bytes]:
         """Performs a HTTP GET request that accepts a multipart message with
         an image media type.
 
@@ -1188,14 +1211,14 @@ class DICOMwebClient(object):
         return self._decode_multipart_message(response, stream=stream)
 
     def _http_get_multipart_video(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            byte_range: Optional[Tuple[int, int]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            rendered: bool = False,
-            stream: bool = False
-        ) -> Iterator[bytes]:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        rendered: bool = False,
+        stream: bool = False
+    ) -> Iterator[bytes]:
         """Performs a HTTP GET request that accepts a multipart message with
         a video media type.
 
@@ -1259,11 +1282,11 @@ class DICOMwebClient(object):
         return self._decode_multipart_message(response, stream=stream)
 
     def _http_get_application_pdf(
-            self,
-            url: str,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with
         "applicaton/pdf" media type.
 
@@ -1294,12 +1317,12 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_get_image(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with an image
         media type.
 
@@ -1343,12 +1366,12 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_get_video(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with an video
         media type.
 
@@ -1391,12 +1414,12 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_get_text(
-            self,
-            url: str,
-            media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
-            params: Optional[Dict[str, Any]] = None,
-            stream: bool = False
-        ) -> bytes:
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> bytes:
         """Performs a HTTP GET request that accepts a message with an text
         media type.
 
@@ -1439,11 +1462,11 @@ class DICOMwebClient(object):
         return response.content
 
     def _http_post(
-            self,
-            url: str,
-            data: bytes,
-            headers: Dict[str, str]
-        ) -> requests.models.Response:
+        self,
+        url: str,
+        data: bytes,
+        headers: Dict[str, str]
+    ) -> requests.models.Response:
         """Performs a HTTP POST request.
 
         Parameters
@@ -1473,10 +1496,10 @@ class DICOMwebClient(object):
             stop_max_attempt_number=self._max_attempts
         )
         def _invoke_post_request(
-                url: str,
-                data: bytes,
-                headers: Optional[Dict[str, str]] = None
-            ) -> requests.models.Response:
+            url: str,
+            data: bytes,
+            headers: Optional[Dict[str, str]] = None
+        ) -> requests.models.Response:
             logger.debug(f'POST: {url} {headers}')
             return self._session.post(url, data=data, headers=headers)
 
@@ -1520,10 +1543,10 @@ class DICOMwebClient(object):
         return response
 
     def _http_post_multipart_application_dicom(
-            self,
-            url: str,
-            data: Sequence[bytes]
-        ) -> pydicom.Dataset:
+        self,
+        url: str,
+        data: Sequence[bytes]
+    ) -> pydicom.Dataset:
         """Performs a HTTP POST request with a multipart payload with
         "application/dicom" media type.
 
@@ -1590,13 +1613,13 @@ class DICOMwebClient(object):
         return response
 
     def search_for_studies(
-            self,
-            fuzzymatching: Optional[bool] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            fields: Optional[Sequence[str]] = None,
-            search_filters: Optional[Dict[str, Any]] = None
-        ) -> List[Dict[str, dict]]:
+        self,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, dict]]:
         """Searches for DICOM studies.
 
         Parameters
@@ -1628,6 +1651,7 @@ class DICOMwebClient(object):
         `offset` parameter.
 
         """ # noqa
+        logger.info('search for studies')
         url = self._get_studies_url('qido')
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
@@ -1660,9 +1684,9 @@ class DICOMwebClient(object):
 
     @classmethod
     def _get_common_media_type(
-            cls,
-            media_types: Tuple[Union[str, Tuple[str, str]]]
-        ) -> str:
+        cls,
+        media_types: Tuple[Union[str, Tuple[str, str]]]
+    ) -> str:
         """Gets common type of acceptable media types and asserts that only
         one type of a given category of DICOM data (``"application/dicom"``),
         compressed bulkdata (``"image/"``, ``"video/"``) or uncompressed
@@ -1891,12 +1915,22 @@ class DICOMwebClient(object):
             unique study identifier
         media_types: Tuple[Union[str, Tuple[str, str]]], optional
             acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxescceptable transfer syntax UIDs
+            acceptable transfer syntaxes
 
         Returns
         -------
         List[pydicom.dataset.Dataset]
             data sets
+
+        Note
+        ----
+        Instances are by default retrieved using Implicit VR Little Endian
+        transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
+        means that Pixel Data of Image instances will be retrieved
+        uncompressed. To retrieve instances in any available transfer syntax
+        (typically the one in which instances were originally stored), specify
+        acceptable transfer syntaxes using the wildcard
+        ``("application/dicom", "*")``.
 
         """
         return list(
@@ -1920,12 +1954,22 @@ class DICOMwebClient(object):
             unique study identifier
         media_types: Tuple[Union[str, Tuple[str, str]]], optional
             acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxescceptable transfer syntax UIDs
+            acceptable transfer syntaxes
 
         Returns
         -------
         Iterator[pydicom.dataset.Dataset]
             data sets
+
+        Note
+        ----
+        Instances are by default retrieved using Implicit VR Little Endian
+        transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
+        means that Pixel Data of Image instances will be retrieved
+        uncompressed. To retrieve instances in any available transfer syntax
+        (typically the one in which instances were originally stored), specify
+        acceptable transfer syntaxes using the wildcard
+        ``("application/dicom", "*")``.
 
         Note
         ----
@@ -2061,6 +2105,7 @@ class DICOMwebClient(object):
         """ # noqa
         if study_instance_uid is not None:
             self._assert_uid_format(study_instance_uid)
+        logger.info(f'search for series of study "{study_instance_uid}"')
         url = self._get_series_url('qido', study_instance_uid)
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
@@ -2099,6 +2144,10 @@ class DICOMwebClient(object):
             raise ValueError(
                 'Study Instance UID is required for retrieval of series.'
             )
+        logger.info(
+            f'retrieve series "{series_instance_uid}" '
+            f'of study "{study_instance_uid}"'
+        )
         self._assert_uid_format(study_instance_uid)
         if series_instance_uid is None:
             raise ValueError(
@@ -2139,13 +2188,24 @@ class DICOMwebClient(object):
             unique study identifier
         series_instance_uid: str
             unique series identifier
-        transfer_syntax_uids: Tuple[str], optional
-            acceptable transfer syntax UIDs
+        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+            acceptable media types and optionally the UIDs of the
+            acceptable transfer syntaxes
 
         Returns
         -------
-        Iterator[pydicom.dataset.Dataset]
+        List[pydicom.dataset.Dataset]
             data sets
+
+        Note
+        ----
+        Instances are by default retrieved using Implicit VR Little Endian
+        transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
+        means that Pixel Data of Image instances will be retrieved
+        uncompressed. To retrieve instances in any available transfer syntax
+        (typically the one in which instances were originally stored), specify
+        acceptable transfer syntaxes using the wildcard
+        ``("application/dicom", "*")``.
 
         """
         return list(
@@ -2173,12 +2233,22 @@ class DICOMwebClient(object):
             unique series identifier
         media_types: Tuple[Union[str, Tuple[str, str]]], optional
             acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+            acceptable transfer syntaxes
 
         Returns
         -------
         Iterator[pydicom.dataset.Dataset]
             data sets
+
+        Note
+        ----
+        Instances are by default retrieved using Implicit VR Little Endian
+        transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
+        means that Pixel Data of Image instances will be retrieved
+        uncompressed. To retrieve instances in any available transfer syntax
+        (typically the one in which instances were originally stored), specify
+        acceptable transfer syntaxes using the wildcard
+        ``("application/dicom", "*")``.
 
         Note
         ----
@@ -2223,6 +2293,10 @@ class DICOMwebClient(object):
                 'Series Instance UID is required for retrieval of '
                 'series metadata.'
             )
+        logger.info(
+            f'retrieve metadata of series "{series_instance_uid}" '
+            f'of study "{study_instance_uid}"'
+        )
         self._assert_uid_format(series_instance_uid)
         url = self._get_series_url(
             'wado', study_instance_uid, series_instance_uid
@@ -2269,6 +2343,10 @@ class DICOMwebClient(object):
                 'Series Instance UID is required for retrieval of '
                 'rendered series.'
             )
+        logger.info(
+            f'retrieve rendered series "{series_instance_uid}" '
+            f'of study "{study_instance_uid}"'
+        )
         url = self._get_series_url(
             'wado', study_instance_uid, series_instance_uid
         )
@@ -2328,6 +2406,10 @@ class DICOMwebClient(object):
             raise ValueError(
                 'Series Instance UID is required for deletion of a series.'
             )
+        logger.info(
+            f'delete series "{series_instance_uid}" '
+            f'of study "{study_instance_uid}"'
+        )
         url = self._get_series_url('delete', study_instance_uid,
                                    series_instance_uid)
         return self._http_delete(url)
@@ -2377,8 +2459,13 @@ class DICOMwebClient(object):
         `offset` parameter.
 
         """ # noqa
+        message = 'search for instances'
+        if series_instance_uid is not None:
+            message += f' of series "{series_instance_uid}"'
         if study_instance_uid is not None:
             self._assert_uid_format(study_instance_uid)
+            message += f' of study "{study_instance_uid}"'
+        logger.info(message)
         url = self._get_instances_url(
             'qido', study_instance_uid, series_instance_uid
         )
@@ -2406,12 +2493,22 @@ class DICOMwebClient(object):
             unique instance identifier
         media_types: Tuple[Union[str, Tuple[str, str]]], optional
             acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
+            acceptable transfer syntaxes
 
         Returns
         -------
         pydicom.dataset.Dataset
             data set
+
+        Note
+        ----
+        Instances are by default retrieved using Implicit VR Little Endian
+        transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
+        means that Pixel Data of Image instances will be retrieved
+        uncompressed. To retrieve instances in any available transfer syntax
+        (typically the one in which instances were originally stored), specify
+        acceptable transfer syntaxes using the wildcard
+        ``("application/dicom", "*")``.
 
         """
         if study_instance_uid is None:
@@ -2428,6 +2525,11 @@ class DICOMwebClient(object):
             raise ValueError(
                 'SOP Instance UID is required for retrieval of instance.'
             )
+        logger.info(
+            f'retrieve instance "{sop_instance_uid}" '
+            f'of series "{series_instance_uid}" '
+            f'of study "{study_instance_uid}"'
+        )
         self._assert_uid_format(sop_instance_uid)
         url = self._get_instances_url(
             'wado', study_instance_uid, series_instance_uid, sop_instance_uid
@@ -2450,7 +2552,7 @@ class DICOMwebClient(object):
         self,
         datasets: Sequence[pydicom.dataset.Dataset],
         study_instance_uid: Optional[str] = None
-    ) -> Dict[str, dict]:
+    ) -> pydicom.dataset.Dataset:
         """Stores DICOM instances.
 
         Parameters
@@ -2466,6 +2568,10 @@ class DICOMwebClient(object):
             information about status of stored instances
 
         """
+        message = 'store instances'
+        if study_instance_uid is not None:
+            message += f' of study "{study_instance_uid}"'
+        logger.info(message)
         url = self._get_studies_url('stow', study_instance_uid)
         encoded_datasets = list()
         for ds in datasets:

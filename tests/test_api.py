@@ -2,7 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 from io import BytesIO
 from http import HTTPStatus
-from typing import Generator, Sequence
+from typing import Generator
 
 import pytest
 import pydicom
@@ -476,6 +476,28 @@ def test_retrieve_instance(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+
+
+def test_retrieve_instance_singlepart(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+    headers = {
+        'content-type': 'application/dicom'
+    }
+    httpserver.serve_content(content=data, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    response = client.retrieve_instance(
+        study_instance_uid, series_instance_uid, sop_instance_uid
+    )
+    with BytesIO() as fp:
+        pydicom.dcmwrite(fp, response)
+        raw_result = fp.getvalue()
+    assert raw_result == data
+    request = httpserver.requests[0]
+    assert request.accept_mimetypes[0][0].startswith('multipart/related')
 
 
 def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
