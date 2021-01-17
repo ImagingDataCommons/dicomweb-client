@@ -234,3 +234,42 @@ def test_from_string_type_error():
         if path_type != URIType.INSTANCE:
             with pytest.raises(ValueError, match='Unexpected path type'):
                 URI.from_string(_INSTANCE_URI, path_type)
+
+
+@pytest.mark.parametrize('uri_args,update_args,expected_uri_args', [
+    ((_BASE_URL, ), ('https://new', ), ('https://new', )),
+    ((_BASE_URL, ), (None, '1'), (_BASE_URL, '1')),
+    ((_BASE_URL, '1'), ('https://new', ), ('https://new', '1')),
+    ((_BASE_URL, '1'), (None, '2'), (_BASE_URL, '2')),
+    ((_BASE_URL, '1'), (None, None, '2'), (_BASE_URL, '1', '2')),
+    ((_BASE_URL, '1', '2'), ('https://new', ), ('https://new', '1', '2')),
+    ((_BASE_URL, '1', '2'), (None, '3'), (_BASE_URL, '3', '2')),
+    ((_BASE_URL, '1', '2'), (None, None, '3'), (_BASE_URL, '1', '3')),
+    ((_BASE_URL, '1', '2'), (None, None, None, '3'),
+     (_BASE_URL, '1', '2', '3')),
+    ((_BASE_URL, '1', '2', '3'), ('https://new', ),
+     ('https://new', '1', '2', '3')),
+    ((_BASE_URL, '1', '2', '3'), (None, '4'), (_BASE_URL, '4', '2', '3')),
+    ((_BASE_URL, '1', '2', '3'), (None, None, '4'),
+     (_BASE_URL, '1', '4', '3')),
+    ((_BASE_URL, '1', '2', '3'), (None, None, None, '4'),
+     (_BASE_URL, '1', '2', '4')),
+])
+def test_update(uri_args, update_args, expected_uri_args):
+    """Tests for failure if the `URI` returned by `update()` is invalid."""
+    actual_uri = URI(*uri_args).update(*update_args)
+    expected_uri = URI(*expected_uri_args)
+    assert actual_uri == expected_uri
+
+
+@pytest.mark.parametrize('uri_args,update_args,error_msg', [
+    ((_BASE_URL, ), (None, None, '1', None), 'study_instance_uid missing'),
+    ((_BASE_URL, ), (None, None, None, '2'), 'study_instance_uid missing'),
+    ((_BASE_URL, ), (None, None, '1', '2'), 'study_instance_uid missing'),
+    ((_BASE_URL, _STUDY_UID),
+     (None, None, None, '2'), 'series_instance_uid missing'),
+])
+def test_update_error(uri_args, update_args, error_msg):
+    """Tests for failure if the `URI` returned by `update()` is invalid."""
+    with pytest.raises(ValueError, match=error_msg):
+        URI(*uri_args).update(*update_args)

@@ -152,6 +152,52 @@ class URI:
         return URI(self.base_url, self.study_instance_uid,
                    self.series_instance_uid)
 
+    def update(self,
+               base_url: Optional[str] = None,
+               study_instance_uid: Optional[str] = None,
+               series_instance_uid: Optional[str] = None,
+               sop_instance_uid: Optional[str] = None) -> 'URI':
+        """Creates a new `URI` object based on the current one.
+
+        Replaces the specified `URI` components in the current `URI` to create
+        the new one.
+
+        Parameters
+        ----------
+        base_url: str, optional
+            DICOMweb service HTTPS URL to use in the new `URI` or `None` if the
+            *base_url* from the current `URI` should be used.
+        study_instance_uid: str, optional
+            Study Instance UID to use in the new `URI` or `None` if the
+            *study_instance_uid* from the current `URI` should be used.
+        series_instance_uid: str, optional
+            Series Instance UID to use in the new `URI` or `None` if the
+            *series_instance_uid* from the current `URI` should be used.
+        sop_instance_uid: str, optional
+            SOP Instance UID to use in the new `URI` or `None` if the
+            *sop_instance_uid* from the current `URI` should be used.
+
+        Returns
+        -------
+        The newly constructed `URI` object.
+
+        Raises
+        ------
+        ValueError:
+            If the new `URI` is invalid (e.g., if only the SOP Instance UID is
+            specified, but the Series Instance UID is missing in the current
+            `URI`).
+        """
+        return URI(
+            base_url if base_url is not None else self.base_url,
+            study_instance_uid
+            if study_instance_uid is not None else self.study_instance_uid,
+            series_instance_uid
+            if series_instance_uid is not None else self.series_instance_uid,
+            sop_instance_uid
+            if sop_instance_uid is not None else self.sop_instance_uid,
+        )
+
     @property
     def parent(self) -> 'URI':
         """Returns a sub-path to the "parent" resource.
@@ -244,11 +290,11 @@ class URI:
                 part = parts.pop(0)
                 if part == 'studies' and parts:
                     study_instance_uid = parts.pop(0)
-                elif (part == 'series' and
-                      study_instance_uid is not None and parts):
+                elif (part == 'series' and study_instance_uid is not None
+                      and parts):
                     series_instance_uid = parts.pop(0)
-                elif (part == 'instances' and
-                      series_instance_uid is not None and parts):
+                elif (part == 'instances' and series_instance_uid is not None
+                      and parts):
                     sop_instance_uid = parts.pop(0)
                 else:
                     raise ValueError(
@@ -280,8 +326,8 @@ def _validate_uids(study_instance_uid: Optional[str],
                    series_instance_uid: Optional[str],
                    sop_instance_uid: Optional[str]) -> None:
     """Validates UID parameters for the `URI` constructor."""
-    if study_instance_uid is None and not (series_instance_uid is None and
-                                           sop_instance_uid is None):
+    if study_instance_uid is None and not (series_instance_uid is None
+                                           and sop_instance_uid is None):
         raise ValueError(
             'study_instance_uid missing with non-empty series_instance_uid or '
             f'sop_instance_uid. series_instance_uid: {series_instance_uid!r}, '
