@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import urllib.parse as urlparse
 
 
-class PathType(enum.Enum):
+class URIType(enum.Enum):
     """Type of DICOM resource the path points to."""
     SERVICE = 'service'
     STUDY = 'study'
@@ -19,12 +19,12 @@ _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 
 
-class Path:
-    """Class to represent a fully qualified HTTPS URL to a DICOMweb resource.
+class URI:
+    """Class to represent a fully qualified HTTPS URI to a DICOMweb resource.
 
     http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
 
-    Given an HTTPS *base_url*, a valid DICOMweb-compatible URL would be:
+    Given an HTTPS *base_url*, a valid DICOMweb-compatible URI would be:
     - '<base_url>' (no DICOMWeb suffix)
     - '<base_url>/studies/<study_uid>'
     - '<base_url>/studies/<study_uid>/series/<series_uid>'
@@ -47,7 +47,7 @@ class Path:
         Parameters
         ----------
         base_url: str
-            DICOMweb service HTTPS URL. Trailing forward slashes are not
+            DICOMweb service HTTPS URI. Trailing forward slashes are not
             permitted.
         study_uid: str, optional
             DICOM Study UID.
@@ -76,7 +76,7 @@ class Path:
         self._instance_uid = instance_uid
 
     def __str__(self) -> str:
-        """Returns the path as a DICOMweb URL string."""
+        """Returns the path as a DICOMweb URI string."""
         parts = (('studies', self.study_uid), ('series', self.series_uid),
                  ('instances', self.instance_uid))
         dicomweb_suffix = '/'.join(
@@ -92,14 +92,14 @@ class Path:
 
     def __repr__(self) -> str:
         """Returns an "official" string representation of this object."""
-        return (f'dicomweb_client.Path(base_url={self.base_url!r}, '
+        return (f'dicomweb_client.URI(base_url={self.base_url!r}, '
                 f'study_uid={self.study_uid!r}, '
                 f'series_uid={self.series_uid!r}, '
                 f'instance_uid={self.instance_uid!r})')
 
     @property
     def base_url(self) -> str:
-        """Returns the Base (DICOMweb service) URL."""
+        """Returns the Base (DICOMweb service) URI."""
         return self._base_url
 
     @property
@@ -118,36 +118,36 @@ class Path:
         return self._instance_uid
 
     @property
-    def type(self) -> PathType:
-        """The *PathType* of DICOM resource referenced by the path."""
+    def type(self) -> URIType:
+        """The *URIType* of DICOM resource referenced by the path."""
         if self.study_uid is None:
-            return PathType.SERVICE
+            return URIType.SERVICE
         elif self.series_uid is None:
-            return PathType.STUDY
+            return URIType.STUDY
         elif self.instance_uid is None:
-            return PathType.SERIES
-        return PathType.INSTANCE
+            return URIType.SERIES
+        return URIType.INSTANCE
 
-    def base_subpath(self) -> 'Path':
+    def base_subpath(self) -> 'URI':
         """Returns the sub-path for the DICOMweb service within this path."""
-        return Path(self.base_url)
+        return URI(self.base_url)
 
-    def study_subpath(self) -> 'Path':
+    def study_subpath(self) -> 'URI':
         """Returns the sub-path for the DICOM Study within this path."""
-        if self.type == PathType.SERVICE:
+        if self.type == URIType.SERVICE:
             raise ValueError('Cannot get a Study path from a Base (DICOMweb '
                              'service) path.')
-        return Path(self.base_url, self.study_uid)
+        return URI(self.base_url, self.study_uid)
 
-    def series_subpath(self) -> 'Path':
+    def series_subpath(self) -> 'URI':
         """Returns the sub-path for the DICOM Series within this path."""
-        if self.type in (PathType.SERVICE, PathType.STUDY):
+        if self.type in (URIType.SERVICE, URIType.STUDY):
             raise ValueError(
                 f'Cannot get a Series path from a {self.type!r} path.')
-        return Path(self.base_url, self.study_uid, self.series_uid)
+        return URI(self.base_url, self.study_uid, self.series_uid)
 
     @property
-    def parent(self) -> 'Path':
+    def parent(self) -> 'URI':
         """Returns a sub-path to the "parent" resource.
 
         Depending on the `type` of the current path, the sub-path of the parent
@@ -164,21 +164,20 @@ class Path:
 
         Returns
         -------
-        Path
-            An instance of the parent resource sub-path.
+        An instance of the parent resource sub-path.
         """
-        if self.type == PathType.SERVICE:
+        if self.type == URIType.SERVICE:
             return self
-        elif self.type == PathType.STUDY:
+        elif self.type == URIType.STUDY:
             return self.base_subpath()
-        elif self.type == PathType.SERIES:
+        elif self.type == URIType.SERIES:
             return self.study_subpath()
         else:
             return self.series_subpath()
 
     @property
     def parts(self) -> Tuple[str]:
-        """Returns the sequence of Path components in a *tuple*.
+        """Returns the sequence of URI components in a *tuple*.
 
         For example, if the path is:
         https://service.com/studies/1.2.3/series/4.5.6
@@ -188,7 +187,7 @@ class Path:
         Returns
         -------
         Tuple[str]
-            Sequence of Path components.
+            Sequence of URI components.
         """
         return tuple(part for part in (self.base_url, self.study_uid,
                                        self.series_uid, self.instance_uid)
@@ -197,25 +196,25 @@ class Path:
     @classmethod
     def from_string(cls,
                     dicomweb_url: str,
-                    path_type: Optional[PathType] = None) -> 'Path':
-        """Parses the string to return the Path.
+                    path_type: Optional[URIType] = None) -> 'URI':
+        """Parses the string to return the URI.
 
-        Any valid DICOMweb compatible HTTPS URL is permitted, e.g.,
+        Any valid DICOMweb compatible HTTPS URI is permitted, e.g.,
         '<SERVICE>/studies/<StudyInstanceUID>/series/<SeriesInstanceUID>'
 
         Parameters
         ----------
         dicomweb_url: str
-            An HTTPS DICOMweb-compatible URL.
-        path_type: PathType, optional
+            An HTTPS DICOMweb-compatible URI.
+        path_type: URIType, optional
             The expected DICOM resource type referenced by the path. If set, it
             validates that the resource-scope of the *dicomweb_url* matches the
             expected type.
 
         Returns
         -------
-        Path
-            The newly constructed *Path* object.
+        URI
+            The newly constructed *URI* object.
 
         Raises
         ------
@@ -224,7 +223,7 @@ class Path:
             the specified expected *path_type*.
         """
         study_uid, series_uid, instance_uid = None, None, None
-        # The URL format validation will happen when *Path* is returned at the
+        # The URI format validation will happen when *URI* is returned at the
         # end.
         base_url_and_suffix = dicomweb_url.rsplit('/studies/', maxsplit=1)
         base_url = base_url_and_suffix[0]
@@ -243,25 +242,25 @@ class Path:
                 else:
                     raise ValueError(
                         f'Error parsing the suffix {dicomweb_suffix!r} from '
-                        f'URL: {dicomweb_url!r}')
+                        f'URI: {dicomweb_url!r}')
 
         path = cls(base_url, study_uid, series_uid, instance_uid)
         # Validate that the path is of the specified type, if applicable.
         if path_type is not None and path.type != path_type:
             raise ValueError(
                 f'Unexpected path type. Expected: {path_type!r}, Actual: '
-                f'{path.type!r}. Path: {dicomweb_url!r}')
+                f'{path.type!r}. URI: {dicomweb_url!r}')
 
         return path
 
 
 def _validate_base_url(url: str) -> None:
-    """Validates the Base (DICOMweb service) URL supplied to `Path`."""
+    """Validates the Base (DICOMweb service) URI supplied to `URI`."""
     parse_result = urlparse.urlparse(url)
     if parse_result.scheme != 'https':
-        raise ValueError(f'Not an HTTPS URL: {url!r}')
+        raise ValueError(f'Not an HTTPS URI: {url!r}')
     if url.endswith('/'):
-        raise ValueError('Base (DICOMweb service) URL cannot have a trailing '
+        raise ValueError('Base (DICOMweb service) URI cannot have a trailing '
                          f'forward slash: {url!r}')
 
 
@@ -269,7 +268,7 @@ def _validate_uids(
         study_uid: Optional[str],
         series_uid: Optional[str],
         instance_uid: Optional[str]) -> None:
-    """Validates UID parameters for the `Path` constructor."""
+    """Validates UID parameters for the `URI` constructor."""
     if study_uid is None and not (series_uid is None and instance_uid is None):
         raise ValueError(
             'study_uid missing with non-empty series_uid or instance_uid. '
