@@ -79,7 +79,7 @@ def test_from_string_service_path():
     assert service_path.sop_instance_uid is None
     assert service_path.type == URIType.SERVICE
     assert str(service_path) == _BASE_URL
-    assert str(service_path.base_subpath()) == _BASE_URL
+    assert service_path.base_url == _BASE_URL
     with pytest.raises(ValueError, match='Cannot get a Study path'):
         service_path.study_subpath()
     with pytest.raises(ValueError, match='Cannot get a Series path'):
@@ -95,7 +95,7 @@ def test_from_string_study_path():
     assert study_path.sop_instance_uid is None
     assert study_path.type == URIType.STUDY
     assert str(study_path) == _STUDY_URI
-    assert str(study_path.base_subpath()) == _BASE_URL
+    assert study_path.base_url == _BASE_URL
     assert str(study_path.study_subpath()) == _STUDY_URI
     with pytest.raises(ValueError, match='Cannot get a Series path'):
         study_path.series_subpath()
@@ -110,7 +110,7 @@ def test_from_string_series_path():
     assert series_path.sop_instance_uid is None
     assert series_path.type == URIType.SERIES
     assert str(series_path) == _SERIES_URI
-    assert str(series_path.base_subpath()) == _BASE_URL
+    assert series_path.base_url == _BASE_URL
     assert str(series_path.study_subpath()) == _STUDY_URI
     assert str(series_path.series_subpath()) == _SERIES_URI
 
@@ -124,7 +124,7 @@ def test_from_string_instance_path():
     assert instance_path.sop_instance_uid == _INSTANCE_UID
     assert instance_path.type == URIType.INSTANCE
     assert str(instance_path) == _INSTANCE_URI
-    assert str(instance_path.base_subpath()) == _BASE_URL
+    assert instance_path.base_url == _BASE_URL
     assert str(instance_path.study_subpath()) == _STUDY_URI
     assert str(instance_path.series_subpath()) == _SERIES_URI
 

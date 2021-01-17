@@ -133,10 +133,6 @@ class URI:
             return URIType.SERIES
         return URIType.INSTANCE
 
-    def base_subpath(self) -> 'URI':
-        """Returns the sub-path for the DICOMweb service within this path."""
-        return URI(self.base_url)
-
     def study_subpath(self) -> 'URI':
         """Returns the sub-path for the DICOM Study within this path."""
         if self.type == URIType.SERVICE:
@@ -221,7 +217,7 @@ class URI:
         if self.type == URIType.SERVICE:
             return self
         elif self.type == URIType.STUDY:
-            return self.base_subpath()
+            return self.base_url
         elif self.type == URIType.SERIES:
             return self.study_subpath()
         else:
