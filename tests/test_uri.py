@@ -64,69 +64,69 @@ def test_uid_missing_error():
 
 
 def test_trailing_slash_error():
-    """Tests constructor failure if the Service path has a trailing slash."""
+    """Tests constructor failure if the Service URL has a trailing slash."""
     base_url = 'https://oh-well-this-was-fun.com/'
     with pytest.raises(ValueError, match='trailing forward slash'):
         URI(base_url)
 
 
-def test_from_string_service_path():
-    """Checks that Service path is parsed correctly and behaves as expected."""
-    service_path = URI.from_string(_BASE_URL)
-    assert service_path.base_url == _BASE_URL
-    assert service_path.study_instance_uid is None
-    assert service_path.series_instance_uid is None
-    assert service_path.sop_instance_uid is None
-    assert service_path.type == URIType.SERVICE
-    assert str(service_path) == _BASE_URL
-    assert service_path.base_url == _BASE_URL
-    with pytest.raises(ValueError, match='Cannot get a Study path'):
-        service_path.study_subpath()
-    with pytest.raises(ValueError, match='Cannot get a Series path'):
-        service_path.series_subpath()
+def test_from_string_service_uri():
+    """Checks that Service URL is parsed correctly and behaves as expected."""
+    service_uri = URI.from_string(_BASE_URL)
+    assert service_uri.base_url == _BASE_URL
+    assert service_uri.study_instance_uid is None
+    assert service_uri.series_instance_uid is None
+    assert service_uri.sop_instance_uid is None
+    assert service_uri.type == URIType.SERVICE
+    assert str(service_uri) == _BASE_URL
+    assert service_uri.base_url == _BASE_URL
+    with pytest.raises(ValueError, match='Cannot get a Study URI'):
+        service_uri.study_uri()
+    with pytest.raises(ValueError, match='Cannot get a Series URI'):
+        service_uri.series_uri()
 
 
-def test_from_string_study_path():
-    """Checks that Study path is parsed correctly and behaves as expected."""
-    study_path = URI.from_string(_STUDY_URI)
-    assert study_path.base_url == _BASE_URL
-    assert study_path.study_instance_uid == _STUDY_UID
-    assert study_path.series_instance_uid is None
-    assert study_path.sop_instance_uid is None
-    assert study_path.type == URIType.STUDY
-    assert str(study_path) == _STUDY_URI
-    assert study_path.base_url == _BASE_URL
-    assert str(study_path.study_subpath()) == _STUDY_URI
-    with pytest.raises(ValueError, match='Cannot get a Series path'):
-        study_path.series_subpath()
+def test_from_string_study_uri():
+    """Checks that Study URI is parsed correctly and behaves as expected."""
+    study_uri = URI.from_string(_STUDY_URI)
+    assert study_uri.base_url == _BASE_URL
+    assert study_uri.study_instance_uid == _STUDY_UID
+    assert study_uri.series_instance_uid is None
+    assert study_uri.sop_instance_uid is None
+    assert study_uri.type == URIType.STUDY
+    assert str(study_uri) == _STUDY_URI
+    assert study_uri.base_url == _BASE_URL
+    assert str(study_uri.study_uri()) == _STUDY_URI
+    with pytest.raises(ValueError, match='Cannot get a Series URI'):
+        study_uri.series_uri()
 
 
-def test_from_string_series_path():
-    """Checks that Series path is parsed correctly and behaves as expected."""
-    series_path = URI.from_string(_SERIES_URI)
-    assert series_path.base_url == _BASE_URL
-    assert series_path.study_instance_uid == _STUDY_UID
-    assert series_path.series_instance_uid == _SERIES_UID
-    assert series_path.sop_instance_uid is None
-    assert series_path.type == URIType.SERIES
-    assert str(series_path) == _SERIES_URI
-    assert series_path.base_url == _BASE_URL
-    assert str(series_path.study_subpath()) == _STUDY_URI
-    assert str(series_path.series_subpath()) == _SERIES_URI
+def test_from_string_series_uri():
+    """Checks that Series URI is parsed correctly and behaves as expected."""
+    series_uri = URI.from_string(_SERIES_URI)
+    assert series_uri.base_url == _BASE_URL
+    assert series_uri.study_instance_uid == _STUDY_UID
+    assert series_uri.series_instance_uid == _SERIES_UID
+    assert series_uri.sop_instance_uid is None
+    assert series_uri.type == URIType.SERIES
+    assert str(series_uri) == _SERIES_URI
+    assert series_uri.base_url == _BASE_URL
+    assert str(series_uri.study_uri()) == _STUDY_URI
+    assert str(series_uri.series_uri()) == _SERIES_URI
 
 
-def test_from_string_instance_path():
-    """Checks Instance path is parsed correctly and behaves as expected."""
-    instance_path = URI.from_string(_INSTANCE_URI)
-    assert instance_path.base_url == _BASE_URL
-    assert instance_path.study_instance_uid == _STUDY_UID
-    assert instance_path.series_instance_uid == _SERIES_UID
-    assert instance_path.sop_instance_uid == _INSTANCE_UID
-    assert instance_path.type == URIType.INSTANCE
-    assert str(instance_path) == _INSTANCE_URI
-    assert instance_path.base_url == _BASE_URL
-    assert str(instance_path.study_subpath()) == _STUDY_URI
-    assert str(instance_path.series_subpath()) == _SERIES_URI
+def test_from_string_instance_uri():
+    """Checks Instance URI is parsed correctly and behaves as expected."""
+    instance_uri = URI.from_string(_INSTANCE_URI)
+    assert instance_uri.base_url == _BASE_URL
+    assert instance_uri.study_instance_uid == _STUDY_UID
+    assert instance_uri.series_instance_uid == _SERIES_UID
+    assert instance_uri.sop_instance_uid == _INSTANCE_UID
+    assert instance_uri.type == URIType.INSTANCE
+    assert str(instance_uri) == _INSTANCE_URI
+    assert instance_uri.base_url == _BASE_URL
+    assert str(instance_uri.study_uri()) == _STUDY_URI
+    assert str(instance_uri.series_uri()) == _SERIES_URI
 
 
 @pytest.mark.parametrize('resource_url', [
@@ -141,7 +141,7 @@ def test_from_string_invalid_resource_delimiter(resource_url):
 
 @pytest.mark.parametrize('service', ['', 'http://'])
 def test_from_string_invalid(service):
-    """Checks *ValueError* raised when the path string is invalid."""
+    """Checks *ValueError* raised when the URI string is invalid."""
     with pytest.raises(ValueError, match='Not an HTTPS URI'):
         URI.from_string(f'{service}invalid_url')
 
@@ -153,47 +153,47 @@ def test_from_string_invalid(service):
      (URI.from_string(_SERIES_URI), URI.from_string(_STUDY_URI)),
      (URI.from_string(_INSTANCE_URI), URI.from_string(_SERIES_URI))])
 def test_parent(child, parent):
-    """Validates the expected parent sub-path from `parent` attribute."""
+    """Validates the expected parent URI from `parent` attribute."""
     assert str(child.parent) == str(parent)
 
 
 @pytest.mark.parametrize(
-    'path,parts',
+    'uri,parts',
     [(URI.from_string(_BASE_URL), (_BASE_URL, )),
      (URI.from_string(_STUDY_URI), (_BASE_URL, _STUDY_UID)),
      (URI.from_string(_SERIES_URI), (_BASE_URL, _STUDY_UID, _SERIES_UID)),
      (URI.from_string(_INSTANCE_URI),
       (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID))])
-def test_parts(path, parts):
+def test_parts(uri, parts):
     """Validates the expected parts from `parts` attribute."""
-    assert str(path.parts) == str(parts)
+    assert str(uri.parts) == str(parts)
 
 
-@pytest.mark.parametrize('path,hash_args', [
+@pytest.mark.parametrize('uri,hash_args', [
     (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None)),
     (URI.from_string(_STUDY_URI), (_BASE_URL, _STUDY_UID, None, None)),
     (URI.from_string(_SERIES_URI), (_BASE_URL, _STUDY_UID, _SERIES_UID, None)),
     (URI.from_string(_INSTANCE_URI),
      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID))
 ])
-def test_hash(path, hash_args):
+def test_hash(uri, hash_args):
     """Locks down the implementation of `__hash__()`."""
-    assert hash(path) == hash((*hash_args, ))
+    assert hash(uri) == hash((*hash_args, ))
 
 
-@pytest.mark.parametrize('path,init_args', [
+@pytest.mark.parametrize('uri,init_args', [
     (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None)),
     (URI.from_string(_STUDY_URI), (_BASE_URL, _STUDY_UID, None, None)),
     (URI.from_string(_SERIES_URI), (_BASE_URL, _STUDY_UID, _SERIES_UID, None)),
     (URI.from_string(_INSTANCE_URI),
      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID))
 ])
-def test_repr(path, init_args):
+def test_repr(uri, init_args):
     """Locks down the implementation of `__repr__()`."""
     expected_repr = ('dicomweb_client.URI(base_url={}, study_instance_uid={}, '
                      'series_instance_uid={}, sop_instance_uid={})').format(
                          *(repr(arg) for arg in init_args))
-    assert repr(path) == expected_repr
+    assert repr(uri) == expected_repr
 
 
 @pytest.mark.parametrize('params', [
@@ -221,19 +221,19 @@ def test_eq_false(params):
 
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
-    for path_type in URIType:
-        if path_type != URIType.SERVICE:
-            with pytest.raises(ValueError, match='Unexpected path type'):
-                URI.from_string(_BASE_URL, path_type)
-        if path_type != URIType.STUDY:
-            with pytest.raises(ValueError, match='Unexpected path type'):
-                URI.from_string(_STUDY_URI, path_type)
-        if path_type != URIType.SERIES:
-            with pytest.raises(ValueError, match='Unexpected path type'):
-                URI.from_string(_SERIES_URI, path_type)
-        if path_type != URIType.INSTANCE:
-            with pytest.raises(ValueError, match='Unexpected path type'):
-                URI.from_string(_INSTANCE_URI, path_type)
+    for uri_type in URIType:
+        if uri_type != URIType.SERVICE:
+            with pytest.raises(ValueError, match='Unexpected URI type'):
+                URI.from_string(_BASE_URL, uri_type)
+        if uri_type != URIType.STUDY:
+            with pytest.raises(ValueError, match='Unexpected URI type'):
+                URI.from_string(_STUDY_URI, uri_type)
+        if uri_type != URIType.SERIES:
+            with pytest.raises(ValueError, match='Unexpected URI type'):
+                URI.from_string(_SERIES_URI, uri_type)
+        if uri_type != URIType.INSTANCE:
+            with pytest.raises(ValueError, match='Unexpected URI type'):
+                URI.from_string(_INSTANCE_URI, uri_type)
 
 
 @pytest.mark.parametrize('uri_args,update_args,expected_uri_args', [
