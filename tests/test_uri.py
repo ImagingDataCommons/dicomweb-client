@@ -219,6 +219,11 @@ def test_eq_false(params):
     assert URI(*params) != URI(*other_params)
 
 
+def test_eq_not_implemented():
+    """Tests the `==` operator implementation for incompatible type."""
+    assert URI(_BASE_URL) != 0
+
+
 def test_from_string_type_error():
     """Checks *ValueError* raised when the actual type does match expected."""
     for uri_type in URIType:

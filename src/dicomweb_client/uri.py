@@ -100,8 +100,10 @@ class URI:
                 f'series_instance_uid={self.series_instance_uid!r}, '
                 f'sop_instance_uid={self.sop_instance_uid!r})')
 
-    def __eq__(self, other: 'URI') -> bool:
+    def __eq__(self, other: object) -> bool:
         """Compares the object for equality with `other`."""
+        if not isinstance(other, URI):
+            return NotImplemented
         return str(self) == str(other)
 
     @property
@@ -224,14 +226,14 @@ class URI:
         if self.type == URIType.SERVICE:
             return self
         elif self.type == URIType.STUDY:
-            return self.base_url
+          return URI(self.base_url)
         elif self.type == URIType.SERIES:
             return self.study_uri()
         else:
             return self.series_uri()
 
     @property
-    def parts(self) -> Tuple[str]:
+    def parts(self) -> Tuple[str, ...]:
         """Returns the sequence of URI components in a `tuple`.
 
         For example, if the URI is:
@@ -241,7 +243,7 @@ class URI:
 
         Returns
         -------
-        Tuple[str]
+        Tuple[str, ...]
             Sequence of URI components.
         """
         return tuple(part for part in (self.base_url, self.study_instance_uid,
