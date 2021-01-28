@@ -70,16 +70,16 @@ def test_trailing_slash_error():
         URI(base_url)
 
 
-def test_from_string_service_uri():
+@pytest.mark.parametrize('base_url', [_BASE_URL, 'http://unsecured-http.com'])
+def test_from_string_service_uri(base_url):
     """Checks that Service URL is parsed correctly and behaves as expected."""
-    service_uri = URI.from_string(_BASE_URL)
-    assert service_uri.base_url == _BASE_URL
+    service_uri = URI.from_string(base_url)
+    assert service_uri.base_url == base_url
     assert service_uri.study_instance_uid is None
     assert service_uri.series_instance_uid is None
     assert service_uri.sop_instance_uid is None
     assert service_uri.type == URIType.SERVICE
-    assert str(service_uri) == _BASE_URL
-    assert service_uri.base_url == _BASE_URL
+    assert str(service_uri) == base_url
     with pytest.raises(ValueError, match='Cannot get a Study URI'):
         service_uri.study_uri()
     with pytest.raises(ValueError, match='Cannot get a Series URI'):
@@ -139,10 +139,10 @@ def test_from_string_invalid_resource_delimiter(resource_url):
         URI.from_string(resource_url)
 
 
-@pytest.mark.parametrize('service', ['', 'http://'])
+@pytest.mark.parametrize('service', ['', 'ftp://', 'sftp://', 'ssh://'])
 def test_from_string_invalid(service):
     """Checks *ValueError* raised when the URI string is invalid."""
-    with pytest.raises(ValueError, match='Not an HTTPS URI'):
+    with pytest.raises(ValueError, match=r'Only HTTP\[S\] URLs'):
         URI.from_string(f'{service}invalid_url')
 
 

@@ -19,11 +19,11 @@ _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 
 
 class URI:
-    """Class to represent a fully qualified HTTPS URI to a DICOMweb resource.
+    """Class to represent a fully qualified HTTP[S] URI to a DICOMweb resource.
 
     http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
 
-    Given an HTTPS *base_url*, a valid DICOMweb-compatible URI would be:
+    Given an HTTP[S] *base_url*, a valid DICOMweb-compatible URI would be:
     - '<base_url>' (no DICOMWeb suffix)
     - '<base_url>/studies/<study_instance_uid>'
     - '<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>'
@@ -44,7 +44,7 @@ class URI:
         Parameters
         ----------
         base_url: str
-            DICOMweb service HTTPS URI. Trailing forward slashes are not
+            DICOMweb service HTTP[S] URL. Trailing forward slashes are not
             permitted.
         study_instance_uid: str, optional
             DICOM Study UID.
@@ -58,7 +58,7 @@ class URI:
         ValueError:
             In the following cases:
             - *base_url* has a trailing slash.
-            - *base_url* does not use the HTTPS addressing scheme.
+            - *base_url* does not use the HTTP[S] addressing scheme.
             - *base_url* is incompatible with the DICOMweb standard.
             - *series_instance_uid* is supplied without *study_instance_uid*.
             - *sop_instance_uid* is supplied without *study_instance_uid* or
@@ -161,7 +161,7 @@ class URI:
         Parameters
         ----------
         base_url: str, optional
-            DICOMweb service HTTPS URL to use in the new *URI* or *None* if the
+            DICOMweb service HTTP[S] URL to use in the new *URI* or *None* if the
             *base_url* from the current *URI* should be used.
         study_instance_uid: str, optional
             Study Instance UID to use in the new *URI* or *None* if the
@@ -250,13 +250,13 @@ class URI:
                     uri_type: Optional[URIType] = None) -> 'URI':
         """Parses the string to return the URI.
 
-        Any valid DICOMweb compatible HTTPS URI is permitted, e.g.,
+        Any valid DICOMweb compatible HTTP[S] URI is permitted, e.g.,
         '<SERVICE>/studies/<StudyInstanceUID>/series/<SeriesInstanceUID>'
 
         Parameters
         ----------
         dicomweb_uri: str
-            An HTTPS DICOMweb-compatible URI.
+            An HTTP[S] DICOMweb-compatible URI.
         uri_type: URIType, optional
             The expected DICOM resource type referenced by the object. If set, it
             validates that the resource-scope of the *dicomweb_uri* matches the
@@ -311,12 +311,13 @@ class URI:
 
 
 def _validate_base_url(url: str) -> None:
-    """Validates the Base (DICOMweb service) URI supplied to *URI*."""
+    """Validates the Base (DICOMweb service) URL supplied to *URI*."""
     parse_result = urlparse.urlparse(url)
-    if parse_result.scheme != 'https':
-        raise ValueError(f'Not an HTTPS URI: {url!r}')
+    if parse_result.scheme not in ('http', 'https'):
+        raise ValueError(
+            f'Only HTTP[S] URLs are permitted. Actual URL: {url!r}')
     if url.endswith('/'):
-        raise ValueError('Base (DICOMweb service) URI cannot have a trailing '
+        raise ValueError('Base (DICOMweb service) URL cannot have a trailing '
                          f'forward slash: {url!r}')
 
 
