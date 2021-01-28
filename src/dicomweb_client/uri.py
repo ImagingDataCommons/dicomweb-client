@@ -13,7 +13,7 @@ class URIType(enum.Enum):
     INSTANCE = 'instance'
 
 
-# For DICOM Standard spec validation of UID components in *URI*.
+# For DICOM Standard spec validation of UID components in `URI`.
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 
@@ -23,13 +23,14 @@ class URI:
 
     http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
 
-    Given an HTTP[S] *base_url*, a valid DICOMweb-compatible URI would be:
-    - '<base_url>' (no DICOMWeb suffix)
-    - '<base_url>/studies/<study_instance_uid>'
-    - '<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>'
-    - '<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/ \
-        instances/<sop_instance_uid>'
+    Given an HTTP[S] `base_url`, a valid DICOMweb-compatible URI would be:
+
+    - ``<base_url>`` (no DICOMWeb suffix)
+    - ``<base_url>/studies/<study_instance_uid>``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>``
     """
+
     def __init__(self,
                  base_url: str,
                  study_instance_uid: Optional[str] = None,
@@ -38,8 +39,8 @@ class URI:
         """Instantiates an object.
 
         As per the DICOM Standard, the Study, Series, and Instance UIDs must be
-        a series of numeric components ("0"-"9") separated by the period "."
-        character, with a maximum length of 64 characters.
+        a series of numeric components (``0``-``9``) separated by the period
+        ``.`` character, with a maximum length of 64 characters.
 
         Parameters
         ----------
@@ -47,24 +48,25 @@ class URI:
             DICOMweb service HTTP[S] URL. Trailing forward slashes are not
             permitted.
         study_instance_uid: str, optional
-            DICOM Study UID.
+            DICOM Study Instance UID.
         series_instance_uid: str, optional
-            DICOM Series UID.
+            DICOM Series Instance UID.
         sop_instance_uid: str, optional
             DICOM SOP Instance UID.
 
         Raises
         ------
-        ValueError:
+        ValueError
             In the following cases:
-            - *base_url* has a trailing slash.
-            - *base_url* does not use the HTTP[S] addressing scheme.
-            - *base_url* is incompatible with the DICOMweb standard.
-            - *series_instance_uid* is supplied without *study_instance_uid*.
-            - *sop_instance_uid* is supplied without *study_instance_uid* or
-              *series_instance_uid*.
-            - Any one of *study_instance_uid*, *series_instance_uid*, or
-              *sop_instance_uid* does not meet the DICOM Standard UID spec in
+
+            - `base_url` has a trailing slash.
+            - `base_url` does not use the HTTP[S] addressing scheme.
+            - `base_url` is incompatible with the DICOMweb standard.
+            - `series_instance_uid` is supplied without `study_instance_uid`.
+            - `sop_instance_uid` is supplied without `study_instance_uid` or
+              `series_instance_uid`.
+            - Any one of `study_instance_uid`, `series_instance_uid`, or
+              `sop_instance_uid` does not meet the DICOM Standard UID spec in
               the docstring.
         """
         _validate_base_url(base_url)
@@ -99,7 +101,7 @@ class URI:
                 f'sop_instance_uid={self.sop_instance_uid!r})')
 
     def __eq__(self, other: 'URI') -> bool:
-        """Compares the object for equality with *other*."""
+        """Compares the object for equality with `other`."""
         return str(self) == str(other)
 
     @property
@@ -124,7 +126,7 @@ class URI:
 
     @property
     def type(self) -> URIType:
-        """The *URIType* of DICOM resource referenced by the object."""
+        """The `URIType` of DICOM resource referenced by the object."""
         if self.study_instance_uid is None:
             return URIType.SERVICE
         elif self.series_instance_uid is None:
@@ -134,14 +136,14 @@ class URI:
         return URIType.INSTANCE
 
     def study_uri(self) -> 'URI':
-        """Returns *URI* for the DICOM Study within this object."""
+        """Returns `URI` for the DICOM Study within this object."""
         if self.type == URIType.SERVICE:
             raise ValueError('Cannot get a Study URI from a Base (DICOMweb '
                              'service) URL.')
         return URI(self.base_url, self.study_instance_uid)
 
     def series_uri(self) -> 'URI':
-        """Returns *URI* for the DICOM Series within this object."""
+        """Returns `URI` for the DICOM Series within this object."""
         if self.type in (URIType.SERVICE, URIType.STUDY):
             raise ValueError(
                 f'Cannot get a Series URI from a {self.type!r} URI.')
@@ -153,37 +155,37 @@ class URI:
                study_instance_uid: Optional[str] = None,
                series_instance_uid: Optional[str] = None,
                sop_instance_uid: Optional[str] = None) -> 'URI':
-        """Creates a new *URI* object based on the current one.
+        """Creates a new `URI` object based on the current one.
 
-        Replaces the specified *URI* components in the current *URI* to create
+        Replaces the specified `URI` components in the current `URI` to create
         the new one.
 
         Parameters
         ----------
         base_url: str, optional
-            DICOMweb service HTTP[S] URL to use in the new *URI* or *None* if the
-            *base_url* from the current *URI* should be used.
+            DICOMweb service HTTP[S] URL to use in the new `URI` or `None` if the
+            `base_url` from the current `URI` should be used.
         study_instance_uid: str, optional
-            Study Instance UID to use in the new *URI* or *None* if the
-            *study_instance_uid* from the current *URI* should be used.
+            Study Instance UID to use in the new `URI` or `None` if the
+            `study_instance_uid` from the current `URI` should be used.
         series_instance_uid: str, optional
-            Series Instance UID to use in the new *URI* or *None* if the
-            *series_instance_uid* from the current *URI* should be used.
+            Series Instance UID to use in the new `URI` or `None` if the
+            `series_instance_uid` from the current `URI` should be used.
         sop_instance_uid: str, optional
-            SOP Instance UID to use in the new *URI* or *None* if the
-            *sop_instance_uid* from the current *URI* should be used.
+            SOP Instance UID to use in the new `URI` or `None` if the
+            `sop_instance_uid` from the current `URI` should be used.
 
         Returns
         -------
         URI
-          The newly constructed *URI* object.
+          The newly constructed `URI` object.
 
         Raises
         ------
-        ValueError:
-            If the new *URI* is invalid (e.g., if only the SOP Instance UID is
+        ValueError
+            If the new `URI` is invalid (e.g., if only the SOP Instance UID is
             specified, but the Series Instance UID is missing in the current
-            *URI*).
+            `URI`).
         """
         return URI(
             base_url if base_url is not None else self.base_url,
@@ -199,17 +201,20 @@ class URI:
     def parent(self) -> 'URI':
         """Returns a URI to the "parent" resource.
 
-        Depending on the *type* of the current *URI*, the *URI* of the parent
+        Depending on the `type` of the current `URI`, the `URI` of the parent
         resource is defined as:
 
-        +--------------------+
+        +----------+---------+
         | Current  | Parent  |
-        +--------------------+
+        +==========+=========+
         | Service  | Service |
+        +----------+---------+
         | Study    | Service |
+        +----------+---------+
         | Series   | Study   |
+        +----------+---------+
         | Instance | Series  |
-        +--------------------+
+        +----------+---------+
 
         Returns
         -------
@@ -227,12 +232,12 @@ class URI:
 
     @property
     def parts(self) -> Tuple[str]:
-        """Returns the sequence of URI components in a *tuple*.
+        """Returns the sequence of URI components in a `tuple`.
 
         For example, if the URI is:
-        https://service.com/studies/1.2.3/series/4.5.6
+        ``https://service.com/studies/1.2.3/series/4.5.6``
 
-        then the method returns ['https://service.com', '1.2.3', '4.5.6']
+        then the method returns ``['https://service.com', '1.2.3', '4.5.6']``
 
         Returns
         -------
@@ -251,7 +256,7 @@ class URI:
         """Parses the string to return the URI.
 
         Any valid DICOMweb compatible HTTP[S] URI is permitted, e.g.,
-        '<SERVICE>/studies/<StudyInstanceUID>/series/<SeriesInstanceUID>'
+        ``<SERVICE>/studies/<StudyInstanceUID>/series/<SeriesInstanceUID>``.
 
         Parameters
         ----------
@@ -259,24 +264,24 @@ class URI:
             An HTTP[S] DICOMweb-compatible URI.
         uri_type: URIType, optional
             The expected DICOM resource type referenced by the object. If set, it
-            validates that the resource-scope of the *dicomweb_uri* matches the
+            validates that the resource-scope of the `dicomweb_uri` matches the
             expected type.
 
         Returns
         -------
         URI
-            The newly constructed *URI* object.
+            The newly constructed `URI` object.
 
         Raises
         ------
-        ValueError:
+        ValueError
             If the URI cannot be parsed or the actual URI type doesn't match
-            the specified expected *uri_type*.
+            the specified expected `uri_type`.
         """
         study_instance_uid, series_instance_uid, sop_instance_uid = (None,
                                                                      None,
                                                                      None)
-        # The URI format validation will happen when *URI* is returned at the
+        # The URI format validation will happen when `URI` is returned at the
         # end.
         base_url_and_suffix = dicomweb_uri.rsplit('/studies/', maxsplit=1)
         base_url = base_url_and_suffix[0]
@@ -311,7 +316,7 @@ class URI:
 
 
 def _validate_base_url(url: str) -> None:
-    """Validates the Base (DICOMweb service) URL supplied to *URI*."""
+    """Validates the Base (DICOMweb service) URL supplied to `URI`."""
     parse_result = urlparse.urlparse(url)
     if parse_result.scheme not in ('http', 'https'):
         raise ValueError(
@@ -324,7 +329,7 @@ def _validate_base_url(url: str) -> None:
 def _validate_uids(study_instance_uid: Optional[str],
                    series_instance_uid: Optional[str],
                    sop_instance_uid: Optional[str]) -> None:
-    """Validates UID parameters for the *URI* constructor."""
+    """Validates UID parameters for the `URI` constructor."""
     if study_instance_uid is None and not (series_instance_uid is None
                                            and sop_instance_uid is None):
         raise ValueError(
