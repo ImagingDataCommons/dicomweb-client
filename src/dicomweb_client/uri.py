@@ -29,7 +29,7 @@ class URI:
     - ``<base_url>/studies/<study_instance_uid>``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>``
-    """
+    """  # noqa
 
     def __init__(self,
                  base_url: str,
@@ -165,8 +165,8 @@ class URI:
         Parameters
         ----------
         base_url: str, optional
-            DICOMweb service HTTP[S] URL to use in the new `URI` or `None` if the
-            `base_url` from the current `URI` should be used.
+            DICOMweb service HTTP[S] URL to use in the new `URI` or `None` if
+            the `base_url` from the current `URI` should be used.
         study_instance_uid: str, optional
             Study Instance UID to use in the new `URI` or `None` if the
             `study_instance_uid` from the current `URI` should be used.
@@ -226,7 +226,7 @@ class URI:
         if self.type == URIType.SERVICE:
             return self
         elif self.type == URIType.STUDY:
-          return URI(self.base_url)
+            return URI(self.base_url)
         elif self.type == URIType.SERIES:
             return self.study_uri()
         else:
@@ -265,9 +265,9 @@ class URI:
         dicomweb_uri: str
             An HTTP[S] DICOMweb-compatible URI.
         uri_type: URIType, optional
-            The expected DICOM resource type referenced by the object. If set, it
-            validates that the resource-scope of the `dicomweb_uri` matches the
-            expected type.
+            The expected DICOM resource type referenced by the object. If set,
+            it validates that the resource-scope of the `dicomweb_uri` matches
+            the expected type.
 
         Returns
         -------
@@ -295,11 +295,11 @@ class URI:
                 part = parts.pop(0)
                 if part == 'studies' and parts:
                     study_instance_uid = parts.pop(0)
-                elif (part == 'series' and study_instance_uid is not None
-                      and parts):
+                elif (part == 'series' and
+                      study_instance_uid is not None and parts):
                     series_instance_uid = parts.pop(0)
-                elif (part == 'instances' and series_instance_uid is not None
-                      and parts):
+                elif (part == 'instances' and
+                      series_instance_uid is not None and parts):
                     sop_instance_uid = parts.pop(0)
                 else:
                     raise ValueError(
@@ -307,7 +307,7 @@ class URI:
                         f'URI: {dicomweb_uri!r}')
 
         uri = cls(base_url, study_instance_uid, series_instance_uid,
-                   sop_instance_uid)
+                  sop_instance_uid)
         # Validate that the URI is of the specified type, if applicable.
         if uri_type is not None and uri.type != uri_type:
             raise ValueError(
@@ -332,8 +332,8 @@ def _validate_uids(study_instance_uid: Optional[str],
                    series_instance_uid: Optional[str],
                    sop_instance_uid: Optional[str]) -> None:
     """Validates UID parameters for the `URI` constructor."""
-    if study_instance_uid is None and not (series_instance_uid is None
-                                           and sop_instance_uid is None):
+    if study_instance_uid is None and not (series_instance_uid is None and
+                                           sop_instance_uid is None):
         raise ValueError(
             'study_instance_uid missing with non-empty series_instance_uid or '
             f'sop_instance_uid. series_instance_uid: {series_instance_uid!r}, '
