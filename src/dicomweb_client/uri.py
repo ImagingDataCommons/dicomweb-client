@@ -79,9 +79,11 @@ class URI:
 
     def __str__(self) -> str:
         """Returns the object as a DICOMweb URI string."""
-        parts = (('studies', self.study_instance_uid),
-                 ('series', self.series_instance_uid), ('instances',
-                                                        self.sop_instance_uid))
+        parts = (
+            ('studies', self.study_instance_uid),
+            ('series', self.series_instance_uid),
+            ('instances', self.sop_instance_uid),
+        )
         dicomweb_suffix = '/'.join(f'{part}/{part_uid}'
                                    for part, part_uid in parts
                                    if part_uid is not None)
