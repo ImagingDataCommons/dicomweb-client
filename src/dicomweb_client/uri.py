@@ -355,10 +355,10 @@ class URI:
                     sop_instance_uid = parts.pop(0)
                 elif (part == 'frames' and
                       sop_instance_uid is not None and parts):
-                    frames = parts.pop(0)
+                    frames_csv = parts.pop(0)
                     try:
                         frames = tuple(int(frame_number) for frame_number in
-                                           frames.split(','))
+                                       frames_csv.split(','))
                     except ValueError as e:
                         raise ValueError('Found non-integral frame numbers in '
                                          f'frame list: {frames!r}') from e
@@ -434,3 +434,12 @@ def _validate_frames(frames: Sequence[int]) -> None:
     if non_positive_frame_numbers:
         raise ValueError('Frame numbers must be positive. Found violations: '
                          f'{non_positive_frame_numbers!r}')
+
+    # Python uses Timsort which is `O(n)` in the best case, i.e., the overhead
+    # is negligible assuming most inputs meet this specification. If the
+    # specification is violated, `n` is small in case of DICOMs (few hundreds
+    # in the worst case?). Here, the simplicity of the implementation outweighs
+    # the (roughly constant time) overhead.
+    if tuple(sorted(frames)) != tuple(frames):
+        raise ValueError('Frame numbers must be in ascending order. Actual '
+                         f'order: {frames!r}')

@@ -81,6 +81,12 @@ def test_frames_empty():
         URI(_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, [])
 
 
+def test_frames_ascending_order():
+    """Checks *ValueError* is raised if frames are not in ascending order."""
+    with pytest.raises(ValueError, match='must be in ascending'):
+        URI(_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, [4, 3, 5])
+
+
 def test_trailing_slash_error():
     """Tests constructor failure if the Service URL has a trailing slash."""
     base_url = 'https://oh-well-this-was-fun.com/'
