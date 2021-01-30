@@ -22,7 +22,7 @@ _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 class URI:
     """Class to represent a fully qualified HTTP[S] URI to a DICOMweb resource.
 
-    http://dicom.nema.org/dicom/2013/output/chtml/part18/sect_6.7.html
+    http://dicom.nema.org/medical/dicom/current/output/html/part18.html
 
     Given an HTTP[S] `base_url`, a valid DICOMweb-compatible URI would be:
 
@@ -30,7 +30,7 @@ class URI:
     - ``<base_url>/studies/<study_instance_uid>``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>``
-    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/frames/<frame_list>``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/frames/<frames>``
     """  # noqa
 
     def __init__(self,
@@ -38,7 +38,7 @@ class URI:
                  study_instance_uid: Optional[str] = None,
                  series_instance_uid: Optional[str] = None,
                  sop_instance_uid: Optional[str] = None,
-                 frame_list: Optional[Sequence[int]] = None):
+                 frames: Optional[Sequence[int]] = None):
         """Instantiates an object.
 
         As per the DICOM Standard, the Study, Series, and Instance UIDs must be
@@ -56,8 +56,8 @@ class URI:
             DICOM Series Instance UID.
         sop_instance_uid: str, optional
             DICOM SOP Instance UID.
-        frame_list: Sequence[int], optional
-            A non-empty sequence of positive frame numbers.
+        frames: Sequence[int], optional
+            A non-empty sequence of positive frame numbers in ascending order.
 
         Raises
         ------
@@ -70,10 +70,11 @@ class URI:
             - `series_instance_uid` is supplied without `study_instance_uid`.
             - `sop_instance_uid` is supplied without `study_instance_uid` or
               `series_instance_uid`.
-            - `frame_list` is supplied without `study_instance_uid`,
+            - `frames` is supplied without `study_instance_uid`,
               `series_instance_uid`, or `sop_instance_uid`.
-            - `frame_list` is empty.
-            - A frame number in the `frame_list` is not positive.
+            - `frames` is empty.
+            - A frame number in the `frames` is not positive.
+            - The frame numbers in the `frames` is not positive.
             - Any one of `study_instance_uid`, `series_instance_uid`, or
               `sop_instance_uid` does not meet the DICOM Standard UID spec in
               the docstring.
@@ -83,18 +84,18 @@ class URI:
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
-            frame_list,
+            frames,
         )
         self._base_url = base_url
         self._study_instance_uid = study_instance_uid
         self._series_instance_uid = series_instance_uid
         self._instance_uid = sop_instance_uid
-        self._frame_list = None if frame_list is None else tuple(frame_list)
+        self._frames = None if frames is None else tuple(frames)
 
     def __str__(self) -> str:
         """Returns the object as a DICOMweb URI string."""
-        frames = None if not self.frame_list else ','.join(
-            str(frame_number) for frame_number in self.frame_list
+        frames = None if not self.frames else ','.join(
+            str(frame_number) for frame_number in self.frames
         )
         parts = (
             ('studies', self.study_instance_uid),
@@ -112,7 +113,7 @@ class URI:
         """Returns a hash for the object."""
         return hash((self.base_url, self.study_instance_uid,
                      self.series_instance_uid, self.sop_instance_uid,
-                     self.frame_list))
+                     self.frames))
 
     def __repr__(self) -> str:
         """Returns an "official" string representation of this object."""
@@ -120,7 +121,7 @@ class URI:
                 f'study_instance_uid={self.study_instance_uid!r}, '
                 f'series_instance_uid={self.series_instance_uid!r}, '
                 f'sop_instance_uid={self.sop_instance_uid!r}, '
-                f'frame_list={self.frame_list!r})')
+                f'frames={self.frames!r})')
 
     def __eq__(self, other: object) -> bool:
         """Compares the object for equality with `other`."""
@@ -149,9 +150,9 @@ class URI:
         return self._instance_uid
 
     @property
-    def frame_list(self) -> Optional[Tuple[int, ...]]:
+    def frames(self) -> Optional[Tuple[int, ...]]:
         """Returns the sequence of frame numbers, if available."""
-        return self._frame_list
+        return self._frames
 
     @property
     def type(self) -> URIType:
@@ -162,7 +163,7 @@ class URI:
             return URIType.STUDY
         elif self.sop_instance_uid is None:
             return URIType.SERIES
-        elif self.frame_list is None:
+        elif self.frames is None:
             return URIType.INSTANCE
         return URIType.FRAME
 
@@ -194,7 +195,7 @@ class URI:
                study_instance_uid: Optional[str] = None,
                series_instance_uid: Optional[str] = None,
                sop_instance_uid: Optional[str] = None,
-               frame_list: Optional[Sequence[int]] = None) -> 'URI':
+               frames: Optional[Sequence[int]] = None) -> 'URI':
         """Creates a new `URI` object based on the current one.
 
         Replaces the specified `URI` components in the current `URI` to create
@@ -214,8 +215,8 @@ class URI:
         sop_instance_uid: str, optional
             SOP Instance UID to use in the new `URI` or `None` if the
             `sop_instance_uid` from the current `URI` should be used.
-        frame_list: Sequence[int], optional
-            Frame numbers to use in the new `URI` or `None` if the `frame_list`
+        frames: Sequence[int], optional
+            Frame numbers to use in the new `URI` or `None` if the `frames`
             from the current `URI` should be used.
 
         Returns
@@ -238,7 +239,7 @@ class URI:
             if series_instance_uid is not None else self.series_instance_uid,
             sop_instance_uid
             if sop_instance_uid is not None else self.sop_instance_uid,
-            frame_list if frame_list is not None else self.frame_list,
+            frames if frames is not None else self.frames,
         )
 
     @property
@@ -294,8 +295,8 @@ class URI:
             Sequence of URI components.
         """
         frames = (
-            () if self.frame_list is None else
-            tuple(str(frame_number) for frame_number in self.frame_list))
+            () if self.frames is None else
+            tuple(str(frame_number) for frame_number in self.frames))
         return tuple(part for part in (self.base_url, self.study_instance_uid,
                                        self.series_instance_uid,
                                        self.sop_instance_uid) + frames
@@ -333,7 +334,7 @@ class URI:
         (study_instance_uid,
          series_instance_uid,
          sop_instance_uid,
-         frame_list) = (None, None, None, None)
+         frames) = (None, None, None, None)
         # The URI format validation will happen when `URI` is returned at the
         # end.
         base_url_and_suffix = dicomweb_uri.rsplit('/studies/', maxsplit=1)
@@ -356,7 +357,7 @@ class URI:
                       sop_instance_uid is not None and parts):
                     frames = parts.pop(0)
                     try:
-                        frame_list = tuple(int(frame_number) for frame_number in
+                        frames = tuple(int(frame_number) for frame_number in
                                            frames.split(','))
                     except ValueError as e:
                         raise ValueError('Found non-integral frame numbers in '
@@ -367,7 +368,7 @@ class URI:
                         f'URI: {dicomweb_uri!r}')
 
         uri = cls(base_url, study_instance_uid, series_instance_uid,
-                  sop_instance_uid, frame_list)
+                  sop_instance_uid, frames)
         # Validate that the URI is of the specified type, if applicable.
         if uri_type is not None and uri.type != uri_type:
             raise ValueError(
@@ -392,7 +393,7 @@ def _validate_resource_identifiers(
         study_instance_uid: Optional[str],
         series_instance_uid: Optional[str],
         sop_instance_uid: Optional[str],
-        frame_list: Optional[Sequence[int]]) -> None:
+        frames: Optional[Sequence[int]]) -> None:
     """Validates UID parameters and frame numbers for the `URI` constructor."""
     # Note that the order of comparisons in this method is important.
     if series_instance_uid is not None and study_instance_uid is None:
@@ -403,11 +404,11 @@ def _validate_resource_identifiers(
         raise ValueError('`series_instance_uid` missing with non-empty '
                          f'`sop_instance_uid`: {sop_instance_uid!r}')
 
-    if frame_list is not None:
+    if frames is not None:
         if sop_instance_uid is None:
             raise ValueError('`sop_instance_uid` missing with non-empty '
-                             f'`frame_list`: {frame_list}')
-        _validate_frame_list(frame_list)
+                             f'`frames`: {frames}')
+        _validate_frames(frames)
 
     for uid in (study_instance_uid, series_instance_uid, sop_instance_uid):
         if uid is not None:
@@ -423,13 +424,13 @@ def _validate_uid(uid: str) -> None:
         raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r}.')
 
 
-def _validate_frame_list(frame_list: Sequence[int]) -> None:
+def _validate_frames(frames: Sequence[int]) -> None:
     """Validates frame numbers to ensure non-empty list with positive values."""
-    if not frame_list:
-        raise ValueError('`frame_list` cannot be empty.')
+    if not frames:
+        raise ValueError('`frames` cannot be empty.')
 
     non_positive_frame_numbers = tuple(
-        frame_number for frame_number in frame_list if frame_number < 1)
+        frame_number for frame_number in frames if frame_number < 1)
     if non_positive_frame_numbers:
         raise ValueError('Frame numbers must be positive. Found violations: '
                          f'{non_positive_frame_numbers!r}')

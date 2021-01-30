@@ -5,14 +5,14 @@ import pytest
 _STUDY_UID = '1.2.3'
 _SERIES_UID = '4.5.6'
 _INSTANCE_UID = '7.8.9'
-_FRAME_LIST = (3, 4, 5)
+_FRAMES = (3, 4, 5)
 
 # DICOMweb URLs constructed from the UIDs above.
 _BASE_URL = 'https://lalalala.com'
 _STUDY_URI = f'{_BASE_URL}/studies/{_STUDY_UID}'
 _SERIES_URI = f'{_STUDY_URI}/series/{_SERIES_UID}'
 _INSTANCE_URI = f'{_SERIES_URI}/instances/{_INSTANCE_UID}'
-_FRAME_URI = f'{_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAME_LIST)}'
+_FRAME_URI = f'{_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAMES)}'
 
 
 @pytest.mark.parametrize('illegal_char', ['/', '@', 'a', 'A'])
@@ -64,7 +64,7 @@ def test_uid_missing_error():
     with pytest.raises(ValueError, match='`series_instance_uid` missing with'):
         URI(_BASE_URL, '4.5.6', None, '7.8.9')
     with pytest.raises(ValueError, match='`sop_instance_uid` missing with'):
-        URI(_BASE_URL, '4.5.6', '7.8.9', None, _FRAME_LIST)
+        URI(_BASE_URL, '4.5.6', '7.8.9', None, _FRAMES)
 
 
 @pytest.mark.parametrize('illegal_frame_number', [-2, -1, 0])
@@ -75,7 +75,7 @@ def test_non_positive_frame_numbers(illegal_frame_number):
             [illegal_frame_number])
 
 
-def test_frame_list_empty():
+def test_frames_empty():
     """Checks *ValueError* is raised if frame list is empty."""
     with pytest.raises(ValueError, match='cannot be empty'):
         URI(_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, [])
@@ -155,7 +155,7 @@ def test_from_string_frame_uri():
     assert frame_uri.study_instance_uid == _STUDY_UID
     assert frame_uri.series_instance_uid == _SERIES_UID
     assert frame_uri.sop_instance_uid == _INSTANCE_UID
-    assert frame_uri.frame_list == _FRAME_LIST
+    assert frame_uri.frames == _FRAMES
     assert frame_uri.type == URIType.FRAME
     assert str(frame_uri) == _FRAME_URI
     assert str(frame_uri.study_uri()) == _STUDY_URI
@@ -212,7 +212,7 @@ def test_parent(child, parent):
       (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID)),
      (URI.from_string(_FRAME_URI),
       (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID) +
-      tuple(str(f) for f in _FRAME_LIST)),
+      tuple(str(f) for f in _FRAMES)),
      ])
 def test_parts(uri, parts):
     """Validates the expected parts from `parts` attribute."""
@@ -227,7 +227,7 @@ def test_parts(uri, parts):
     (URI.from_string(_INSTANCE_URI),
      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, None)),
     (URI.from_string(_FRAME_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAME_LIST)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES)),
 ])
 def test_hash(uri, hash_args):
     """Locks down the implementation of `__hash__()`."""
@@ -242,13 +242,13 @@ def test_hash(uri, hash_args):
     (URI.from_string(_INSTANCE_URI),
      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, None)),
     (URI.from_string(_FRAME_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAME_LIST)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES)),
 ])
 def test_repr(uri, init_args):
     """Locks down the implementation of `__repr__()`."""
     expected_repr = (
         'dicomweb_client.URI(base_url={}, study_instance_uid={}, '
-        'series_instance_uid={}, sop_instance_uid={}, frame_list={})').format(
+        'series_instance_uid={}, sop_instance_uid={}, frames={})').format(
             *(repr(arg) for arg in init_args))
     assert repr(uri) == expected_repr
 
@@ -335,7 +335,7 @@ def test_update(uri_args, update_args, expected_uri_args):
      '`study_instance_uid` missing'),
     ((_BASE_URL, _STUDY_UID), (None, None, None, '2', None),
      '`series_instance_uid` missing'),
-    ((_BASE_URL, _STUDY_UID), (None, None, None, None, _FRAME_LIST),
+    ((_BASE_URL, _STUDY_UID), (None, None, None, None, _FRAMES),
      '`sop_instance_uid` missing'),
 ])
 def test_update_error(uri_args, update_args, error_msg):
