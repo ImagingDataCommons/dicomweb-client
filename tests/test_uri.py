@@ -1,4 +1,4 @@
-from dicomweb_client.uri import URI, URIType
+from dicomweb_client.uri import URI, URISuffix, URIType
 
 import pytest
 
@@ -67,6 +67,22 @@ def test_uid_missing_error():
         URI(_BASE_URL, '4.5.6', '7.8.9', None, _FRAMES)
 
 
+def test_suffix_not_compatible():
+    """Checks *ValueError* is raised when an incompatible suffix is set."""
+    # Metadata.
+    with pytest.raises(ValueError, match='\'metadata\'> suffix may only be'):
+        URI(_BASE_URL, suffix=URISuffix.METADATA)
+    with pytest.raises(ValueError, match='\'metadata\'> suffix may only be'):
+        URI(_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES,
+            suffix=URISuffix.METADATA)
+    # Rendered.
+    with pytest.raises(ValueError, match='\'rendered\'> suffix requires a'):
+        URI(_BASE_URL, suffix=URISuffix.RENDERED)
+    # Thumbnail.
+    with pytest.raises(ValueError, match='\'thumbnail\'> suffix requires a'):
+        URI(_BASE_URL, suffix=URISuffix.THUMBNAIL)
+
+
 @pytest.mark.parametrize('illegal_frame_number', [-2, -1, 0])
 def test_non_positive_frame_numbers(illegal_frame_number):
     """Checks *ValueError* is raised if frame numbers are not positive."""
@@ -95,78 +111,131 @@ def test_trailing_slash_error():
 
 
 @pytest.mark.parametrize('base_url', [_BASE_URL, 'http://unsecured-http.com'])
-def test_from_string_service_uri(base_url):
-    """Checks that Service URL is parsed correctly and behaves as expected."""
+def test_from_string_service_uri_protocols(base_url):
+    """Checks that Service URL permits both HTTP and HTTPs protocols."""
     service_uri = URI.from_string(base_url)
     assert service_uri.base_url == base_url
+
+
+def test_from_string_service_uri():
+    """Checks that Service URL is parsed correctly and behaves as expected."""
+    service_uri = URI.from_string(_BASE_URL)
+    # Properties.
+    assert service_uri.base_url == _BASE_URL
     assert service_uri.study_instance_uid is None
     assert service_uri.series_instance_uid is None
     assert service_uri.sop_instance_uid is None
     assert service_uri.type == URIType.SERVICE
-    assert str(service_uri) == base_url
+    assert service_uri.suffix is None
+    # String representation.
+    assert str(service_uri) == _BASE_URL
+    # Constructor.
+    assert str(service_uri) == str(URI(_BASE_URL))
+
     with pytest.raises(ValueError, match='Cannot get a Study URI'):
         service_uri.study_uri()
     with pytest.raises(ValueError, match='Cannot get a Series URI'):
         service_uri.series_uri()
+    with pytest.raises(ValueError, match='Cannot get an Instance URI'):
+        service_uri.instance_uri()
+    with pytest.raises(ValueError, match='Cannot get a Frame URI'):
+        service_uri.frame_uri()
 
 
-def test_from_string_study_uri():
+@pytest.mark.parametrize(
+    'suffix',
+    [None, URISuffix.METADATA, URISuffix.RENDERED, URISuffix.THUMBNAIL])
+def test_from_string_study_uri(suffix):
     """Checks that Study URI is parsed correctly and behaves as expected."""
-    study_uri = URI.from_string(_STUDY_URI)
+    uri = _STUDY_URI if suffix is None else f'{_STUDY_URI}/{suffix.value}'
+    study_uri = URI.from_string(uri)
+    # Properties.
     assert study_uri.base_url == _BASE_URL
     assert study_uri.study_instance_uid == _STUDY_UID
     assert study_uri.series_instance_uid is None
     assert study_uri.sop_instance_uid is None
     assert study_uri.type == URIType.STUDY
-    assert str(study_uri) == _STUDY_URI
+    assert study_uri.suffix == suffix
+    # String representation.
+    assert str(study_uri) == uri
     assert str(study_uri.study_uri()) == _STUDY_URI
+
     with pytest.raises(ValueError, match='Cannot get a Series URI'):
         study_uri.series_uri()
     with pytest.raises(ValueError, match='Cannot get an Instance URI'):
         study_uri.instance_uri()
+    with pytest.raises(ValueError, match='Cannot get a Frame URI'):
+        study_uri.frame_uri()
 
 
-def test_from_string_series_uri():
+@pytest.mark.parametrize(
+    'suffix',
+    [None, URISuffix.METADATA, URISuffix.RENDERED, URISuffix.THUMBNAIL])
+def test_from_string_series_uri(suffix):
     """Checks that Series URI is parsed correctly and behaves as expected."""
-    series_uri = URI.from_string(_SERIES_URI)
+    uri = _SERIES_URI if suffix is None else f'{_SERIES_URI}/{suffix.value}'
+    series_uri = URI.from_string(uri)
+    # Properties.
     assert series_uri.base_url == _BASE_URL
     assert series_uri.study_instance_uid == _STUDY_UID
     assert series_uri.series_instance_uid == _SERIES_UID
     assert series_uri.sop_instance_uid is None
     assert series_uri.type == URIType.SERIES
-    assert str(series_uri) == _SERIES_URI
+    assert series_uri.suffix == suffix
+    # String representation.
+    assert str(series_uri) == uri
     assert str(series_uri.study_uri()) == _STUDY_URI
     assert str(series_uri.series_uri()) == _SERIES_URI
+
     with pytest.raises(ValueError, match='Cannot get an Instance URI'):
         series_uri.instance_uri()
+    with pytest.raises(ValueError, match='Cannot get a Frame URI'):
+        series_uri.frame_uri()
 
 
-def test_from_string_instance_uri():
+@pytest.mark.parametrize(
+    'suffix',
+    [None, URISuffix.METADATA, URISuffix.RENDERED, URISuffix.THUMBNAIL])
+def test_from_string_instance_uri(suffix):
     """Checks Instance URI is parsed correctly and behaves as expected."""
-    instance_uri = URI.from_string(_INSTANCE_URI)
+    uri = _INSTANCE_URI if suffix is None else f'{_INSTANCE_URI}/{suffix.value}'
+    instance_uri = URI.from_string(uri)
+    # Properties.
     assert instance_uri.base_url == _BASE_URL
     assert instance_uri.study_instance_uid == _STUDY_UID
     assert instance_uri.series_instance_uid == _SERIES_UID
     assert instance_uri.sop_instance_uid == _INSTANCE_UID
     assert instance_uri.type == URIType.INSTANCE
-    assert str(instance_uri) == _INSTANCE_URI
+    assert instance_uri.suffix == suffix
+    # String representation.
+    assert str(instance_uri) == uri
     assert str(instance_uri.study_uri()) == _STUDY_URI
     assert str(instance_uri.series_uri()) == _SERIES_URI
 
+    with pytest.raises(ValueError, match='Cannot get a Frame URI'):
+        instance_uri.frame_uri()
 
-def test_from_string_frame_uri():
+
+@pytest.mark.parametrize(
+    'suffix', [None, URISuffix.RENDERED, URISuffix.THUMBNAIL])
+def test_from_string_frame_uri(suffix):
     """Checks frame numbers are parsed correctly and behaves as expected."""
-    frame_uri = URI.from_string(_FRAME_URI)
+    uri = _FRAME_URI if suffix is None else f'{_FRAME_URI}/{suffix.value}'
+    frame_uri = URI.from_string(uri)
+    # Properties.
     assert frame_uri.base_url == _BASE_URL
     assert frame_uri.study_instance_uid == _STUDY_UID
     assert frame_uri.series_instance_uid == _SERIES_UID
     assert frame_uri.sop_instance_uid == _INSTANCE_UID
     assert frame_uri.frames == _FRAMES
     assert frame_uri.type == URIType.FRAME
-    assert str(frame_uri) == _FRAME_URI
+    assert frame_uri.suffix == suffix
+    # String representation.
+    assert str(frame_uri) == uri
     assert str(frame_uri.study_uri()) == _STUDY_URI
     assert str(frame_uri.series_uri()) == _SERIES_URI
     assert str(frame_uri.instance_uri()) == _INSTANCE_URI
+    assert str(frame_uri.frame_uri()) == _FRAME_URI
 
 
 @pytest.mark.parametrize('resource_url', [
@@ -196,6 +265,15 @@ def test_from_string_invalid_uri_protocol(service):
         URI.from_string(f'{service}invalid_url')
 
 
+def test_from_string_unsupported_suffix():
+    """Checks *ValueError* raised when suffix is incompatible with URI type."""
+    # Note that if any of the metadata, rendered, or thumbnail suffixes is
+    # supplied with only the base URL, the entire URI (including the
+    # perceived suffix) shall be treated as the base URL.
+    with pytest.raises(ValueError, match='lalala'):
+        URI.from_string(f'{_FRAME_URI}/metadata')
+
+
 @pytest.mark.parametrize(
     'child,parent',
     [(URI.from_string(_BASE_URL), URI.from_string(_BASE_URL)),
@@ -203,6 +281,14 @@ def test_from_string_invalid_uri_protocol(service):
      (URI.from_string(_SERIES_URI), URI.from_string(_STUDY_URI)),
      (URI.from_string(_INSTANCE_URI), URI.from_string(_SERIES_URI)),
      (URI.from_string(_FRAME_URI), URI.from_string(_INSTANCE_URI)),
+     (URI.from_string(f'{_STUDY_URI}/{URISuffix.RENDERED.value}'),
+      URI.from_string(_STUDY_URI)),
+     (URI.from_string(f'{_SERIES_URI}/{URISuffix.RENDERED.value}'),
+      URI.from_string(_SERIES_URI)),
+     (URI.from_string(f'{_INSTANCE_URI}/{URISuffix.RENDERED.value}'),
+      URI.from_string(_INSTANCE_URI)),
+     (URI.from_string(f'{_FRAME_URI}/{URISuffix.RENDERED.value}'),
+      URI.from_string(_FRAME_URI)),
      ])
 def test_parent(child, parent):
     """Validates the expected parent URI from `parent` attribute."""
@@ -216,6 +302,9 @@ def test_parent(child, parent):
      (URI.from_string(_SERIES_URI), (_BASE_URL, _STUDY_UID, _SERIES_UID)),
      (URI.from_string(_INSTANCE_URI),
       (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID)),
+     (URI.from_string(f'{_INSTANCE_URI}/{URISuffix.RENDERED.value}'),
+      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID,
+       URISuffix.RENDERED.value)),
      (URI.from_string(_FRAME_URI),
       (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID) +
       tuple(str(f) for f in _FRAMES)),
@@ -226,14 +315,18 @@ def test_parts(uri, parts):
 
 
 @pytest.mark.parametrize('uri,hash_args', [
-    (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None, None)),
-    (URI.from_string(_STUDY_URI), (_BASE_URL, _STUDY_UID, None, None, None)),
+    (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None, None, None)),
+    (URI.from_string(_STUDY_URI),
+     (_BASE_URL, _STUDY_UID, None, None, None, None)),
     (URI.from_string(_SERIES_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, None, None)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, None, None, None)),
     (URI.from_string(_INSTANCE_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, None)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, None, None)),
     (URI.from_string(_FRAME_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES, None)),
+    (URI.from_string(f'{_FRAME_URI}/rendered'),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES,
+      URISuffix.RENDERED)),
 ])
 def test_hash(uri, hash_args):
     """Locks down the implementation of `__hash__()`."""
@@ -241,21 +334,25 @@ def test_hash(uri, hash_args):
 
 
 @pytest.mark.parametrize('uri,init_args', [
-    (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None, None)),
-    (URI.from_string(_STUDY_URI), (_BASE_URL, _STUDY_UID, None, None, None)),
+    (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None, None, None)),
+    (URI.from_string(_STUDY_URI),
+     (_BASE_URL, _STUDY_UID, None, None, None, None)),
     (URI.from_string(_SERIES_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, None, None)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, None, None, None)),
     (URI.from_string(_INSTANCE_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, None)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, None, None)),
     (URI.from_string(_FRAME_URI),
-     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES)),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES, None)),
+    (URI.from_string(f'{_FRAME_URI}/rendered'),
+     (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID, _FRAMES,
+      URISuffix.RENDERED)),
 ])
 def test_repr(uri, init_args):
     """Locks down the implementation of `__repr__()`."""
     expected_repr = (
         'dicomweb_client.URI(base_url={}, study_instance_uid={}, '
-        'series_instance_uid={}, sop_instance_uid={}, frames={})').format(
-            *(repr(arg) for arg in init_args))
+        'series_instance_uid={}, sop_instance_uid={}, frames={}, '
+        'suffix={})').format(*(repr(arg) for arg in init_args))
     assert repr(uri) == expected_repr
 
 
@@ -315,6 +412,8 @@ def test_from_string_type_error():
     ((_BASE_URL, '1', '2'), (None, None, '3'), (_BASE_URL, '1', '3')),
     ((_BASE_URL, '1', '2'), (None, None, None, '3'),
      (_BASE_URL, '1', '2', '3')),
+    ((_BASE_URL, '1', '2'), (None, None, None, '3', None, URISuffix.RENDERED),
+     (_BASE_URL, '1', '2', '3', None, URISuffix.RENDERED)),
     ((_BASE_URL, '1', '2', '3'), ('https://new', ),
      ('https://new', '1', '2', '3')),
     ((_BASE_URL, '1', '2', '3'), (None, '4'), (_BASE_URL, '4', '2', '3')),

@@ -14,6 +14,13 @@ class URIType(enum.Enum):
     FRAME = 'frame'
 
 
+class URISuffix(enum.Enum):
+    """Optional suffixes for a DICOM resource."""
+    METADATA = 'metadata'
+    RENDERED = 'rendered'
+    THUMBNAIL = 'thumbnail'
+
+
 # For DICOM Standard spec validation of UID components in `URI`.
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
@@ -26,11 +33,22 @@ class URI:
 
     Given an HTTP[S] `base_url`, a valid DICOMweb-compatible URI would be:
 
-    - ``<base_url>`` (no DICOMWeb suffix)
+    - ``<base_url>`` (no DICOMweb suffix)
     - ``<base_url>/studies/<study_instance_uid>``
+    - ``<base_url>/studies/<study_instance_uid>/metadata``
+    - ``<base_url>/studies/<study_instance_uid>/rendered``
+    - ``<base_url>/studies/<study_instance_uid>/thumbnail``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/metadata``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/rendered``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/thumbnail``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/metadata``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/rendered``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/thumbnail``
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/frames/<frames>``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/frames/<frames>/rendered``
+    - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/frames/<frames>/thumbnail``
     """  # noqa
 
     def __init__(self,
@@ -38,7 +56,8 @@ class URI:
                  study_instance_uid: Optional[str] = None,
                  series_instance_uid: Optional[str] = None,
                  sop_instance_uid: Optional[str] = None,
-                 frames: Optional[Sequence[int]] = None):
+                 frames: Optional[Sequence[int]] = None,
+                 suffix: Optional[URISuffix] = None):
         """Instantiates an object.
 
         As per the DICOM Standard, the Study, Series, and Instance UIDs must be
@@ -58,6 +77,9 @@ class URI:
             DICOM SOP Instance UID.
         frames: Sequence[int], optional
             A non-empty sequence of positive frame numbers in ascending order.
+        suffix: URISuffix, optional
+            Suffix attached to the DICOM resource URI. This could refer to a
+            metadata, rendered, or thumbnail resource.
 
         Raises
         ------
@@ -73,24 +95,32 @@ class URI:
             - `frames` is supplied without `study_instance_uid`,
               `series_instance_uid`, or `sop_instance_uid`.
             - `frames` is empty.
-            - A frame number in the `frames` is not positive.
-            - The frame numbers in the `frames` is not positive.
+            - A frame number in `frames` is not positive.
+            - The frame numbers in `frames` are not in ascending order.
+            - `suffix` is :py:attr:`URISuffix.METADATA` with `frames` or
+              without `study_instance_uid`.
+            - `suffix` is :py:attr:`URISuffix.RENDERED` without
+              `study_instance_uid`.
+            - `suffix` is :py:attr:`URISuffix.THUMBNAIL` without
+              `study_instance_uid`.
             - Any one of `study_instance_uid`, `series_instance_uid`, or
               `sop_instance_uid` does not meet the DICOM Standard UID spec in
               the docstring.
         """
         _validate_base_url(base_url)
-        _validate_resource_identifiers(
+        _validate_resource_identifiers_and_suffix(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
             frames,
+            suffix,
         )
         self._base_url = base_url
         self._study_instance_uid = study_instance_uid
         self._series_instance_uid = series_instance_uid
         self._instance_uid = sop_instance_uid
         self._frames = None if frames is None else tuple(frames)
+        self._suffix = suffix
 
     def __str__(self) -> str:
         """Returns the object as a DICOMweb URI string."""
@@ -106,14 +136,16 @@ class URI:
         dicomweb_suffix = '/'.join(f'{part}/{part_value}'
                                    for part, part_value in parts
                                    if part_value is not None)
-        # Remove the trailing slash in case the suffix is empty.
+        if self.suffix is not None:
+            dicomweb_suffix = f'{dicomweb_suffix}/{self.suffix.value}'
+        # Remove the trailing slash in case `dicomweb_suffix` is empty.
         return f'{self.base_url}/{dicomweb_suffix}'.rstrip('/')
 
     def __hash__(self) -> int:
         """Returns a hash for the object."""
         return hash((self.base_url, self.study_instance_uid,
                      self.series_instance_uid, self.sop_instance_uid,
-                     self.frames))
+                     self.frames, self.suffix))
 
     def __repr__(self) -> str:
         """Returns an "official" string representation of this object."""
@@ -121,7 +153,7 @@ class URI:
                 f'study_instance_uid={self.study_instance_uid!r}, '
                 f'series_instance_uid={self.series_instance_uid!r}, '
                 f'sop_instance_uid={self.sop_instance_uid!r}, '
-                f'frames={self.frames!r})')
+                f'frames={self.frames!r}, suffix={self.suffix!r})')
 
     def __eq__(self, other: object) -> bool:
         """Compares the object for equality with `other`."""
@@ -131,7 +163,7 @@ class URI:
 
     @property
     def base_url(self) -> str:
-        """Returns the Base (DICOMweb service) URI."""
+        """Returns the Base (DICOMweb Service) URI."""
         return self._base_url
 
     @property
@@ -153,6 +185,11 @@ class URI:
     def frames(self) -> Optional[Tuple[int, ...]]:
         """Returns the sequence of frame numbers, if available."""
         return self._frames
+
+    @property
+    def suffix(self) -> Optional[URISuffix]:
+        """Returns the DICOM resource suffix, if available."""
+        return self._suffix
 
     @property
     def type(self) -> URIType:
@@ -190,12 +227,21 @@ class URI:
         return URI(self.base_url, self.study_instance_uid,
                    self.series_instance_uid, self.sop_instance_uid)
 
+    def frame_uri(self) -> 'URI':
+        """Returns `URI` for the DICOM frames within this object."""
+        if self.type != URIType.FRAME:
+            raise ValueError(
+                f'Cannot get a Frame URI from a {self.type!r} URI.')
+        return URI(self.base_url, self.study_instance_uid,
+                   self.series_instance_uid, self.sop_instance_uid, self.frames)
+
     def update(self,
                base_url: Optional[str] = None,
                study_instance_uid: Optional[str] = None,
                series_instance_uid: Optional[str] = None,
                sop_instance_uid: Optional[str] = None,
-               frames: Optional[Sequence[int]] = None) -> 'URI':
+               frames: Optional[Sequence[int]] = None,
+               suffix: Optional[URISuffix] = None) -> 'URI':
         """Creates a new `URI` object based on the current one.
 
         Replaces the specified `URI` components in the current `URI` to create
@@ -218,6 +264,9 @@ class URI:
         frames: Sequence[int], optional
             Frame numbers to use in the new `URI` or `None` if the `frames`
             from the current `URI` should be used.
+        suffix: URISuffix, optional
+            Suffix to use in the new `URI` or `None` if the `suffix` from the
+            current `URI` should be used.
 
         Returns
         -------
@@ -240,6 +289,7 @@ class URI:
             sop_instance_uid
             if sop_instance_uid is not None else self.sop_instance_uid,
             frames if frames is not None else self.frames,
+            suffix if suffix is not None else self.suffix,
         )
 
     @property
@@ -249,27 +299,41 @@ class URI:
         Depending on the `type` of the current `URI`, the `URI` of the parent
         resource is defined as:
 
-        +----------+----------+
-        | Current  | Parent   |
-        +==========+==========+
-        | Service  | Service  |
-        +----------+----------+
-        | Study    | Service  |
-        +----------+----------+
-        | Series   | Study    |
-        +----------+----------+
-        | Instance | Series   |
-        +----------+----------+
-        | Frame    | Instance |
-        +----------+----------+
+        +----------+----------+----------+
+        | Current  | Suffixed | Parent   |
+        +==========+==========+==========+
+        | Service  | N/A      | Service  |
+        +----------+----------+----------+
+        | Study    | No       | Service  |
+        +----------+----------+----------+
+        | Study    | Yes      | Study    |
+        +----------+----------+----------+
+        | Series   | No       | Study    |
+        +----------+----------+----------+
+        | Series   | Yes      | Series   |
+        +----------+----------+----------+
+        | Instance | No       | Series   |
+        +----------+----------+----------+
+        | Instance | Yes      | Instance |
+        +----------+----------+----------+
+        | Frame    | No       | Instance |
+        +----------+----------+----------+
+        | Frame    | Yes      | Frame    |
+        +----------+----------+----------+
 
         Returns
         -------
         URI
           An instance pointing to the parent resource.
         """
-        if self.type == URIType.SERVICE:
-            return self
+        if self.type == URIType.SERVICE or self.suffix is not None:
+            return URI(
+                self.base_url,
+                self.study_instance_uid,
+                self.series_instance_uid,
+                self.sop_instance_uid,
+                self.frames,
+                suffix=None)
         elif self.type == URIType.STUDY:
             return URI(self.base_url)
         elif self.type == URIType.SERIES:
@@ -284,23 +348,23 @@ class URI:
         """Returns the sequence of URI components in a `tuple`.
 
         For example, if the URI is:
-        ``http://srv.com/studies/1.2.3/series/4.5.6/instances/7.8/frames/3,4,5``
+        ``http://srv.com/studies/1.2.3/series/4.5.6/instances/7.8/frames/3,4,5/rendered``
 
         then the method returns
-        ``('https://srv.com', '1.2.3', '4.5.6', '7.8', '3', '4', '5')``
+        ``('https://srv.com', '1.2.3', '4.5.6', '7.8', '3', '4', '5', 'rendered')``
 
         Returns
         -------
         Tuple[str, ...]
             Sequence of URI components.
-        """
+        """  # noqa
         frames = (
             () if self.frames is None else
             tuple(str(frame_number) for frame_number in self.frames))
-        return tuple(part for part in (self.base_url, self.study_instance_uid,
-                                       self.series_instance_uid,
-                                       self.sop_instance_uid) + frames
-                     if part is not None)
+        suffix = None if self.suffix is None else self.suffix.value
+        return tuple(part for part in (
+            self.base_url, self.study_instance_uid, self.series_instance_uid,
+            self.sop_instance_uid, *frames, suffix) if part is not None)
 
     @classmethod
     def from_string(cls,
@@ -334,15 +398,17 @@ class URI:
         (study_instance_uid,
          series_instance_uid,
          sop_instance_uid,
-         frames) = (None, None, None, None)
+         frames,
+         suffix) = (None, None, None, None, None)
         # The URI format validation will happen when `URI` is returned at the
         # end.
-        base_url_and_suffix = dicomweb_uri.rsplit('/studies/', maxsplit=1)
-        base_url = base_url_and_suffix[0]
+        base_url_and_resource_suffix = dicomweb_uri.rsplit(
+            '/studies/', maxsplit=1)
+        base_url = base_url_and_resource_suffix[0]
 
-        if len(base_url_and_suffix) > 1:
-            dicomweb_suffix = f'studies/{base_url_and_suffix[1]}'
-            parts = dicomweb_suffix.split('/')
+        if len(base_url_and_resource_suffix) > 1:
+            resource_suffix = f'studies/{base_url_and_resource_suffix[1]}'
+            parts = resource_suffix.split('/')
             while parts:
                 part = parts.pop(0)
                 if part == 'studies' and parts:
@@ -362,13 +428,23 @@ class URI:
                     except ValueError as e:
                         raise ValueError('Found non-integral frame numbers in '
                                          f'frame list: {frames!r}') from e
+                elif part == URISuffix.METADATA.value and not parts:
+                    # This check sticks out. Consider a cleaner codepath?
+                    if frames is not None:
+                        raise ValueError(
+                            f'DICOMweb URI {dicomweb_uri!r} for frames '
+                            'resource cannot have "metadata" suffix.')
+                    suffix = URISuffix.METADATA
+                elif part in (URISuffix.RENDERED.value,
+                              URISuffix.THUMBNAIL.value) and not parts:
+                    suffix = URISuffix(part)
                 else:
                     raise ValueError(
-                        f'Error parsing the suffix {dicomweb_suffix!r} from '
+                        f'Error parsing the suffix {resource_suffix!r} from '
                         f'URI: {dicomweb_uri!r}')
 
         uri = cls(base_url, study_instance_uid, series_instance_uid,
-                  sop_instance_uid, frames)
+                  sop_instance_uid, frames, suffix)
         # Validate that the URI is of the specified type, if applicable.
         if uri_type is not None and uri.type != uri_type:
             raise ValueError(
@@ -389,12 +465,13 @@ def _validate_base_url(url: str) -> None:
                          f'forward slash: {url!r}')
 
 
-def _validate_resource_identifiers(
+def _validate_resource_identifiers_and_suffix(
         study_instance_uid: Optional[str],
         series_instance_uid: Optional[str],
         sop_instance_uid: Optional[str],
-        frames: Optional[Sequence[int]]) -> None:
-    """Validates UID parameters and frame numbers for the `URI` constructor."""
+        frames: Optional[Sequence[int]],
+        suffix: Optional[URISuffix]) -> None:
+    """Validates UID, frames, and suffix params for the `URI` constructor."""
     # Note that the order of comparisons in this method is important.
     if series_instance_uid is not None and study_instance_uid is None:
         raise ValueError('`study_instance_uid` missing with non-empty '
@@ -413,6 +490,17 @@ def _validate_resource_identifiers(
     for uid in (study_instance_uid, series_instance_uid, sop_instance_uid):
         if uid is not None:
             _validate_uid(uid)
+
+    if suffix in (URISuffix.RENDERED, URISuffix.THUMBNAIL) and (
+            study_instance_uid is None):
+        raise ValueError(
+            f'{suffix!r} suffix requires a DICOM resource pointer, and cannot '
+            'be set for a Service URL alone.')
+
+    if suffix == URISuffix.METADATA and (study_instance_uid is None or
+                                         frames is not None):
+        raise ValueError(f'{suffix!r} suffix may only be set for the DICOM '
+                         'resources: Study, Series, or SOP Instance UID')
 
 
 def _validate_uid(uid: str) -> None:
