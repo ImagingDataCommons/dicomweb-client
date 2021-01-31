@@ -129,6 +129,7 @@ def test_from_string_service_uri():
     assert service_uri.suffix is None
     # String representation.
     assert str(service_uri) == _BASE_URL
+    assert str(service_uri.base_uri()) == _BASE_URL
     # Constructor.
     assert str(service_uri) == str(URI(_BASE_URL))
 
@@ -158,6 +159,7 @@ def test_from_string_study_uri(suffix):
     assert study_uri.suffix == suffix
     # String representation.
     assert str(study_uri) == uri
+    assert str(study_uri.base_uri()) == _BASE_URL
     assert str(study_uri.study_uri()) == _STUDY_URI
 
     with pytest.raises(ValueError, match='Cannot get a Series URI'):
@@ -184,6 +186,7 @@ def test_from_string_series_uri(suffix):
     assert series_uri.suffix == suffix
     # String representation.
     assert str(series_uri) == uri
+    assert str(series_uri.base_uri()) == _BASE_URL
     assert str(series_uri.study_uri()) == _STUDY_URI
     assert str(series_uri.series_uri()) == _SERIES_URI
 
@@ -209,6 +212,7 @@ def test_from_string_instance_uri(suffix):
     assert instance_uri.suffix == suffix
     # String representation.
     assert str(instance_uri) == uri
+    assert str(instance_uri.base_uri()) == _BASE_URL
     assert str(instance_uri.study_uri()) == _STUDY_URI
     assert str(instance_uri.series_uri()) == _SERIES_URI
 
@@ -232,6 +236,7 @@ def test_from_string_frame_uri(suffix):
     assert frame_uri.suffix == suffix
     # String representation.
     assert str(frame_uri) == uri
+    assert str(frame_uri.base_uri()) == _BASE_URL
     assert str(frame_uri.study_uri()) == _STUDY_URI
     assert str(frame_uri.series_uri()) == _SERIES_URI
     assert str(frame_uri.instance_uri()) == _INSTANCE_URI

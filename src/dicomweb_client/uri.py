@@ -163,7 +163,7 @@ class URI:
 
     @property
     def base_url(self) -> str:
-        """Returns the Base (DICOMweb Service) URI."""
+        """Returns the Base (DICOMweb Service) URL."""
         return self._base_url
 
     @property
@@ -203,6 +203,10 @@ class URI:
         elif self.frames is None:
             return URIType.INSTANCE
         return URIType.FRAME
+
+    def base_uri(self) -> 'URI':
+        """Returns `URI` for the DICOM Service within this object."""
+        return URI(self.base_url)
 
     def study_uri(self) -> 'URI':
         """Returns `URI` for the DICOM Study within this object."""
