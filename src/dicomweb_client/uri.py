@@ -31,6 +31,9 @@ class URI:
 
     http://dicom.nema.org/medical/dicom/current/output/html/part18.html
 
+    This is an immutable class. Use `URI.update()` to create copies of an
+    instance with updated (new) values for its attributes.
+
     Given an HTTP[S] `base_url`, a valid DICOMweb-compatible URI would be:
 
     - ``<base_url>`` (no DICOMweb suffix)
