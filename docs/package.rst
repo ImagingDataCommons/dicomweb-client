@@ -51,3 +51,11 @@ dicomweb\_client.session_utils module
     :members:
     :undoc-members:
     :show-inheritance:
+
+dicomweb\_client.uri module
++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: dicomweb_client.uri
+    :members:
+    :undoc-members:
+    :show-inheritance:
