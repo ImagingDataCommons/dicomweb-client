@@ -300,25 +300,6 @@ def test_parent(child, parent):
     assert str(child.parent) == str(parent)
 
 
-@pytest.mark.parametrize(
-    'uri,parts',
-    [(URI.from_string(_BASE_URL), (_BASE_URL, )),
-     (URI.from_string(_STUDY_URI), (_BASE_URL, _STUDY_UID)),
-     (URI.from_string(_SERIES_URI), (_BASE_URL, _STUDY_UID, _SERIES_UID)),
-     (URI.from_string(_INSTANCE_URI),
-      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID)),
-     (URI.from_string(f'{_INSTANCE_URI}/{URISuffix.RENDERED.value}'),
-      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID,
-       URISuffix.RENDERED.value)),
-     (URI.from_string(_FRAME_URI),
-      (_BASE_URL, _STUDY_UID, _SERIES_UID, _INSTANCE_UID) +
-      tuple(str(f) for f in _FRAMES)),
-     ])
-def test_parts(uri, parts):
-    """Validates the expected parts from `parts` attribute."""
-    assert str(uri.parts) == str(parts)
-
-
 @pytest.mark.parametrize('uri,hash_args', [
     (URI.from_string(_BASE_URL), (_BASE_URL, None, None, None, None, None)),
     (URI.from_string(_STUDY_URI),

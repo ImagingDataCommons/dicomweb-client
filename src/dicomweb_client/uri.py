@@ -347,29 +347,6 @@ class URI:
         else:
             return self.instance_uri()
 
-    @property
-    def parts(self) -> Tuple[str, ...]:
-        """Returns the sequence of URI components in a `tuple`.
-
-        For example, if the URI is:
-        ``http://srv.com/studies/1.2.3/series/4.5.6/instances/7.8/frames/3,4,5/rendered``
-
-        then the method returns
-        ``('https://srv.com', '1.2.3', '4.5.6', '7.8', '3', '4', '5', 'rendered')``
-
-        Returns
-        -------
-        Tuple[str, ...]
-            Sequence of URI components.
-        """  # noqa
-        frames = (
-            () if self.frames is None else
-            tuple(str(frame_number) for frame_number in self.frames))
-        suffix = None if self.suffix is None else self.suffix.value
-        return tuple(part for part in (
-            self.base_url, self.study_instance_uid, self.series_instance_uid,
-            self.sop_instance_uid, *frames, suffix) if part is not None)
-
     @classmethod
     def from_string(cls,
                     dicomweb_uri: str,
