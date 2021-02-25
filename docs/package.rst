@@ -28,14 +28,6 @@ dicomweb\_client.cli module
 .. autoprogram:: dicomweb_client.cli:_get_parser()
     :prog: dicomweb_client
 
-dicomweb\_client.error module
-+++++++++++++++++++++++++++++
-
-.. automodule:: dicomweb_client.error
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 dicomweb\_client.log module
 +++++++++++++++++++++++++++
 
