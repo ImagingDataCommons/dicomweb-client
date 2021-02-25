@@ -1,4 +1,4 @@
-from dicomweb_client.uri import URI, URISuffix, URIType
+from dicomweb_client.uri import create_chc_uri, URI, URISuffix, URIType
 
 import pytest
 
@@ -13,6 +13,21 @@ _STUDY_URI = f'{_BASE_URL}/studies/{_STUDY_UID}'
 _SERIES_URI = f'{_STUDY_URI}/series/{_SERIES_UID}'
 _INSTANCE_URI = f'{_SERIES_URI}/instances/{_INSTANCE_UID}'
 _FRAME_URI = f'{_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAMES)}'
+
+# CHC DICOMweb URI parameters.
+_PROJECT_ID = 'my-project'
+_LOCATION = 'us-central1'
+_DATASET_ID = 'my-dataset'
+_DICOM_STORE_ID = 'my_dicom_store'
+_CHC_BASE_URL = (
+    'https://healthcare.googleapis.com/v1/'
+    f'projects/{_PROJECT_ID}/locations/{_LOCATION}/'
+    f'datasets/{_DATASET_ID}/dicomStores/{_DICOM_STORE_ID}/dicomWeb')
+_CHC_STUDY_URI = f'{_CHC_BASE_URL}/studies/{_STUDY_UID}'
+_CHC_SERIES_URI = f'{_CHC_STUDY_URI}/series/{_SERIES_UID}'
+_CHC_INSTANCE_URI = f'{_CHC_SERIES_URI}/instances/{_INSTANCE_UID}'
+_CHC_FRAME_URI = (
+    f'{_CHC_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAMES)}')
 
 
 @pytest.mark.parametrize('illegal_char', ['/', '@', 'a', 'A'])
@@ -433,3 +448,17 @@ def test_update_error(uri_args, update_args, error_msg):
     """Tests for failure if the `URI` returned by `update()` is invalid."""
     with pytest.raises(ValueError, match=error_msg):
         URI(*uri_args).update(*update_args)
+
+
+@pytest.mark.parametrize('args,expected_uri', [
+    ((_PROJECT_ID, _LOCATION, _DATASET_ID, _DICOM_STORE_ID), _CHC_BASE_URL),
+    ((_PROJECT_ID, _LOCATION, _DATASET_ID, _DICOM_STORE_ID, _STUDY_UID),
+     _CHC_STUDY_URI),
+    ((_PROJECT_ID, _LOCATION, _DATASET_ID, _DICOM_STORE_ID, _STUDY_UID,
+      _SERIES_UID), _CHC_SERIES_URI),
+    ((_PROJECT_ID, _LOCATION, _DATASET_ID, _DICOM_STORE_ID, _STUDY_UID,
+      _SERIES_UID, _INSTANCE_UID), _CHC_INSTANCE_URI),
+])
+def test_create_chc_uri(args, expected_uri):
+    """Locks down implementation of `create_chc_uri()`."""
+    assert str(create_chc_uri(*args)) == expected_uri

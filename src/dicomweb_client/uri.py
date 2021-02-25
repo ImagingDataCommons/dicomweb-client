@@ -438,6 +438,66 @@ class URI:
         return uri
 
 
+def create_chc_uri(
+        project_id: str,
+        location: str,
+        dataset_id: str,
+        dicom_store_id: str,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None,
+        sop_instance_uid: Optional[str] = None,
+        frames: Optional[Sequence[int]] = None,
+        suffix: Optional[URISuffix] = None) -> URI:
+    """Creates a :py:class:`URI` based on the `Google Cloud Healthcare (CHC) API`_ DICOMweb Service.
+
+    The :py:attr:`URI.base_url` in the returned instance corresponds to the v1_
+    API.
+
+    .. _v1: https://cloud.google.com/healthcare/docs/how-tos/transition-guide
+    .. _Google Cloud Healthcare (CHC) API: https://cloud.google.com/healthcare
+
+    Parameters
+    ----------
+    project_id: str
+        The ID of the `GCP Project
+        <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#projects>`_
+        that contains the CHC DICOM Store (see ``dicom_store_id`` below).
+    location: str
+        The `Region name
+        <https://cloud.google.com/healthcare/docs/concepts/regions>`_ of the
+        geographic location configured for the CHC Dataset (see ``dataset_id``
+        below).
+    dataset_id: str
+        The ID of the `CHC Dataset
+        <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#datasets_and_data_stores>`_
+        that contains the CHC DICOM Store (see ``dicom_store_id`` below).
+    dicom_store_id: str
+        The ID of the `CHC DICOM Store
+        <https://cloud.google.com/healthcare/docs/concepts/dicom#dicom_stores>`_
+        housing the DICOMs referenced by the returned :py:class:`URI`.
+    study_instance_uid: str, optional
+        Identical to its :py:class:`URI` counterpart.
+    series_instance_uid: str, optional
+        Identical to its :py:class:`URI` counterpart.
+    sop_instance_uid: str, optional
+        Identical to its :py:class:`URI` counterpart.
+    frames: Sequence[int], optional
+        Identical to its :py:class:`URI` counterpart.
+    suffix: URISuffix, optional
+        Identical to its :py:class:`URI` counterpart.
+
+    Returns
+    -------
+    URI
+        The newly constructed `URI` object.
+    """
+    base_url = ('https://healthcare.googleapis.com/v1/'
+                f'projects/{project_id}/locations/{location}/'
+                f'datasets/{dataset_id}/dicomStores/{dicom_store_id}/dicomWeb')
+    return URI(base_url, study_instance_uid, series_instance_uid,
+               sop_instance_uid, frames, suffix)
+
+
 def _validate_base_url(url: str) -> None:
     """Validates the Base (DICOMweb service) URL supplied to `URI`."""
     parse_result = urlparse.urlparse(url)
