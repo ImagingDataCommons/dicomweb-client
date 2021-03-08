@@ -2987,13 +2987,13 @@ class DICOMwebClient(object):
 
     @staticmethod
     def lookup_keyword(
-        tag: Union[str, int, Tuple[str, str], pydicom.tag.Tag]
+        tag: Union[str, int, Tuple[str, str], pydicom.tag.BaseTag]
     ) -> str:
         """Looks up the keyword of a DICOM attribute.
 
         Parameters
         ----------
-        tag: Union[str, int, Tuple[str, str], pydicom.tag.Tag]
+        tag: Union[str, int, Tuple[str, str], pydicom.tag.BaseTag]
             attribute tag (e.g. ``"00080018"``)
 
         Returns
