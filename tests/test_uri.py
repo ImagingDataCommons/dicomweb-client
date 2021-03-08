@@ -1,5 +1,5 @@
 from dicomweb_client.uri import (
-    GoogleCloudHealthcare,
+    GoogleCloudHealthcareURL,
     URI,
     URISuffix,
     URIType)
@@ -451,9 +451,9 @@ def test_update_error(uri_args, update_args, error_msg):
 
 
 def test_chc_dicom_store_str():
-    """Locks down `GoogleCloudHealthcare.__str__()`."""
+    """Locks down `GoogleCloudHealthcareURL.__str__()`."""
     assert str(
-        GoogleCloudHealthcare(
+        GoogleCloudHealthcareURL(
             _PROJECT_ID,
             _LOCATION,
             _DATASET_ID,
@@ -462,27 +462,29 @@ def test_chc_dicom_store_str():
 
 @pytest.mark.parametrize('name', ['hmmm.1', '#95', '43/'])
 def test_chc_invalid_project_or_location(name):
-    """Tests `GoogleCloudHealthcare` for bad `project_id`, `location`."""
+    """Tests for bad `project_id`, `location`."""
     with pytest.raises(ValueError):
-        GoogleCloudHealthcare(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
+        GoogleCloudHealthcareURL(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
     with pytest.raises(ValueError):
-        GoogleCloudHealthcare(_PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
+        GoogleCloudHealthcareURL(
+            _PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
 
 
 @pytest.mark.parametrize('name', ['hmmm.!', '#95', '43/'])
 def test_chc_invalid_dataset_or_store(name):
-    """Tests `GoogleCloudHealthcare` for bad `dataset_id`, `dicom_store_id`."""
+    """Tests for bad `dataset_id`, `dicom_store_id`."""
     with pytest.raises(ValueError):
-        GoogleCloudHealthcare(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
+        GoogleCloudHealthcareURL(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
     with pytest.raises(ValueError):
-        GoogleCloudHealthcare(_PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
+        GoogleCloudHealthcareURL(
+            _PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
 
 
 @pytest.mark.parametrize('url', [f'{_CHC_API_URL}beta', 'https://some.url'])
 def test_chc_from_string_invalid_api(url):
-    """Tests for bad API URL error`GoogleCloudHealthcare.from_string()`."""
+    """Tests for bad API URL error`GoogleCloudHealthcareURL.from_string()`."""
     with pytest.raises(ValueError, match='v1 URL'):
-        GoogleCloudHealthcare.from_string(url)
+        GoogleCloudHealthcareURL.from_string(url)
 
 
 @pytest.mark.parametrize('url', [
@@ -498,14 +500,14 @@ def test_chc_from_string_invalid_api(url):
     f'{_CHC_API_URL}/projects/p/locations/l//datasets/d/dicomStores/ds/dicomWeb'
 ])
 def test_chc_from_string_invalid_store_name(url):
-    """Tests for bad Store name `GoogleCloudHealthcare.from_string()`."""
+    """Tests for bad Store name `GoogleCloudHealthcareURL.from_string()`."""
     with pytest.raises(ValueError, match='v1 DICOM'):
-        GoogleCloudHealthcare.from_string(url)
+        GoogleCloudHealthcareURL.from_string(url)
 
 
 def test_chc_from_string_success():
-    """Locks down `GoogleCloudHealthcare.from_string()`."""
-    store = GoogleCloudHealthcare.from_string(_CHC_BASE_URL)
+    """Locks down `GoogleCloudHealthcareURL.from_string()`."""
+    store = GoogleCloudHealthcareURL.from_string(_CHC_BASE_URL)
     assert store.project_id == _PROJECT_ID
     assert store.location == _LOCATION
     assert store.dataset_id == _DATASET_ID

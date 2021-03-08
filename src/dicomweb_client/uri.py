@@ -25,11 +25,11 @@ class URISuffix(enum.Enum):
 # For DICOM Standard spec validation of UID components in `URI`.
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
-# Used for Project ID and Location validation in `GoogleCloudHealthcare`.
+# Used for Project ID and Location validation in `GoogleCloudHealthcareURL`.
 _REGEX_ID_1 = r'[\w-]+'
 _ATTR_VALIDATOR_ID_1 = attr.validators.matches_re(_REGEX_ID_1)
 # Used for Dataset ID and DICOM Store ID validation in
-# `GoogleCloudHealthcare`.
+# `GoogleCloudHealthcareURL`.
 _REGEX_ID_2 = r'[\w.-]+'
 _ATTR_VALIDATOR_ID_2 = attr.validators.matches_re(_REGEX_ID_2)
 # The URL for the Google Cloud Healthcare API endpoint.
@@ -449,7 +449,7 @@ class URI:
 
 
 @attr.s(frozen=True)
-class GoogleCloudHealthcare:
+class GoogleCloudHealthcareURL:
     """Base URL container for DICOM Stores under the `Google Cloud Healthcare API`_.
 
     This class facilitates the parsing and creation of :py:attr:`URI.base_url`
@@ -495,7 +495,7 @@ class GoogleCloudHealthcare:
                 f'dicomStores/{self.dicom_store_id}/dicomWeb')
 
     @classmethod
-    def from_string(cls, base_url: str) -> 'GoogleCloudHealthcare':
+    def from_string(cls, base_url: str) -> 'GoogleCloudHealthcareURL':
         """Creates an instance from ``base_url``.
 
         Parameters
