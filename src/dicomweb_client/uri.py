@@ -450,7 +450,7 @@ class URI:
 
 @attr.s(frozen=True)
 class GoogleCloudHealthcare:
-    """Base URL helper for DICOM Stores under the `Google Cloud Healthcare API`_.
+    """Base URL container for DICOM Stores under the `Google Cloud Healthcare API`_.
 
     This class facilitates the parsing and creation of :py:attr:`URI.base_url`
     corresponding to DICOMweb API Service URLs under the v1_ API. The URLs are
@@ -495,7 +495,7 @@ class GoogleCloudHealthcare:
                 f'dicomStores/{self.dicom_store_id}/dicomWeb')
 
     @classmethod
-    def from_url(cls, base_url: str) -> 'GoogleCloudHealthcare':
+    def from_string(cls, base_url: str) -> 'GoogleCloudHealthcare':
         """Creates an instance from ``base_url``.
 
         Parameters
