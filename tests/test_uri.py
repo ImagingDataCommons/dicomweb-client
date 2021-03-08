@@ -19,10 +19,10 @@ _INSTANCE_URI = f'{_SERIES_URI}/instances/{_INSTANCE_UID}'
 _FRAME_URI = f'{_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAMES)}'
 
 # CHC DICOMweb URI parameters.
-_PROJECT_ID = 'my-project'
+_PROJECT_ID = 'my-project44'
 _LOCATION = 'us-central1'
-_DATASET_ID = 'my-dataset'
-_DICOM_STORE_ID = 'my_dicom_store'
+_DATASET_ID = 'my-44.dataset'
+_DICOM_STORE_ID = 'my.d1com_store'
 _CHC_API_URL = 'https://healthcare.googleapis.com/v1'
 _CHC_BASE_URL = (
     f'{_CHC_API_URL}/'
@@ -460,8 +460,26 @@ def test_chc_dicom_store_str():
             _DICOM_STORE_ID)) == _CHC_BASE_URL
 
 
+@pytest.mark.parametrize('name', ['hmmm.1', '#95', '43/'])
+def test_chc_invalid_project_or_location(name):
+    """Tests `GoogleCloudHealthcare` for bad `project_id`, `location`."""
+    with pytest.raises(ValueError):
+        GoogleCloudHealthcare(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
+    with pytest.raises(ValueError):
+        GoogleCloudHealthcare(_PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
+
+
+@pytest.mark.parametrize('name', ['hmmm.!', '#95', '43/'])
+def test_chc_invalid_dataset_or_store(name):
+    """Tests `GoogleCloudHealthcare` for bad `dataset_id`, `dicom_store_id`."""
+    with pytest.raises(ValueError):
+        GoogleCloudHealthcare(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
+    with pytest.raises(ValueError):
+        GoogleCloudHealthcare(_PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
+
+
 @pytest.mark.parametrize('url', [f'{_CHC_API_URL}beta', 'https://some.url'])
-def test_chc_dicom_store_from_url_invalid_api(url):
+def test_chc_from_url_invalid_api(url):
     """Tests for bad API URL error`GoogleCloudHealthcare.from_url()`."""
     with pytest.raises(ValueError, match='v1 URL'):
         GoogleCloudHealthcare.from_url(url)
@@ -479,13 +497,13 @@ def test_chc_dicom_store_from_url_invalid_api(url):
     f'{_CHC_API_URL}/projects/p/locations/l/datasets/d/dicomWeb',
     f'{_CHC_API_URL}/projects/p/locations/l//datasets/d/dicomStores/ds/dicomWeb'
 ])
-def test_chc_dicom_store_from_url_invalid_store_name(url):
+def test_chc_from_url_invalid_store_name(url):
     """Tests for bad Store name `GoogleCloudHealthcare.from_url()`."""
     with pytest.raises(ValueError, match='v1 DICOM'):
         GoogleCloudHealthcare.from_url(url)
 
 
-def test_chc_dicom_from_url_success():
+def test_chc_from_url_success():
     """Locks down `GoogleCloudHealthcare.from_url()`."""
     store = GoogleCloudHealthcare.from_url(_CHC_BASE_URL)
     assert store.project_id == _PROJECT_ID
