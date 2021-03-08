@@ -32,6 +32,8 @@ _ATTR_VALIDATOR_ID_1 = attr.validators.matches_re(_REGEX_ID_1)
 # `GoogleCloudHealthcare`.
 _REGEX_ID_2 = r'[\w.-]+'
 _ATTR_VALIDATOR_ID_2 = attr.validators.matches_re(_REGEX_ID_2)
+# The URL for the Google Cloud Healthcare API endpoint.
+_CHC_API_URL = 'https://healthcare.googleapis.com/v1'
 
 
 class URI:
@@ -481,15 +483,12 @@ class GoogleCloudHealthcare:
     dataset_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_2)
     dicom_store_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_2)
 
-    # The URL for the CHC API endpoint.
-    _API_URL = 'https://healthcare.googleapis.com/v1'
-
     def __str__(self) -> str:
         """Returns a string URL for use as :py:attr:`URI.base_url`.
 
         See class docstring for the returned URL format.
         """
-        return (f'{self._API_URL}/'
+        return (f'{_CHC_API_URL}/'
                 f'projects/{self.project_id}/'
                 f'locations/{self.location}/'
                 f'datasets/{self.dataset_id}/'
@@ -513,9 +512,9 @@ class GoogleCloudHealthcare:
             If ``base_url`` does not match the specifications in the class
             docstring.
         """
-        if not base_url.startswith(f'{cls._API_URL}/'):
+        if not base_url.startswith(f'{_CHC_API_URL}/'):
             raise ValueError('Invalid CHC API v1 URL: {base_url!r}')
-        resource_suffix = base_url[len(cls._API_URL) + 1:]
+        resource_suffix = base_url[len(_CHC_API_URL) + 1:]
 
         store_regex = (r'projects/(%s)/locations/(%s)/datasets/(%s)/'
                        r'dicomStores/(%s)/dicomWeb$') % (
