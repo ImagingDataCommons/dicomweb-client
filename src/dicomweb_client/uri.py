@@ -449,13 +449,9 @@ class URI:
 class CloudHealthcareDICOMStore:
     """Base URL helper for DICOM Stores under the `Google Cloud Healthcare API`_.
   
-    This class facilitates interaction of :py:class:`URI` instances with
-    URLs derived from attributes specific to the v1_ API.
+    This class facilitates the parsing and creation of :py:attr:`URI.base_url`
+    corresponding to DICOMweb API Service URLs under the v1_ API.
   
-    The string representation of its instances may be used as
-    :py:attr:`URI.base_url`. The returned URL is of the form:
-  
-    ``https://healthcare.googleapis.com/v1/projects/{project_id}/locations/{location}/datasets/{dataset_id}/dicomStores/{dicom_store_id}/dicomWeb``
   
     .. _Google Cloud Healthcare API: https://cloud.google.com/healthcare
     .. _v1: https://cloud.google.com/healthcare/docs/how-tos/transition-guide
@@ -468,8 +464,8 @@ class CloudHealthcareDICOMStore:
         location: str
             The `Region name
             <https://cloud.google.com/healthcare/docs/concepts/regions>`_ of the
-            geographic location configured for the Dataset to which the DICOM
-            Store belongs.
+            geographic location configured for the Dataset that contains the
+            DICOM Store.
         dataset_id: str
             The ID of the `Dataset
             <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#datasets_and_data_stores>`_
@@ -487,7 +483,12 @@ class CloudHealthcareDICOMStore:
     _API_URL = 'https://healthcare.googleapis.com/v1'
   
     def __str__(self) -> str:
-        """Returns a string URL for use as :py:attr:`URI.base_url`."""
+        """Returns a string URL for use as :py:attr:`URI.base_url`.
+
+        The returned URL is of the form:
+  
+        ``https://healthcare.googleapis.com/v1/projects/{project_id}/locations/{location}/datasets/{dataset_id}/dicomStores/{dicom_store_id}/dicomWeb``
+        """
         return (f'{self._API_URL}/'
                 f'projects/{self.project_id}/'
                 f'locations/{self.location}/'
