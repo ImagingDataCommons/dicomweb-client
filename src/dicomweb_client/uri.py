@@ -26,10 +26,12 @@ class URISuffix(enum.Enum):
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 # Used for Project ID and Location validation in `CloudHealthcareDICOMStore`.
-_ATTR_VALIDATOR_ID_1 = attr.validators.matches_re(r'[\w-]+')
+_REGEX_ID_1 = r'[\w-]+'
+_ATTR_VALIDATOR_ID_1 = attr.validators.matches_re(_REGEX_ID_1)
 # Used for Dataset ID and DICOM Store ID validation in
 # `CloudHealthcareDICOMStore`.
-_ATTR_VALIDATOR_ID_2 = attr.validators.matches_re(r'[\w.-]+')
+_REGEX_ID_2 = r'[\w.-]+'
+_ATTR_VALIDATOR_ID_2 = attr.validators.matches_re(_REGEX_ID_2)
 
 
 class URI:
@@ -444,18 +446,18 @@ class URI:
         return uri
 
 
-
 @attr.s(frozen=True)
 class CloudHealthcareDICOMStore:
     """Base URL helper for DICOM Stores under the `Google Cloud Healthcare API`_.
-  
+
     This class facilitates the parsing and creation of :py:attr:`URI.base_url`
-    corresponding to DICOMweb API Service URLs under the v1_ API.
-  
-  
+    corresponding to DICOMweb API Service URLs under the v1_ API. The URLs are
+    of the form:
+    ``https://healthcare.googleapis.com/v1/projects/{project_id}/locations/{location}/datasets/{dataset_id}/dicomStores/{dicom_store_id}/dicomWeb``
+
     .. _Google Cloud Healthcare API: https://cloud.google.com/healthcare
     .. _v1: https://cloud.google.com/healthcare/docs/how-tos/transition-guide
-  
+
     Attributes:
         project_id: str
             The ID of the `GCP Project
@@ -478,22 +480,53 @@ class CloudHealthcareDICOMStore:
     location = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_1)
     dataset_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_2)
     dicom_store_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_2)
-  
+
     # The URL for the CHC API endpoint.
     _API_URL = 'https://healthcare.googleapis.com/v1'
-  
+
     def __str__(self) -> str:
         """Returns a string URL for use as :py:attr:`URI.base_url`.
 
-        The returned URL is of the form:
-  
-        ``https://healthcare.googleapis.com/v1/projects/{project_id}/locations/{location}/datasets/{dataset_id}/dicomStores/{dicom_store_id}/dicomWeb``
+        See class docstring for the returned URL format.
         """
         return (f'{self._API_URL}/'
                 f'projects/{self.project_id}/'
                 f'locations/{self.location}/'
                 f'datasets/{self.dataset_id}/'
                 f'dicomStores/{self.dicom_store_id}/dicomWeb')
+
+    @classmethod
+    def from_url(cls, base_url: str) -> 'CloudHealthcareDICOMStore':
+        """Creates an instance from ``base_url``.
+
+        Parameters
+        ----------
+        base_url: str
+            The URL for the DICOMweb API Service endpoint corresponding to a
+            `CHC API DICOM Store
+            <https://cloud.google.com/healthcare/docs/concepts/dicom#dicom_stores>`_.
+            See class docstring for supported formats.
+
+        Raises
+        ------
+        ValueError
+            If ``base_url`` does not match the specifications in the class
+            docstring.
+        """
+        if not base_url.startswith(f'{cls._API_URL}/'):
+            raise ValueError('Invalid CHC API v1 URL: {base_url!r}')
+        resource_suffix = base_url[len(cls._API_URL) + 1:]
+
+        store_regex = (r'projects/(%s)/locations/(%s)/datasets/(%s)/'
+                       r'dicomStores/(%s)/dicomWeb$') % (
+                           _REGEX_ID_1, _REGEX_ID_1, _REGEX_ID_2, _REGEX_ID_2)
+        store_match = re.match(store_regex, resource_suffix)
+        if store_match is None:
+            raise ValueError(
+                'Invalid CHC API v1 DICOM Store name: {resource_suffix!r}')
+
+        return cls(store_match.group(1), store_match.group(2),
+                   store_match.group(3), store_match.group(4))
 
 
 def _validate_base_url(url: str) -> None:

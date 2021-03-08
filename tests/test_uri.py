@@ -23,8 +23,9 @@ _PROJECT_ID = 'my-project'
 _LOCATION = 'us-central1'
 _DATASET_ID = 'my-dataset'
 _DICOM_STORE_ID = 'my_dicom_store'
+_CHC_API_URL = 'https://healthcare.googleapis.com/v1'
 _CHC_BASE_URL = (
-    'https://healthcare.googleapis.com/v1/'
+    f'{_CHC_API_URL}/'
     f'projects/{_PROJECT_ID}/locations/{_LOCATION}/'
     f'datasets/{_DATASET_ID}/dicomStores/{_DICOM_STORE_ID}/dicomWeb')
 
@@ -457,3 +458,37 @@ def test_chc_dicom_store_str():
             _LOCATION,
             _DATASET_ID,
             _DICOM_STORE_ID)) == _CHC_BASE_URL
+
+
+@pytest.mark.parametrize('url', [f'{_CHC_API_URL}beta', 'https://some.url'])
+def test_chc_dicom_store_from_url_invalid_api(url):
+    """Tests for bad API URL error`CloudHealthcareDICOMStore.from_url()`."""
+    with pytest.raises(ValueError, match='v1 URL'):
+        CloudHealthcareDICOMStore.from_url(url)
+
+
+@pytest.mark.parametrize('url', [
+    f'{_CHC_BASE_URL}/',  # Trailing slash disallowed.
+    f'{_CHC_API_URL}/project/p/locations/l/datasets/d/dicomStores/ds/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/location/l/datasets/d/dicomStores/ds/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/locations/l/dataset/d/dicomStores/ds/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/locations/l/datasets/d/dicomStore/ds/dicomWeb',
+    f'{_CHC_API_URL}/locations/l/datasets/d/dicomStores/ds/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/datasets/d/dicomStores/ds/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/locations/l/dicomStores/ds/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/locations/l/datasets/d/dicomWeb',
+    f'{_CHC_API_URL}/projects/p/locations/l//datasets/d/dicomStores/ds/dicomWeb'
+])
+def test_chc_dicom_store_from_url_invalid_store_name(url):
+    """Tests for bad Store name `CloudHealthcareDICOMStore.from_url()`."""
+    with pytest.raises(ValueError, match='v1 DICOM'):
+        CloudHealthcareDICOMStore.from_url(url)
+
+
+def test_chc_dicom_from_url_success():
+    """Locks down `CloudHealthcareDICOMStore.from_url()`."""
+    store = CloudHealthcareDICOMStore.from_url(_CHC_BASE_URL)
+    assert store.project_id == _PROJECT_ID
+    assert store.location == _LOCATION
+    assert store.dataset_id == _DATASET_ID
+    assert store.dicom_store_id == _DICOM_STORE_ID
