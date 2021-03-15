@@ -221,6 +221,11 @@ class URI:
             return URIType.INSTANCE
         return URIType.FRAME
 
+    @property
+    def permissive(self) -> bool:
+        """Returns the ``permissive`` parameter value in the initializer."""
+        return self._permissive
+
     def base_uri(self) -> 'URI':
         """Returns `URI` for the DICOM Service within this object."""
         return URI(self.base_url)
@@ -262,7 +267,8 @@ class URI:
                series_instance_uid: Optional[str] = None,
                sop_instance_uid: Optional[str] = None,
                frames: Optional[Sequence[int]] = None,
-               suffix: Optional[URISuffix] = None) -> 'URI':
+               suffix: Optional[URISuffix] = None,
+               permissive: Optional[bool] = False) -> 'URI':
         """Creates a new `URI` object based on the current one.
 
         Replaces the specified `URI` components in the current `URI` to create
@@ -288,6 +294,9 @@ class URI:
         suffix: URISuffix, optional
             Suffix to use in the new `URI` or `None` if the `suffix` from the
             current `URI` should be used.
+        permissive: bool, optional
+            Set if permissive handling of UIDs (if any) in the updated ``URI``
+            is required. See the class initializer docstring for details.
 
         Returns
         -------
@@ -311,6 +320,7 @@ class URI:
             if sop_instance_uid is not None else self.sop_instance_uid,
             frames if frames is not None else self.frames,
             suffix if suffix is not None else self.suffix,
+            permissive if permissive is not None else self.permissive,
         )
 
     @property
@@ -367,7 +377,8 @@ class URI:
     @classmethod
     def from_string(cls,
                     dicomweb_uri: str,
-                    uri_type: Optional[URIType] = None) -> 'URI':
+                    uri_type: Optional[URIType] = None,
+                    permissive: bool = False) -> 'URI':
         """Parses the string to return the URI.
 
         Any valid DICOMweb compatible HTTP[S] URI is permitted, e.g.,
@@ -381,6 +392,9 @@ class URI:
             The expected DICOM resource type referenced by the object. If set,
             it validates that the resource-scope of the `dicomweb_uri` matches
             the expected type.
+        permissive: bool
+            Set if permissive handling of UIDs (if any) in ``dicomweb_uri`` is
+            required. See the class initializer docstring for details.
 
         Returns
         -------
@@ -442,7 +456,7 @@ class URI:
                         f'URI: {dicomweb_uri!r}')
 
         uri = cls(base_url, study_instance_uid, series_instance_uid,
-                  sop_instance_uid, frames, suffix)
+                  sop_instance_uid, frames, suffix, permissive)
         # Validate that the URI is of the specified type, if applicable.
         if uri_type is not None and uri.type != uri_type:
             raise ValueError(

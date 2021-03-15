@@ -432,6 +432,27 @@ def test_update(uri_args, update_args, expected_uri_args):
     assert actual_uri == expected_uri
 
 
+@pytest.mark.parametrize('original,update,expected', [
+    (None, None, False),
+    (None, False, False),
+    (None, True, True),
+    (False, None, False),
+    (True, None, True),
+    (False, False, False),
+    (False, True, True),
+    (True, False, False),
+    (True, True, True),
+])
+def test_update_permissive(original, update, expected):
+    """Tests for the expected value of `permissive` flag in `URI.update()`."""
+    if original is None:
+        original_uri = URI(_BASE_URL)
+    else:
+        original_uri = URI(_BASE_URL, permissive=original)
+    updated_uri = original_uri.update(permissive=update)
+    assert updated_uri.permissive == expected
+
+
 @pytest.mark.parametrize('uri_args,update_args,error_msg', [
     ((_BASE_URL, ), (None, None, '1', None, None),
      '`study_instance_uid` missing'),
