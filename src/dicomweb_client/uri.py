@@ -24,6 +24,7 @@ class URISuffix(enum.Enum):
 # For DICOM Standard spec validation of UID components in `URI`.
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
+_REGEX_PERMISSIVE_UID = re.compile(r'[^/@]+')
 
 
 class URI:
@@ -60,12 +61,15 @@ class URI:
                  series_instance_uid: Optional[str] = None,
                  sop_instance_uid: Optional[str] = None,
                  frames: Optional[Sequence[int]] = None,
-                 suffix: Optional[URISuffix] = None):
+                 suffix: Optional[URISuffix] = None,
+                 permissive: bool = False):
         """Instantiates an object.
 
         As per the DICOM Standard, the Study, Series, and Instance UIDs must be
         a series of numeric components (``0``-``9``) separated by the period
         ``.`` character, with a maximum length of 64 characters.
+        If the ``permissive`` flag is set to ``True``, any alpha-numeric or
+        special characters (except for ``/`` and ``@``) may be used.
 
         Parameters
         ----------
@@ -83,6 +87,14 @@ class URI:
         suffix: URISuffix, optional
             Suffix attached to the DICOM resource URI. This could refer to a
             metadata, rendered, or thumbnail resource.
+        permissive: bool
+            If ``True``, relaxes the DICOM Standard validation for UIDs (see
+            main docstring for details). This option is made available since
+            users may be occasionally forced to work with DICOMs or services
+            that may be in violation of the standard. Unless required, use of
+            this flag is **not** recommended, since non-conformant UIDs may
+            lead to unexpected errors downstream, e.g., rejection by a DICOMweb
+            server, etc.
 
         Raises
         ------
@@ -112,6 +124,7 @@ class URI:
         """
         _validate_base_url(base_url)
         _validate_resource_identifiers_and_suffix(
+            permissive,
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
@@ -124,6 +137,7 @@ class URI:
         self._instance_uid = sop_instance_uid
         self._frames = None if frames is None else tuple(frames)
         self._suffix = suffix
+        self._permissive = permissive
 
     def __str__(self) -> str:
         """Returns the object as a DICOMweb URI string."""
@@ -450,6 +464,7 @@ def _validate_base_url(url: str) -> None:
 
 
 def _validate_resource_identifiers_and_suffix(
+        permissive: bool,
         study_instance_uid: Optional[str],
         series_instance_uid: Optional[str],
         sop_instance_uid: Optional[str],
@@ -473,7 +488,7 @@ def _validate_resource_identifiers_and_suffix(
 
     for uid in (study_instance_uid, series_instance_uid, sop_instance_uid):
         if uid is not None:
-            _validate_uid(uid)
+            _validate_uid(uid, permissive)
 
     if suffix in (URISuffix.RENDERED, URISuffix.THUMBNAIL) and (
             study_instance_uid is None):
@@ -487,13 +502,17 @@ def _validate_resource_identifiers_and_suffix(
                          'resources: Study, Series, or SOP Instance UID')
 
 
-def _validate_uid(uid: str) -> None:
+def _validate_uid(uid: str, permissive: bool) -> None:
     """Validates a DICOM UID."""
     if len(uid) > _MAX_UID_LENGTH:
         raise ValueError('UID cannot have more than 64 chars. '
                          f'Actual count in {uid!r}: {len(uid)}')
-    if _REGEX_UID.fullmatch(uid) is None:
-        raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r}.')
+    if not permissive and _REGEX_UID.fullmatch(uid) is None:
+        raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r} in '
+                         'conformance with the DICOM Standard.')
+    elif permissive and _REGEX_PERMISSIVE_UID.fullmatch(uid) is None:
+        raise ValueError(f'Permissive mode is enabled. UID {uid!r} must match '
+                         f'regex {_REGEX_PERMISSIVE_UID!r}.')
 
 
 def _validate_frames(frames: Sequence[int]) -> None:
