@@ -141,6 +141,8 @@ class DICOMwebClient(object):
         retry: bool = True,
         max_attempts: int = 5,
         wait_exponential_multiplier: int = 1000,
+        wait_random_min: int = None,
+        wait_random_max: int = None,
         retriable_error_codes: Tuple[HTTPStatus, ...] = (
             HTTPStatus.TOO_MANY_REQUESTS,
             HTTPStatus.REQUEST_TIMEOUT,
@@ -153,7 +155,8 @@ class DICOMwebClient(object):
         responses that return an error code defined in |retriable_error_codes|.
         The retrying method uses exponential back off using the multiplier
         |wait_exponential_multiplier| for a max attempts defined by
-        |max_attempts|.
+        |max_attempts| with randomness defined by |wait_random_min] and
+        |wait_random_max] in ms (None by default for no randomness).
 
         Parameters
         ----------
@@ -164,6 +167,10 @@ class DICOMwebClient(object):
             the maximum number of request attempts.
         wait_exponential_multiplier: float, optional
             exponential multiplier applied to delay between attempts in ms.
+        wait_random_min: float, optional
+            minimum amount of jitter in ms.
+        wait_random_max: float, optional
+            maximum amount of jitter in ms.
         retriable_error_codes: tuple, optional
             tuple of HTTP error codes to retry if raised.
 
@@ -172,6 +179,8 @@ class DICOMwebClient(object):
         if retry:
             self._max_attempts = max_attempts
             self._wait_exponential_multiplier = wait_exponential_multiplier
+            self._wait_random_min = wait_random_min
+            self._wait_random_max = wait_random_max
             self._http_retrable_errors = retriable_error_codes
 
         else:
@@ -589,6 +598,8 @@ class DICOMwebClient(object):
         @retrying.retry(
             retry_on_result=self._is_retriable_http_error,
             wait_exponential_multiplier=self._wait_exponential_multiplier,
+            wait_random_min=self._wait_random_min,
+            wait_random_max=self._wait_random_max,
             stop_max_attempt_number=self._max_attempts
         )
         def _invoke_get_request(
@@ -1493,6 +1504,8 @@ class DICOMwebClient(object):
         @retrying.retry(
             retry_on_result=self._is_retriable_http_error,
             wait_exponential_multiplier=self._wait_exponential_multiplier,
+            wait_random_min=self._wait_random_min,
+            wait_random_max=self._wait_random_max,
             stop_max_attempt_number=self._max_attempts
         )
         def _invoke_post_request(
@@ -1599,6 +1612,8 @@ class DICOMwebClient(object):
         @retrying.retry(
             retry_on_result=self._is_retriable_http_error,
             wait_exponential_multiplier=self._wait_exponential_multiplier,
+            wait_random_min=self._wait_random_min,
+            wait_random_max=self._wait_random_max,
             stop_max_attempt_number=self._max_attempts
         )
         def _invoke_delete_request(url: str) -> requests.models.Response:
