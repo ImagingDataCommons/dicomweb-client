@@ -18,22 +18,22 @@ _FRAME_URI = f'{_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAMES)}'
 @pytest.mark.parametrize('illegal_char', ['/', '@', 'a', 'A'])
 def test_uid_illegal_character(illegal_char):
     """Checks *ValueError* is raised when a UID contains an illegal char."""
-    with pytest.raises(ValueError, match='must match'):
+    with pytest.raises(ValueError, match='in conformance'):
         URI(_BASE_URL, f'1.2{illegal_char}3')
-    with pytest.raises(ValueError, match='must match'):
+    with pytest.raises(ValueError, match='in conformance'):
         URI(_BASE_URL, '1.2.3', f'4.5{illegal_char}6')
-    with pytest.raises(ValueError, match='must match'):
+    with pytest.raises(ValueError, match='in conformance'):
         URI(_BASE_URL, '1.2.3', '4.5.6', f'7.8{illegal_char}9')
 
 
 @pytest.mark.parametrize('illegal_uid', ['.23', '1.2..4', '1.2.', '.'])
 def test_uid_illegal_format(illegal_uid):
     """Checks *ValueError* is raised if a UID is in an illegal format."""
-    with pytest.raises(ValueError, match='must match'):
+    with pytest.raises(ValueError, match='in conformance'):
         URI(_BASE_URL, illegal_uid)
-    with pytest.raises(ValueError, match='must match'):
+    with pytest.raises(ValueError, match='in conformance'):
         URI(_BASE_URL, '1.2.3', illegal_uid)
-    with pytest.raises(ValueError, match='must match'):
+    with pytest.raises(ValueError, match='in conformance'):
         URI(_BASE_URL, '1.2.3', '4.5.6', illegal_uid)
 
 
@@ -53,6 +53,21 @@ def test_uid_length():
         URI(_BASE_URL, '1.2.3', uid_65)
     with pytest.raises(ValueError, match='UID cannot have more'):
         URI(_BASE_URL, '1.2.3', '4.5.6', uid_65)
+
+
+@pytest.mark.parametrize('uid', ['13-abc', 'hello', 'is it', 'me you\'re'])
+def test_uid_permissive_valid(uid):
+    """Tests valid "permissive" UIDs are accommodated iff the flag is set."""
+    with pytest.raises(ValueError, match='in conformance'):
+        URI(_BASE_URL, uid, permissive=False)
+    URI(_BASE_URL, uid, permissive=True)
+
+
+@pytest.mark.parametrize('uid', ['1.23.5@', '1/23.4'])
+def test_uid_permissive_invalid(uid):
+    """Tests that invalid "permissive" UIDs are rejected."""
+    with pytest.raises(ValueError, match='Permissive mode'):
+        URI(_BASE_URL, uid, permissive=True)
 
 
 def test_uid_missing_error():
@@ -415,6 +430,27 @@ def test_update(uri_args, update_args, expected_uri_args):
     actual_uri = URI(*uri_args).update(*update_args)
     expected_uri = URI(*expected_uri_args)
     assert actual_uri == expected_uri
+
+
+@pytest.mark.parametrize('original,update,expected', [
+    (None, None, False),
+    (None, False, False),
+    (None, True, True),
+    (False, None, False),
+    (True, None, True),
+    (False, False, False),
+    (False, True, True),
+    (True, False, False),
+    (True, True, True),
+])
+def test_update_permissive(original, update, expected):
+    """Tests for the expected value of `permissive` flag in `URI.update()`."""
+    if original is None:
+        original_uri = URI(_BASE_URL)
+    else:
+        original_uri = URI(_BASE_URL, permissive=original)
+    updated_uri = original_uri.update(permissive=update)
+    assert updated_uri.permissive == expected
 
 
 @pytest.mark.parametrize('uri_args,update_args,error_msg', [
