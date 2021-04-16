@@ -301,7 +301,7 @@ Retrieve full instances of a given series using specific JPEG 2000 transfer synt
 
     instance = client.retrieve_instance(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         media_types=(('application/dicom', '1.2.840.10008.1.2.4.90', ), )
     )
 
@@ -311,7 +311,7 @@ Retrieve bulk data of instances of a given series using specific JPEG 2000 trans
 
     instance = client.retrieve_instance(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         media_types=(('image/jp2', '1.2.840.10008.1.2.4.90', ), )
     )
 
@@ -382,7 +382,7 @@ Retrieve metadata for a particular instance:
 
     metadata = client.retrieve_instance_metadata(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
     )
 
@@ -401,9 +401,9 @@ Retrieve a set of frames with default transfer syntax ("application/octet-stream
 .. code-block:: python
 
     frames = client.retrieve_instance_frames(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1, 2]
     )
 
@@ -412,9 +412,9 @@ Retrieve a set of frames of a given instances as JPEG compressed image:
 .. code-block:: python
 
     frames = client.retrieve_instance_frames(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1, 2],
         media_types=('image/jpeg', )
     )
@@ -424,9 +424,9 @@ Retrieve a set of frames of a given instances as compressed image in any availab
 .. code-block:: python
 
     frames = client.retrieve_instance_frames(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1, 2],
         media_types=('image/*', )
     )
@@ -436,9 +436,9 @@ Retrieve a set of frames of a given instances as either JPEG 2000 or JPEG-LS com
 .. code-block:: python
 
     frames = client.retrieve_instance_frames(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1, 2],
         media_types=('image/jp2', 'image/x-jpls', )
     )
@@ -448,9 +448,9 @@ Retrieve a set of frames of a given instances as either JPEG, JPEG 2000 or JPEG-
 .. code-block:: python
 
     frames = client.retrieve_instance_frames(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1, 2],
         media_types=(
             ('image/jpeg', '1.2.840.10008.1.2.4.57', ),
@@ -481,9 +481,9 @@ Retrieve a single-frame image instance rendered as a PNG compressed image:
 .. code-block:: python
 
     frames = client.retrieve_instance_rendered(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         media_types=('image/png', )
     )
 
@@ -492,9 +492,9 @@ Retrieve a single frame of a multi-frame image instance rendered as a high-quali
 .. code-block:: python
 
     frames = client.retrieve_instance_frames_rendered(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639'
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
+        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
+        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1],
         media_types=('image/jpeg', ),
         params={'quality': 95, 'iccprofile': 'yes'}
