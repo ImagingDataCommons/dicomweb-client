@@ -521,20 +521,14 @@ class GoogleCloudHealthcareURL:
 
     def __post_init__(self) -> None:
         """Performs input sanity checks."""
-        if _REGEX_ID_1.fullmatch(self.project_id) is None:
-            raise ValueError(_CHC_API_ERROR_TMPL.format(
-                attribute='project_id', regex=_REGEX_ID_1, value=self.project_id))
-        if _REGEX_ID_1.fullmatch(self.location) is None:
-            raise ValueError(_CHC_API_ERROR_TMPL.format(
-                attribute='location', regex=_REGEX_ID_1, value=self.location))
-        if _REGEX_ID_2.fullmatch(self.dataset_id) is None:
-            raise ValueError(_CHC_API_ERROR_TMPL.format(
-                attribute='dataset_id', regex=_REGEX_ID_2, value=self.dataset_id))
-        if _REGEX_ID_2.fullmatch(self.dicom_store_id) is None:
-            raise ValueError(_CHC_API_ERROR_TMPL.format(
-                attribute='dicom_store_id',
-                regex=_REGEX_ID_2,
-                value=self.dicom_store_id))
+        for regex, attribute, value in (
+                (_REGEX_ID_1, 'project_id', self.project_id),
+                (_REGEX_ID_1, 'location', self.location),
+                (_REGEX_ID_2, 'dataset_id', self.dataset_id),
+                (_REGEX_ID_2, 'dicom_store_id', self.dicom_store_id)):
+            if regex.fullmatch(value) is None:
+                raise ValueError(_CHC_API_ERROR_TMPL.format(
+                    attribute=attribute, regex=regex, value=value))
 
     def __str__(self) -> str:
         """Returns a string URL for use as :py:attr:`URI.base_url`.
