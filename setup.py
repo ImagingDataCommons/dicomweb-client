@@ -48,6 +48,7 @@ setuptools.setup(
     },
     python_requires='>=3.6',
     install_requires=[
+        'dataclasses; python_version=="3.6"',
         'pydicom>=2.0',
         'requests>=2.18',
         'retrying>=1.3.3',
