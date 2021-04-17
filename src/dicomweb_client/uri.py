@@ -1,5 +1,5 @@
 """Utilities for DICOMweb URI manipulation."""
-import attr
+import dataclasses
 import enum
 import re
 from typing import Optional, Sequence, Tuple
@@ -27,14 +27,22 @@ _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 _REGEX_PERMISSIVE_UID = re.compile(r'[^/@]+')
 # Used for Project ID and Location validation in `GoogleCloudHealthcareURL`.
-_REGEX_ID_1 = r'[\w-]+'
-_ATTR_VALIDATOR_ID_1 = attr.validators.matches_re(_REGEX_ID_1)
+_REGEX_ID_1 = re.compile(r'[\w-]+')
 # Used for Dataset ID and DICOM Store ID validation in
 # `GoogleCloudHealthcareURL`.
-_REGEX_ID_2 = r'[\w.-]+'
-_ATTR_VALIDATOR_ID_2 = attr.validators.matches_re(_REGEX_ID_2)
+_REGEX_ID_2 = re.compile(r'[\w.-]+')
+# Regex for the DICOM Store suffix for the Google Cloud Healthcare API endpoint.
+_STORE_REGEX = re.compile(
+    (r'projects/(%s)/locations/(%s)/datasets/(%s)/'
+     r'dicomStores/(%s)/dicomWeb$') % (_REGEX_ID_1.pattern,
+                                       _REGEX_ID_1.pattern,
+                                       _REGEX_ID_2.pattern,
+                                       _REGEX_ID_2.pattern))
 # The URL for the Google Cloud Healthcare API endpoint.
 _CHC_API_URL = 'https://healthcare.googleapis.com/v1'
+# Cloud Healthcare validation error.
+_CHC_API_ERROR_TMPL = ('`{attribute}` must match regex {regex}. Actual value: '
+                       '{value!r}')
 
 
 class URI:
@@ -476,7 +484,7 @@ class URI:
         return uri
 
 
-@attr.s(frozen=True)
+@dataclasses.dataclass(eq=True, frozen=True)
 class GoogleCloudHealthcareURL:
     """Base URL container for DICOM Stores under the `Google Cloud Healthcare API`_.
 
@@ -506,10 +514,27 @@ class GoogleCloudHealthcareURL:
             The ID of the `DICOM Store
             <https://cloud.google.com/healthcare/docs/concepts/dicom#dicom_stores>`_.
     """
-    project_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_1)
-    location = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_1)
-    dataset_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_2)
-    dicom_store_id = attr.ib(type=str, validator=_ATTR_VALIDATOR_ID_2)
+    project_id: str
+    location: str
+    dataset_id: str
+    dicom_store_id: str
+
+    def __post_init__(self) -> None:
+        """Performs input sanity checks."""
+        if _REGEX_ID_1.fullmatch(self.project_id) is None:
+            raise ValueError(_CHC_API_ERROR_TMPL.format(
+                attribute='project_id', regex=_REGEX_ID_1, value=self.project_id))
+        if _REGEX_ID_1.fullmatch(self.location) is None:
+            raise ValueError(_CHC_API_ERROR_TMPL.format(
+                attribute='location', regex=_REGEX_ID_1, value=self.location))
+        if _REGEX_ID_2.fullmatch(self.dataset_id) is None:
+            raise ValueError(_CHC_API_ERROR_TMPL.format(
+                attribute='dataset_id', regex=_REGEX_ID_2, value=self.dataset_id))
+        if _REGEX_ID_2.fullmatch(self.dicom_store_id) is None:
+            raise ValueError(_CHC_API_ERROR_TMPL.format(
+                attribute='dicom_store_id',
+                regex=_REGEX_ID_2,
+                value=self.dicom_store_id))
 
     def __str__(self) -> str:
         """Returns a string URL for use as :py:attr:`URI.base_url`.
@@ -544,10 +569,7 @@ class GoogleCloudHealthcareURL:
             raise ValueError('Invalid CHC API v1 URL: {base_url!r}')
         resource_suffix = base_url[len(_CHC_API_URL) + 1:]
 
-        store_regex = (r'projects/(%s)/locations/(%s)/datasets/(%s)/'
-                       r'dicomStores/(%s)/dicomWeb$') % (
-                           _REGEX_ID_1, _REGEX_ID_1, _REGEX_ID_2, _REGEX_ID_2)
-        store_match = re.match(store_regex, resource_suffix)
+        store_match = _STORE_REGEX.match(resource_suffix)
         if store_match is None:
             raise ValueError(
                 'Invalid CHC API v1 DICOM Store name: {resource_suffix!r}')

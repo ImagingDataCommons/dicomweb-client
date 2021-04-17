@@ -499,9 +499,9 @@ def test_chc_dicom_store_str():
 @pytest.mark.parametrize('name', ['hmmm.1', '#95', '43/'])
 def test_chc_invalid_project_or_location(name):
     """Tests for bad `project_id`, `location`."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='project_id'):
         GoogleCloudHealthcareURL(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='location'):
         GoogleCloudHealthcareURL(
             _PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
 
@@ -509,11 +509,11 @@ def test_chc_invalid_project_or_location(name):
 @pytest.mark.parametrize('name', ['hmmm.!', '#95', '43/'])
 def test_chc_invalid_dataset_or_store(name):
     """Tests for bad `dataset_id`, `dicom_store_id`."""
-    with pytest.raises(ValueError):
-        GoogleCloudHealthcareURL(name, _LOCATION, _DATASET_ID, _DICOM_STORE_ID)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='dataset_id'):
+        GoogleCloudHealthcareURL(_PROJECT_ID, _LOCATION, name, _DICOM_STORE_ID)
+    with pytest.raises(ValueError, match='dicom_store_id'):
         GoogleCloudHealthcareURL(
-            _PROJECT_ID, name, _DATASET_ID, _DICOM_STORE_ID)
+            _PROJECT_ID, _LOCATION, _DATASET_ID, name)
 
 
 @pytest.mark.parametrize('url', [f'{_CHC_API_URL}beta', 'https://some.url'])
