@@ -14,17 +14,6 @@ _SERIES_URI = f'{_STUDY_URI}/series/{_SERIES_UID}'
 _INSTANCE_URI = f'{_SERIES_URI}/instances/{_INSTANCE_UID}'
 _FRAME_URI = f'{_INSTANCE_URI}/frames/{",".join(str(f) for f in _FRAMES)}'
 
-# CHC DICOMweb URI parameters.
-_PROJECT_ID = 'my-project44'
-_LOCATION = 'us-central1'
-_DATASET_ID = 'my-44.dataset'
-_DICOM_STORE_ID = 'my.d1com_store'
-_CHC_API_URL = 'https://healthcare.googleapis.com/v1'
-_CHC_BASE_URL = (
-    f'{_CHC_API_URL}/'
-    f'projects/{_PROJECT_ID}/locations/{_LOCATION}/'
-    f'datasets/{_DATASET_ID}/dicomStores/{_DICOM_STORE_ID}/dicomWeb')
-
 
 @pytest.mark.parametrize('illegal_char', ['/', '@', 'a', 'A'])
 def test_uid_illegal_character(illegal_char):
