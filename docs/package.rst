@@ -51,3 +51,11 @@ dicomweb\_client.uri module
     :members:
     :undoc-members:
     :show-inheritance:
+
+dicomweb\_client.ext.gcp.uri module
++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: dicomweb_client.ext.gcp.uri
+    :members:
+    :undoc-members:
+    :show-inheritance:
