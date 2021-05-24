@@ -7,4 +7,4 @@ https://dicomweb-client.readthedocs.io/en/latest/installation.html#installation-
 For further details about GCP, visit: https://cloud.google.com
 """
 
-from dicomweb_client.ext.gcp.uri import GoogleCloudHealthcareURL
+from dicomweb_client.ext.gcp.uri import GoogleCloudHealthcareURL  # noqa
