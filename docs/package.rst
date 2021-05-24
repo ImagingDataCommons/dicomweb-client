@@ -45,15 +45,23 @@ dicomweb\_client.session_utils module
     :show-inheritance:
 
 dicomweb\_client.uri module
-+++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++
 
 .. automodule:: dicomweb_client.uri
     :members:
     :undoc-members:
     :show-inheritance:
 
+dicomweb\_client.ext.gcp.session_utils module
++++++++++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: dicomweb_client.ext.gcp.session_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 dicomweb\_client.ext.gcp.uri module
-+++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++
 
 .. automodule:: dicomweb_client.ext.gcp.uri
     :members:
