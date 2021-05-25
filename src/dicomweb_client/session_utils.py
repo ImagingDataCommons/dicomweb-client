@@ -135,13 +135,6 @@ def create_session_from_gcp_credentials(
         'underlying implementation directly, now moved to '
         '`dicomweb_client.ext.gcp.session_utils`.',
         DeprecationWarning)
-    try:
-        import dicomweb_client.ext.gcp.session_utils as gcp_session_utils
-    except ImportError:
-        raise ImportError(
-            'The dicomweb-client package needs to be installed with the '
-            '"gcp" extra requirements to support interaction with the '
-            'Google Cloud Healthcare API: pip install dicomweb-client[gcp]'
-        )
+    import dicomweb_client.ext.gcp.session_utils as gcp_session_utils
     return gcp_session_utils.create_session_from_gcp_credentials(
         google_credentials)

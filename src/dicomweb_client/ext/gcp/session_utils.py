@@ -1,8 +1,14 @@
 """Session management utilities for Google Cloud Platform (GCP)."""
 from typing import Optional, Any
 
-import google.auth
-from google.auth.transport import requests as google_requests
+try:
+    import google.auth
+    from google.auth.transport import requests as google_requests
+except ImportError:
+    raise ImportError(
+        'The `dicomweb-client` package needs to be installed with the '
+        '"gcp" extra requirements to use this module, as follows: '
+        '`pip install dicomweb-client[gcp]`')
 import requests
 
 
