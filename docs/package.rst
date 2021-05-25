@@ -28,14 +28,6 @@ dicomweb\_client.cli module
 .. autoprogram:: dicomweb_client.cli:_get_parser()
     :prog: dicomweb_client
 
-dicomweb\_client.error module
-+++++++++++++++++++++++++++++
-
-.. automodule:: dicomweb_client.error
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 dicomweb\_client.log module
 +++++++++++++++++++++++++++
 
@@ -53,9 +45,25 @@ dicomweb\_client.session_utils module
     :show-inheritance:
 
 dicomweb\_client.uri module
-+++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++
 
 .. automodule:: dicomweb_client.uri
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dicomweb\_client.ext.gcp.session_utils module
++++++++++++++++++++++++++++++++++++++++++++++
+
+.. automodule:: dicomweb_client.ext.gcp.session_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+dicomweb\_client.ext.gcp.uri module
++++++++++++++++++++++++++++++++++++
+
+.. automodule:: dicomweb_client.ext.gcp.uri
     :members:
     :undoc-members:
     :show-inheritance:

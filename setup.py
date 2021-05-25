@@ -42,6 +42,7 @@ setuptools.setup(
     package_dir={'': 'src'},
     extras_require={
         'gcp': [
+            'dataclasses>=0.8; python_version=="3.6"',
             'google-auth>=1.6',
             'google-oauth>=1.0',
         ],

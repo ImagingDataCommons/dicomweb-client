@@ -28,6 +28,15 @@ Pre-build package available at PyPi:
 
     pip install dicomweb-client
 
+Additional dependencies required for extensions compatible with
+`Google Cloud Platform (GCP)`_ may be installed as:
+
+.. _Google Cloud Platform (GCP): https://cloud.google.com
+
+.. code-block:: none
+
+    pip install dicomweb-client[gcp]
+
 Source code available at Github:
 
 .. code-block:: none

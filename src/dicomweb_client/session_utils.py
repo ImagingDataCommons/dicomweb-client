@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import Optional, Any
+import warnings
 
 import requests
 
@@ -128,20 +129,12 @@ def create_session_from_gcp_credentials(
     -------
     requests.Session
         Google cloud authorized session
-
     """
-    try:
-        from google.auth.transport import requests as google_requests
-        if google_credentials is None:
-            import google.auth
-            google_credentials, _ = google.auth.default(
-                scopes=['https://www.googleapis.com/auth/cloud-platform']
-            )
-    except ImportError:
-        raise ImportError(
-            'The dicomweb-client package needs to be installed with the '
-            '"gcp" extra requirements to support interaction with the '
-            'Google Cloud Healthcare API: pip install dicomweb-client[gcp]'
-        )
-    logger.debug('initialize, authenticate and authorize HTTP session')
-    return google_requests.AuthorizedSession(google_credentials)
+    warnings.warn(
+        'This method shall be deprecated in a future release. Prefer using the '
+        'underlying implementation directly, now moved to '
+        '`dicomweb_client.ext.gcp.session_utils`.',
+        DeprecationWarning)
+    import dicomweb_client.ext.gcp.session_utils as gcp_session_utils
+    return gcp_session_utils.create_session_from_gcp_credentials(
+        google_credentials)
