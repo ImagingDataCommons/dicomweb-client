@@ -1566,7 +1566,7 @@ class DICOMwebClient(object):
         content_type = (
             'multipart/related; '
             'type="application/dicom"; '
-            'boundary="0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1"'
+            'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
         response = self._http_post(
