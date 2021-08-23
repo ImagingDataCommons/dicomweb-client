@@ -1,13 +1,10 @@
 """Application Programming Interface (API)"""
 import re
 import logging
-from xml.etree.ElementTree import (
-    Element,
-    fromstring
-)
+from enum import Enum
 from collections import OrderedDict
-from io import BytesIO
 from http import HTTPStatus
+from io import BytesIO
 from typing import (
     Any,
     Callable,
@@ -22,17 +19,21 @@ from typing import (
 )
 from urllib.parse import quote_plus, urlparse
 from warnings import warn
+from xml.etree.ElementTree import (
+    Element,
+    fromstring
+)
 
+import pydicom
 import requests
 import retrying
-import pydicom
 
 
 logger = logging.getLogger(__name__)
 
 
 def load_json_dataset(dataset: Dict[str, dict]) -> pydicom.dataset.Dataset:
-    """Loads DICOM Data Set in DICOM JSON format.
+    """Load DICOM Data Set in DICOM JSON format.
 
     Parameters
     ----------
@@ -55,7 +56,7 @@ def load_json_dataset(dataset: Dict[str, dict]) -> pydicom.dataset.Dataset:
 
 
 def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
-    """Loads DICOM Data Set in DICOM XML format.
+    """Load DICOM Data Set in DICOM XML format.
 
     Parameters
     ----------
@@ -90,6 +91,14 @@ def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
     return ds
 
 
+class _Transaction(Enum):
+
+    STORE = 'store'
+    SEARCH = 'search'
+    RETRIEVE = 'retrieve'
+    DELETE = 'delete'
+
+
 class DICOMwebClient(object):
 
     """Class for connecting to and interacting with a DICOMweb RESTful service.
@@ -97,13 +106,13 @@ class DICOMwebClient(object):
     Attributes
     ----------
     base_url: str
-        unique resource locator of the DICOMweb service
+        Unique resource locator of the DICOMweb service
     protocol: str
-        name of the protocol, e.g. ``"https"``
+        Name of the protocol, e.g. ``"https"``
     host: str
         IP address or DNS name of the machine that hosts the server
     port: int
-        number of the port to which the server listens
+        Number of the port to which the server listens
     url_prefix: str
         URL path prefix for DICOMweb services (part of `base_url`)
     qido_url_prefix: Union[str, None]
@@ -115,7 +124,7 @@ class DICOMwebClient(object):
     delete_url_prefix: Union[str, None]
         URL path prefix for DELETE (not part of `base_url`)
     chunk_size: int
-        maximum number of bytes that should be transferred per data chunk
+        Maximum number of bytes that should be transferred per data chunk
         when streaming data from the server using chunked transfer encoding
         (used by ``iter_*()`` methods as well as the ``store_instances()``
         method)
@@ -123,12 +132,12 @@ class DICOMwebClient(object):
     """
 
     def set_chunk_size(self, chunk_size: int) -> None:
-        """Sets value of `chunk_size` attribute.
+        """Set value of `chunk_size` attribute.
 
         Parameters
         ----------
         chunk_size: int
-            maximum number of bytes that should be transferred per data chunk
+            Maximum number of bytes that should be transferred per data chunk
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
             method)
@@ -148,9 +157,11 @@ class DICOMwebClient(object):
             HTTPStatus.GATEWAY_TIMEOUT,
         )
     ) -> None:
-        """Sets parameters for HTTP retrying logic. These parameters are passed
-        to @retrying.retry which wraps the HTTP requests and retries all
-        responses that return an error code defined in |retriable_error_codes|.
+        """Set parameters for HTTP retrying logic.
+
+        These parameters determine whether and how individual HTTP requests
+        will be retried in case the origin server responds with an error code
+        defined in |retriable_error_codes|.
         The retrying method uses exponential back off using the multiplier
         |wait_exponential_multiplier| for a max attempts defined by
         |max_attempts|.
@@ -158,14 +169,14 @@ class DICOMwebClient(object):
         Parameters
         ----------
         retry: bool, optional
-            whether HTTP retrying should be performed, if it is set to
+            Whether HTTP retrying should be performed, if it is set to
             ``False``, the rest of the parameters are ignored.
         max_attempts: int, optional
-            the maximum number of request attempts.
+            The maximum number of request attempts.
         wait_exponential_multiplier: float, optional
-            exponential multiplier applied to delay between attempts in ms.
+            Exponential multiplier applied to delay between attempts in ms.
         retriable_error_codes: tuple, optional
-            tuple of HTTP error codes to retry if raised.
+            Tuple of HTTP error codes to retry if raised.
 
         """
         self._http_retry = retry
@@ -183,7 +194,7 @@ class DICOMwebClient(object):
         self,
         response: requests.models.Response
     ) -> bool:
-        """Determines whether the given response's status code is retriable.
+        """Determine whether the given response's status code is retriable.
 
         Parameters
         ----------
@@ -211,34 +222,36 @@ class DICOMwebClient(object):
         callback: Optional[Callable] = None,
         chunk_size: int = 10**6
     ) -> None:
-        """
+        """Instatiate client.
+
         Parameters
         ----------
         url: str
-            base unique resource locator consisting of protocol, hostname
-            (IP address or DNS name) of the machine that hosts the server and
-            optionally port number and path prefix
-        session: requests.Session, optional
-            session required to make connection to the DICOMweb service
-            (see session_utils.py to create a valid session if necessary)
-        qido_url_prefix: str, optional
+            Unique resource locator of the DICOMweb service consisting of
+            protocol, hostname (IP address or DNS name) of the machine that
+            hosts the service and optionally port number and path prefix
+        session: Union[requests.Session, None], optional
+            Session required to make connections to the DICOMweb service
+            (see ``dicomweb_client.session_utils`` module to create a valid
+            session if necessary)
+        qido_url_prefix: Union[str, None], optional
             URL path prefix for QIDO RESTful services
-        wado_url_prefix: str, optional
+        wado_url_prefix: Union[str, None], optional
             URL path prefix for WADO RESTful services
-        stow_url_prefix: str, optional
+        stow_url_prefix: Union[str, None], optional
             URL path prefix for STOW RESTful services
-        delete_url_prefix: str, optional
+        delete_url_prefix: Union[str, None], optional
             URL path prefix for DELETE RESTful services
-        proxies: Dict[str, str], optional
-            mapping of protocol or protocol + host to the URL of a proxy server
-        headers: Dict[str, str], optional
-            custom headers that should be included in request messages,
+        proxies: Union[Dict[str, str], None], optional
+            Mapping of protocol or protocol + host to the URL of a proxy server
+        headers: Union[Dict[str, str], None], optional
+            Custom headers that should be included in request messages,
             e.g., authentication tokens
-        callback: Callable, optional
-            callback function to manipulate responses generated from requests
+        callback: Union[Callable[[requests.Response, ...], requests.Response], None], optional
+            Callback function to manipulate responses generated from requests
             (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
         chunk_size: int, optional
-            maximum number of bytes that should be transferred per data chunk
+            Maximum number of bytes that should be transferred per data chunk
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
             method); defaults to ``10**6`` bytes (10MB)
@@ -253,7 +266,7 @@ class DICOMwebClient(object):
         Choose the value of `chunk_size` carefully. A small value may cause
         significant network communication and message parsing overhead.
 
-        """  # noqa
+        """  # noqa: E501
         if session is None:
             logger.debug('initialize HTTP session')
             session = requests.session()
@@ -312,28 +325,27 @@ class DICOMwebClient(object):
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Parses query parameters for inclusion into a HTTP query string
-        of a QIDO-RS request message.
+        """Parse query parameters for inclusion into a query string.
 
         Parameters
         ----------
-        fuzzymatching: bool, optional
-            whether fuzzy semantic matching should be performed
-        limit: int, optional
-            maximum number of results that should be returned
-        offset: int, optional
-            number of results that should be skipped
-        fields: Sequence[str], optional
-            names of fields (attributes) that should be included in results
-        search_filters: Dict[str, Any], optional
-            search filter criteria as key-value pairs, where *key* is a keyword
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Sequence[str], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[Dict[str, Any], None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
 
         Returns
         -------
         collections.OrderedDict
-            sanitized and sorted query parameters
+            Sanitized and sorted query parameters
 
         """
         params: Dict[str, Union[int, str, List[str]]] = {}
@@ -374,54 +386,52 @@ class DICOMwebClient(object):
         # Sort query parameters to facilitate unit testing
         return OrderedDict(sorted(params.items()))
 
-    def _get_service_url(self, service_name: str) -> str:
-        """Constructes the URL of a DICOMweb RESTful service.
+    def _get_transaction_url(self, transaction: _Transaction) -> str:
+        """Construct URL of a DICOMweb service transaction.
 
         Parameters
         ----------
-        service_name: str
-            name of the RESTful service
-            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
+        transaction: dicomweb_client.api._Transaction
+            Type of transaction
 
         Returns
         -------
         str
-            full URL for the given service
+            Full URL for the given transaction
 
         """
-        service_url = self.base_url
-        if service_name == 'qido':
+        transaction_url = self.base_url
+        if transaction == _Transaction.SEARCH:
             if self.qido_url_prefix is not None:
-                service_url += f'/{self.qido_url_prefix}'
-        elif service_name == 'wado':
+                transaction_url += f'/{self.qido_url_prefix}'
+        elif transaction == _Transaction.RETRIEVE:
             if self.wado_url_prefix is not None:
-                service_url += f'/{self.wado_url_prefix}'
-        elif service_name == 'stow':
+                transaction_url += f'/{self.wado_url_prefix}'
+        elif transaction == _Transaction.STORE:
             if self.stow_url_prefix is not None:
-                service_url += f'/{self.stow_url_prefix}'
-        elif service_name == 'delete':
+                transaction_url += f'/{self.stow_url_prefix}'
+        elif transaction == _Transaction.DELETE:
             if self.delete_url_prefix is not None:
-                service_url += f'/{self.delete_url_prefix}'
+                transaction_url += f'/{self.delete_url_prefix}'
         else:
             raise ValueError(
-                f'Unsupported DICOMweb service "{service_name}".'
+                f'Unsupported DICOMweb service "{transaction.value}".'
             )
-        return service_url
+        return transaction_url
 
     def _get_studies_url(
         self,
-        service_name: str,
+        transaction: _Transaction,
         study_instance_uid: Optional[str] = None
     ) -> str:
-        """Constructes the URL for study-level requests.
+        """Construct URL for study-level requests.
 
         Parameters
         ----------
-        service_name: str
-            name of the RESTful service
-            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
-        study_instance_uid: str, optional
-            unique study identifier
+        transaction: dicomweb_client.api._Transaction
+            Type of transaction
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
 
         Returns
         -------
@@ -430,31 +440,31 @@ class DICOMwebClient(object):
 
         """
         if study_instance_uid is not None:
-            url = '{service_url}/studies/{study_instance_uid}'
+            url = '{transaction_url}/studies/{study_instance_uid}'
         else:
-            url = '{service_url}/studies'
-        service_url = self._get_service_url(service_name)
+            url = '{transaction_url}/studies'
+        transaction_url = self._get_transaction_url(transaction)
         return url.format(
-            service_url=service_url, study_instance_uid=study_instance_uid
+            transaction_url=transaction_url,
+            study_instance_uid=study_instance_uid
         )
 
     def _get_series_url(
         self,
-        service_name: str,
+        transaction: _Transaction,
         study_instance_uid: Optional[str] = None,
         series_instance_uid: Optional[str] = None
     ) -> str:
-        """Constructes the URL for series-level requests.
+        """Construct URL for series-level requests.
 
         Parameters
         ----------
-        service_name: str
-            name of the RESTful service
-            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
-        study_instance_uid: str, optional
-            unique study identifier
-        series_instance_uid: str, optional
-            unique series identifier
+        transaction: dicomweb_client.api._Transaction
+            Type of transaction
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        series_instance_uid: Union[str, None], optional
+            Series Instance UID
 
         Returns
         -------
@@ -463,7 +473,7 @@ class DICOMwebClient(object):
 
         """
         if study_instance_uid is not None:
-            url = self._get_studies_url(service_name, study_instance_uid)
+            url = self._get_studies_url(transaction, study_instance_uid)
             if series_instance_uid is not None:
                 url += '/series/{series_instance_uid}'
             else:
@@ -473,32 +483,32 @@ class DICOMwebClient(object):
                 logger.warning(
                     'series UID is ignored because study UID is undefined'
                 )
-            url = '{service_url}/series'
-        service_url = self._get_service_url(service_name)
+            url = '{transaction_url}/series'
+        transaction_url = self._get_transaction_url(transaction)
         return url.format(
-            service_url=service_url, series_instance_uid=series_instance_uid
+            transaction_url=transaction_url,
+            series_instance_uid=series_instance_uid
         )
 
     def _get_instances_url(
         self,
-        service_name: str,
+        transaction: _Transaction,
         study_instance_uid: Optional[str] = None,
         series_instance_uid: Optional[str] = None,
         sop_instance_uid: Optional[str] = None
     ) -> str:
-        """Constructes the URL for instance-level requests.
+        """Construct URL for instance-level requests.
 
         Parameters
         ----------
-        service_name: str
-            name of the RESTful service
-            (choices: ``"qido"``, ``"wado"``, or ``"stow"``)
-        study_instance_uid: str, optional
-            unique study identifier
-        series_instance_uid: str, optional
-            unique series identifier
-        sop_instance_uid: str, optional
-            unique instance identifier
+        transaction: dicomweb_client.api._Transaction
+            Type of transaction
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        series_instance_uid: Union[str, None], optional
+            Series Instance UID
+        sop_instance_uid: Union[str, None], optional
+            SOP Instance UID
 
         Returns
         -------
@@ -508,32 +518,44 @@ class DICOMwebClient(object):
         """
         if study_instance_uid is not None and series_instance_uid is not None:
             url = self._get_series_url(
-                service_name,
+                transaction,
                 study_instance_uid,
                 series_instance_uid
             )
             url += '/instances'
             if sop_instance_uid is not None:
                 url += '/{sop_instance_uid}'
+        elif study_instance_uid is not None:
+            if sop_instance_uid is not None:
+                logger.warning(
+                    'SOP Instance UID is ignored because Series Instance UID '
+                    'is undefined'
+                )
+            url = self._get_studies_url(
+                transaction,
+                study_instance_uid
+            )
+            url += '/instances'
         else:
             if sop_instance_uid is not None:
                 logger.warning(
                     'SOP Instance UID is ignored because Study/Series '
                     'Instance UID are undefined'
                 )
-            url = '{service_url}/instances'
-        service_url = self._get_service_url(service_name)
+            url = '{transaction_url}/instances'
+        transaction_url = self._get_transaction_url(transaction)
         return url.format(
-            service_url=service_url, sop_instance_uid=sop_instance_uid
+            transaction_url=transaction_url,
+            sop_instance_uid=sop_instance_uid
         )
 
     def _build_query_string(self, params: Dict[str, Any]) -> str:
-        """Builds a HTTP query string for a GET request message.
+        """Build query string for a request message.
 
         Parameters
         ----------
         params: dict
-            query parameters as mapping of key-value pairs;
+            Query parameters as mapping of key-value pairs;
             in case a key should be included more than once with different
             values, values need to be provided in form of an iterable (e.g.,
             ``{"key": ["value1", "value2"]}`` will result in
@@ -542,7 +564,7 @@ class DICOMwebClient(object):
         Returns
         -------
         str
-            query string
+            Query string
 
         """
         components = []
@@ -566,24 +588,24 @@ class DICOMwebClient(object):
         headers: Optional[Dict[str, str]] = None,
         stream: bool = False
     ) -> requests.models.Response:
-        """Performs a HTTP GET request.
+        """Perform an HTTP GET request.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        params: Dict[str, Any], optional
-            query parameters
-        headers: Dict[str, str], optional
-            HTTP request message headers
+            Unique resource locator
+        params: Union[Dict[str, Any], None], optional
+            Query parameters
+        headers: Union[Dict[str, str], None], optional
+            Request message headers
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         requests.models.Response
-            HTTP response message
+            Response message
 
         """
         @retrying.retry(
@@ -629,23 +651,22 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> List[Dict[str, dict]]:
-        """Performs a HTTP GET request that accepts "applicaton/dicom+json"
-        or "application/json" media type.
+        """GET a resource with "applicaton/dicom+json" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        params: Dict[str], optional
-            query parameters
+            Unique resource locator
+        params: Union[Dict[str, Any], None], optional
+            Query parameters
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         List[str, dict]
-            content of HTTP message body in DICOM JSON format
+            Content of HTTP message body in DICOM JSON format
 
         """
         content_type = 'application/dicom+json, application/json'
@@ -667,24 +688,23 @@ class DICOMwebClient(object):
 
     @classmethod
     def _extract_part_content(cls, part: bytes) -> Union[bytes, None]:
-        """Extracts the content of a single part of a multipart message
-        by stripping the headers.
+        """Extract the content of a single part of a multipart response message.
 
         Parameters
         ----------
         part: bytes
-            an individual part of a multipart message
+            Individual part of a multipart message
 
         Returns
         -------
         Union[bytes, None]
-            content of the message part or ``None`` in case the message
+            Content of the message part or ``None`` in case the message
             part is empty
 
         Raises
         ------
         ValueError
-            when the message part is not CRLF CRLF terminated
+            When the message part is not CRLF CRLF terminated
 
         """
         if part in (b'', b'--', b'\r\n') or part.startswith(b'--\r\n'):
@@ -699,20 +719,20 @@ class DICOMwebClient(object):
         response: requests.Response,
         stream: bool
     ) -> Iterator[bytes]:
-        """Decodes extracted parts of a HTTP multipart response message.
+        """Decode extracted parts of a multipart response message.
 
         Parameters
         ----------
         response: requests.Response
-            HTTP response message
+            Response message
         stream: bool
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[bytes]
-            message parts
+            Message parts
 
         """
         logger.debug('decode multipart message')
@@ -770,14 +790,14 @@ class DICOMwebClient(object):
         content: Sequence[bytes],
         content_type: str
     ) -> bytes:
-        """Encodes the payload of a HTTP multipart response message.
+        """Encode the payload of a multipart response message.
 
         Parameters
         ----------
         content: Sequence[bytes]
-            content of each part
+            Content of each part
         content_type: str
-            content type of the multipart HTTP request message
+            Content type of the multipart HTTP request message
 
         Returns
         -------
@@ -816,17 +836,17 @@ class DICOMwebClient(object):
 
     @classmethod
     def _assert_media_type_is_valid(cls, media_type: str):
-        """Asserts that a given media type is valid.
+        """Assert that a given media type is valid.
 
         Parameters
         ----------
         media_type: str
-            media type
+            Media type
 
         Raises
         ------
         ValueError
-            when `media_type` is invalid
+            When `media_type` is invalid
 
         """
         error_message = f'Not a valid media type: "{media_type}"'
@@ -842,19 +862,19 @@ class DICOMwebClient(object):
     @classmethod
     def _build_range_header_field_value(
         cls,
-        byte_range: Optional[Tuple[int, int]]
+        byte_range: Optional[Tuple[int, int]] = None
     ) -> str:
-        """Builds a range header field value for HTTP GET request messages.
+        """Build a range header field value for a request message.
 
         Parameters
         ----------
-        byte_range: Tuple[int], optional
-            start and end of byte range
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
 
         Returns
         -------
         str
-            range header field value
+            Range header field value
 
         """
         if byte_range is not None:
@@ -874,19 +894,19 @@ class DICOMwebClient(object):
         media_types: Union[Tuple[Union[str, Tuple[str, str]]], None],
         supported_media_types: Set[str]
     ) -> str:
-        """Builds an accept header field value for HTTP GET request messages.
+        """Build an accept header field value for a request message.
 
         Parameters
         ----------
         media_types: Union[Tuple[str], None]
-            acceptable media types
+            Acceptable media types
         supported_media_types: Set[str]
-            supported media types
+            Supported media types
 
         Returns
         -------
         str
-            accept header field value
+            Accept header field value
 
         """
         if not isinstance(media_types, (list, tuple, set)):
@@ -915,22 +935,21 @@ class DICOMwebClient(object):
         media_types: Union[Tuple[Union[str, Tuple[str, str]]], None],
         supported_media_types: Union[Dict[str, str], Set[str]]
     ) -> str:
-        """Builds an accept header field value for HTTP GET multipart request
-        messages.
+        """Build an accept header field value for a multipart request message.
 
         Parameters
         ----------
         media_types: Union[Tuple[Union[str, Tuple[str, str]]], None]
-            acceptable media types and optionally the UIDs of the corresponding
+            Acceptable media types and optionally the UIDs of the corresponding
             transfer syntaxes
         supported_media_types: Union[Dict[str, str], Set[str]]
-            set of supported media types or mapping of transfer syntaxes
+            Set of supported media types or mapping of transfer syntaxes
             to their corresponding media types
 
         Returns
         -------
         str
-            accept header field value
+            Accept header field value
 
         """
         if not isinstance(media_types, (list, tuple, set)):
@@ -999,21 +1018,20 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Performs a HTTP GET request that accepts a multipart message with
-        "applicaton/dicom" media type.
+        """GET a multipart resource with "applicaton/dicom" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes, (defaults to
             ``("application/dicom", "1.2.840.10008.1.2.1")``)
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
@@ -1089,29 +1107,28 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> Iterator[bytes]:
-        """Performs a HTTP GET request that accepts a multipart message with
-        "applicaton/octet-stream" media type.
+        """GET a multipart resource with "applicaton/octet-stream" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes (defaults to
             ``("application/octet-stream", "1.2.840.10008.1.2.1")``)
-        byte_range: Tuple[int, int], optional
-            start and end of byte range
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[bytes]
-            content of HTTP message body parts
+            Content of HTTP message body parts
 
         """
         default_media_type = 'application/octet-stream'
@@ -1145,30 +1162,29 @@ class DICOMwebClient(object):
         rendered: bool = False,
         stream: bool = False
     ) -> Iterator[bytes]:
-        """Performs a HTTP GET request that accepts a multipart message with
-        an image media type.
+        """GET a multipart resource with "image/" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Tuple[int, int], optional
-            start and end of byte range
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         rendered: bool, optional
-            whether resource should be requested using rendered media types
+            Whether resource should be requested using rendered media types
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[bytes]
-            content of HTTP message body parts
+            Content of HTTP message body parts
 
         """
         headers = {}
@@ -1219,30 +1235,29 @@ class DICOMwebClient(object):
         rendered: bool = False,
         stream: bool = False
     ) -> Iterator[bytes]:
-        """Performs a HTTP GET request that accepts a multipart message with
-        a video media type.
+        """GET a multipart resource with "video/" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
+            Unique resource locator
         media_types: Tuple[Union[str, Tuple[str, str]]]
-            acceptable media types and optionally the UIDs of the
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Tuple[int, int], optional
-            start and end of byte range
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         rendered: bool, optional
-            whether resource should be requested using rendered media types
+            Whether resource should be requested using rendered media types
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[bytes]
-            content of HTTP message body parts
+            Content of HTTP message body parts
 
         """
         headers = {}
@@ -1287,25 +1302,24 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
-        """Performs a HTTP GET request that accepts a message with
-        "applicaton/pdf" media type.
+        """GET a resource with "application/pdf" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        params: Dict[str], optional
-            additional HTTP GET query parameters
+            Unique resource locator
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         rendered: bool, optional
-            whether resource should be requested using rendered media types
+            Whether resource should be requested using rendered media types
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         bytes
-            content of HTTP message body
+            Content of HTTP message body
 
         """
         response = self._http_get(
@@ -1323,26 +1337,25 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
-        """Performs a HTTP GET request that accepts a message with an image
-        media type.
+        """GET a resource with "image/" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            image media type (choices: ``"image/jpeg"``, ``"image/gif"``,
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Image media type (choices: ``"image/jpeg"``, ``"image/gif"``,
             ``"image/jp2"``, ``"image/png"``)
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         bytes
-            content of HTTP message body
+            Content of HTTP message body
 
         """
         supported_media_types = {
@@ -1372,26 +1385,25 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
-        """Performs a HTTP GET request that accepts a message with an video
-        media type.
+        """GET a resource with "video/" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            video media type (choices: ``"video/mpeg"``, ``"video/mp4"``,
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Video media type (choices: ``"video/mpeg"``, ``"video/mp4"``,
             ``"video/H265"``)
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         bytes
-            content of HTTP message body
+            Content of HTTP message body
 
         """
         supported_media_types = {
@@ -1420,26 +1432,25 @@ class DICOMwebClient(object):
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
-        """Performs a HTTP GET request that accepts a message with an text
-        media type.
+        """GET a resource with "text/" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            text media type (choices: ``"text/html"``, ``"text/plain"``,
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Text media type (choices: ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``)
-        params: Dict[str, Any], optional
-            additional HTTP GET query parameters
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         bytes
-            content of HTTP message body
+            Content of HTTP message body
 
         """
         supported_media_types = {
@@ -1467,7 +1478,7 @@ class DICOMwebClient(object):
         data: bytes,
         headers: Dict[str, str]
     ) -> requests.models.Response:
-        """Performs a HTTP POST request.
+        """Perform a HTTP POST request.
 
         Parameters
         ----------
@@ -1547,20 +1558,19 @@ class DICOMwebClient(object):
         url: str,
         data: Sequence[bytes]
     ) -> pydicom.Dataset:
-        """Performs a HTTP POST request with a multipart payload with
-        "application/dicom" media type.
+        """POST a multipart resource with "application/dicom" media type.
 
         Parameters
         ----------
         url: str
-            unique resource locator
+            Unique resource locator
         data: Sequence[bytes]
             DICOM data sets that should be posted
 
         Returns
         -------
         pydicom.dataset.Dataset
-            information about stored instances
+            Information about stored instances
 
         """
         content_type = (
@@ -1584,17 +1594,18 @@ class DICOMwebClient(object):
         return pydicom.Dataset()
 
     def _http_delete(self, url: str):
-        """Performs a HTTP DELETE request to the specified URL.
+        """Perform a HTTP DELETE request.
 
         Parameters
         ----------
         url: str
-            unique resource locator
+            Unique resource locator
 
         Returns
         -------
         requests.models.Response
             HTTP response message
+
         """
         @retrying.retry(
             retry_on_result=self._is_retriable_http_error,
@@ -1620,27 +1631,27 @@ class DICOMwebClient(object):
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
-        """Searches for DICOM studies.
+        """Search for studies.
 
         Parameters
         ----------
-        fuzzymatching: bool, optional
-            whether fuzzy semantic matching should be performed
-        limit: int, optional
-            maximum number of results that should be returned
-        offset: int, optional
-            number of results that should be skipped
-        fields: Sequence[str], optional
-            names of fields (attributes) that should be included in results
-        search_filters: dict, optional
-            search filter criteria as key-value pairs, where *key* is a keyword
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Sequence[str], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[dict, None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
 
         Returns
         -------
         List[Dict[str, dict]]
-            study representations
+            Study representations
             (see `Study Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
 
         Note
@@ -1650,9 +1661,9 @@ class DICOMwebClient(object):
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
 
-        """ # noqa
+        """  # noqa: E501: E501
         logger.info('search for studies')
-        url = self._get_studies_url('qido')
+        url = self._get_studies_url(_Transaction.SEARCH)
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
@@ -1660,22 +1671,22 @@ class DICOMwebClient(object):
 
     @classmethod
     def _parse_media_type(cls, media_type: str) -> Tuple[str, str]:
-        """Parses media type and extracts its type and subtype.
+        """Parse media type and extract its type and subtype.
 
         Parameters
         ----------
         media_type: str
-            media type, e.g., ``"image/jpeg"``
+            Media type, e.g., ``"image/jpeg"``
 
         Returns
         -------
         Tuple[str, str]
-            type and subtype of media type (``("image", "jpeg")``)
+            Type and subtype of media type (``("image", "jpeg")``)
 
         Raises
         ------
         ValueError
-            when `media_type` is invalid
+            When `media_type` is invalid
 
         """
         cls._assert_media_type_is_valid(media_type)
@@ -1687,10 +1698,12 @@ class DICOMwebClient(object):
         cls,
         media_types: Tuple[Union[str, Tuple[str, str]]]
     ) -> str:
-        """Gets common type of acceptable media types and asserts that only
-        one type of a given category of DICOM data (``"application/dicom"``),
-        compressed bulkdata (``"image/"``, ``"video/"``) or uncompressed
-        bulkdata (``"application/octet-stream"``).
+        """Get common type of acceptable media types.
+
+        Also asserts that only one type of a given category of DICOM resources
+        (``"application/dicom"``), compressed bulkdata resources
+        (``"image/"``, ``"video/"``) or uncompressed bulkdata resources
+        (``"application/octet-stream"``).
         For example, ``("image/jpeg", "image/jp2")`` or
         ``("application/dicom", "application/dicom")`` will pass and
         return ``"image/"`` or ``"application/dicom"``, respectively. However,
@@ -1700,14 +1713,14 @@ class DICOMwebClient(object):
 
         Parameters
         ----------
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
         Returns
         -------
         str
-            common type of media type category
+            Common type of media type category
 
         Raises
         ------
@@ -1743,25 +1756,25 @@ class DICOMwebClient(object):
         byte_range: Optional[Tuple[int, int]] = None,
         stream: bool = False,
     ) -> Iterator[bytes]:
-        """Gets bulk data items from a given location.
+        """Get bulk data items at a given location.
 
         Parameters
         ----------
         url: str
-            location of the bulk data
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Location of the bulk data
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Tuple[int], optional
-            start and end of byte range
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[bytes]
-            bulk data items
+            Bulk data items
 
         """
         if media_types is None:
@@ -1793,22 +1806,22 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> List[bytes]:
-        """Retrieves bulk data from a given location.
+        """Retrieve bulk data at a given location.
 
         Parameters
         ----------
         url: str
-            location of the bulk data
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Location of the bulk data
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Tuple[int], optional
-            start and end of byte range
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
 
         Returns
         -------
         Iterator[bytes]
-            bulk data items
+            Bulk data items
 
         """
         return list(
@@ -1826,22 +1839,22 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> Iterator[bytes]:
-        """Iterates over bulk data items from a given location.
+        """Iterate over bulk data items at a given location.
 
         Parameters
         ----------
         url: str
-            location of the bulk data
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Location of the bulk data
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Tuple[int], optional
-            start and end of byte range
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
 
         Returns
         -------
         Iterator[bytes]
-            bulk data items
+            Bulk data items
 
         Note
         ----
@@ -1861,30 +1874,30 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         stream: bool = False
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Gets instances of a given DICOM study.
+        """Get all instances of a study.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Study Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxescceptable transfer syntax UIDs
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[pydicom.dataset.Dataset]
-            data sets
+            Instances
 
         """
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of study.'
             )
-        url = self._get_studies_url('wado', study_instance_uid)
+        url = self._get_studies_url(_Transaction.RETRIEVE, study_instance_uid)
         if media_types is None:
             return self._http_get_multipart_application_dicom(
                 url,
@@ -1907,20 +1920,20 @@ class DICOMwebClient(object):
         study_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
     ) -> List[pydicom.dataset.Dataset]:
-        """Retrieves instances of a given DICOM study.
+        """Retrieve all instances of a study.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Study Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
         Returns
         -------
         List[pydicom.dataset.Dataset]
-            data sets
+            Instances
 
         Note
         ----
@@ -1946,20 +1959,20 @@ class DICOMwebClient(object):
         study_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Iterates over instances of a given DICOM study.
+        """Iterate over all instances of a study.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Study Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
         Returns
         -------
         Iterator[pydicom.dataset.Dataset]
-            data sets
+            Instances
 
         Note
         ----
@@ -1986,17 +1999,17 @@ class DICOMwebClient(object):
         self,
         study_instance_uid: str
     ) -> List[Dict[str, dict]]:
-        """Retrieves metadata of instances of a given DICOM study.
+        """Retrieve metadata of all instances of a study.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
 
         Returns
         -------
         List[Dict[str, dict]]
-            metadata in DICOM JSON format
+            Metadata of instances in DICOM JSON format
 
         """
         if study_instance_uid is None:
@@ -2004,17 +2017,17 @@ class DICOMwebClient(object):
                 'Study Instance UID is required for retrieval of '
                 'study metadata.'
             )
-        url = self._get_studies_url('wado', study_instance_uid)
+        url = self._get_studies_url(_Transaction.RETRIEVE, study_instance_uid)
         url += '/metadata'
         return self._http_get_application_json(url)
 
     def delete_study(self, study_instance_uid: str) -> None:
-        """Deletes specified study and its respective instances.
+        """Delete all instances of a study.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
 
         Returns
         -------
@@ -2035,11 +2048,11 @@ class DICOMwebClient(object):
             raise ValueError(
               'Study Instance UID is required for deletion of a study.'
             )
-        url = self._get_studies_url('delete', study_instance_uid)
+        url = self._get_studies_url(_Transaction.DELETE, study_instance_uid)
         return self._http_delete(url)
 
     def _assert_uid_format(self, uid: str) -> None:
-        """Checks whether a DICOM UID has the correct format.
+        """Check whether a DICOM UID has the correct format.
 
         Parameters
         ----------
@@ -2049,9 +2062,9 @@ class DICOMwebClient(object):
         Raises
         ------
         TypeError
-            when `uid` is not a string
+            When `uid` is not a string
         ValueError
-            when `uid` doesn't match the regular expression pattern
+            When `uid` doesn't match the regular expression pattern
             ``"^[.0-9]+$"``
 
         """
@@ -2070,29 +2083,29 @@ class DICOMwebClient(object):
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
-        """Searches for DICOM series.
+        """Search for series.
 
         Parameters
         ----------
-        study_instance_uid: str, optional
-            unique study identifier
-        fuzzymatching: bool, optional
-            whether fuzzy semantic matching should be performed
-        limit: int, optional
-            maximum number of results that should be returned
-        offset: int, optional
-            number of results that should be skipped
-        fields: Union[list, tuple, set], optional
-            names of fields (attributes) that should be included in results
-        search_filters: Dict[str, Union[str, int, float]], optional
-            search filter criteria as key-value pairs, where *key* is a keyword
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Union[list, tuple, set], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[Dict[str, Union[str, int, float]], None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
 
         Returns
         -------
         List[Dict[str, dict]]
-            series representations
+            Series representations
             (see `Series Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
         Note
@@ -2102,11 +2115,11 @@ class DICOMwebClient(object):
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
 
-        """ # noqa
+        """  # noqa: E501
         if study_instance_uid is not None:
             self._assert_uid_format(study_instance_uid)
         logger.info(f'search for series of study "{study_instance_uid}"')
-        url = self._get_series_url('qido', study_instance_uid)
+        url = self._get_series_url(_Transaction.SEARCH, study_instance_uid)
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
@@ -2119,25 +2132,25 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         stream: bool = False
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Gets instances of a given DICOM series.
+        """Get instances of a series.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Series Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[pydicom.dataset.Dataset]
-            data sets
+            Instances
 
         """
         if study_instance_uid is None:
@@ -2155,7 +2168,9 @@ class DICOMwebClient(object):
             )
         self._assert_uid_format(series_instance_uid)
         url = self._get_series_url(
-            'wado', study_instance_uid, series_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid
         )
         if media_types is None:
             return self._http_get_multipart_application_dicom(
@@ -2180,22 +2195,22 @@ class DICOMwebClient(object):
         series_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
     ) -> List[pydicom.dataset.Dataset]:
-        """Retrieves instances of a given DICOM series.
+        """Retrieve all instances of a series.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Series Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
         Returns
         -------
         List[pydicom.dataset.Dataset]
-            data sets
+            Instances
 
         Note
         ----
@@ -2223,22 +2238,22 @@ class DICOMwebClient(object):
         series_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
-        """Iterates over retrieved instances of a given DICOM series.
+        """Iterate over all instances of a series.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            Series Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
         Returns
         -------
         Iterator[pydicom.dataset.Dataset]
-            data sets
+            Instances
 
         Note
         ----
@@ -2267,19 +2282,19 @@ class DICOMwebClient(object):
         study_instance_uid: str,
         series_instance_uid: str,
     ) -> List[Dict[str, dict]]:
-        """Retrieves metadata for instances of a given DICOM series.
+        """Retrieve metadata for all instances of a series.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
 
         Returns
         -------
         Dict[str, dict]
-            metadata in DICOM JSON format
+            Metadata of instances in DICOM JSON format
 
         """
         if study_instance_uid is None:
@@ -2299,7 +2314,9 @@ class DICOMwebClient(object):
         )
         self._assert_uid_format(series_instance_uid)
         url = self._get_series_url(
-            'wado', study_instance_uid, series_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid
         )
         url += '/metadata'
         return self._http_get_application_json(url)
@@ -2310,27 +2327,27 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
-        """Retrieves an individual, server-side rendered DICOM series.
+        """Retrieve rendered representation of a series.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            Series Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
-        params: Dict[str, Any], optional
-            additional parameters relevant for given `media_type`,
+        params: Union[Dict[str, Any], None], optional
+            Additional parameters relevant for given `media_type`,
             e.g., ``{"quality": 95}`` for ``"image/jpeg"``
 
         Returns
         -------
         bytes
-            rendered series
+            Rendered representation of series
 
         """
         if study_instance_uid is None:
@@ -2348,7 +2365,9 @@ class DICOMwebClient(object):
             f'of study "{study_instance_uid}"'
         )
         url = self._get_series_url(
-            'wado', study_instance_uid, series_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid
         )
         url += '/rendered'
         if media_types is None:
@@ -2374,14 +2393,14 @@ class DICOMwebClient(object):
         study_instance_uid: str,
         series_instance_uid: str
     ) -> None:
-        """Deletes specified series and its respective instances.
+        """Delete all instances of a series.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
 
         Note
         ----
@@ -2410,8 +2429,11 @@ class DICOMwebClient(object):
             f'delete series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        url = self._get_series_url('delete', study_instance_uid,
-                                   series_instance_uid)
+        url = self._get_series_url(
+            _Transaction.DELETE,
+            study_instance_uid,
+            series_instance_uid
+        )
         return self._http_delete(url)
 
     def search_for_instances(
@@ -2424,31 +2446,31 @@ class DICOMwebClient(object):
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
-        """Searches for DICOM instances.
+        """Search for instances.
 
         Parameters
         ----------
-        study_instance_uid: str, optional
-            unique study identifier
-        series_instance_uid: str, optional
-            unique series identifier
-        fuzzymatching: bool, optional
-            whether fuzzy semantic matching should be performed
-        limit: int, optional
-            maximum number of results that should be returned
-        offset: int, optional
-            number of results that should be skipped
-        fields: Union[list, tuple, set], optional
-            names of fields (attributes) that should be included in results
-        search_filters: Dict[str, Union[str, int, float]], optional
-            search filter criteria as key-value pairs, where *key* is a keyword
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        series_instance_uid: Union[str, None], optional
+            Series Instance UID
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Union[list, tuple, set], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[Dict[str, Union[str, int, float]], None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
 
         Returns
         -------
         List[Dict[str, dict]]
-            instance representations
+            Instance representations
             (see `Instance Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
 
         Note
@@ -2458,7 +2480,7 @@ class DICOMwebClient(object):
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
 
-        """ # noqa
+        """  # noqa: E501
         message = 'search for instances'
         if series_instance_uid is not None:
             message += f' of series "{series_instance_uid}"'
@@ -2467,7 +2489,9 @@ class DICOMwebClient(object):
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
         url = self._get_instances_url(
-            'qido', study_instance_uid, series_instance_uid
+            _Transaction.SEARCH,
+            study_instance_uid,
+            series_instance_uid
         )
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
@@ -2481,24 +2505,24 @@ class DICOMwebClient(object):
         sop_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
     ) -> pydicom.dataset.Dataset:
-        """Retrieves an individual DICOM instance.
+        """Retrieve an individual instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            SOP Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
         Returns
         -------
         pydicom.dataset.Dataset
-            data set
+            Instance
 
         Note
         ----
@@ -2532,7 +2556,10 @@ class DICOMwebClient(object):
         )
         self._assert_uid_format(sop_instance_uid)
         url = self._get_instances_url(
-            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid
         )
         if media_types is not None:
             common_media_type = self._get_common_media_type(media_types)
@@ -2553,26 +2580,26 @@ class DICOMwebClient(object):
         datasets: Sequence[pydicom.dataset.Dataset],
         study_instance_uid: Optional[str] = None
     ) -> pydicom.dataset.Dataset:
-        """Stores DICOM instances.
+        """Store instances.
 
         Parameters
         ----------
         datasets: Sequence[pydicom.dataset.Dataset]
-            instances that should be stored
-        study_instance_uid: str, optional
-            unique study identifier
+            Instances that should be stored
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
 
         Returns
         -------
         pydicom.dataset.Dataset
-            information about status of stored instances
+            Information about status of stored instances
 
         """
         message = 'store instances'
         if study_instance_uid is not None:
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
-        url = self._get_studies_url('stow', study_instance_uid)
+        url = self._get_studies_url(_Transaction.STORE, study_instance_uid)
         encoded_datasets = list()
         for ds in datasets:
             with BytesIO() as b:
@@ -2590,16 +2617,16 @@ class DICOMwebClient(object):
         series_instance_uid: str,
         sop_instance_uid: str
     ) -> None:
-        """Deletes specified instance.
+        """Delete specified instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
+            SOP Instance UID
 
         Returns
         -------
@@ -2628,8 +2655,12 @@ class DICOMwebClient(object):
             raise ValueError(
                 'SOP Instance UID is required for deletion of an instance.'
             )
-        url = self._get_instances_url('delete', study_instance_uid,
-                                      series_instance_uid, sop_instance_uid)
+        url = self._get_instances_url(
+            _Transaction.DELETE,
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid
+        )
         return self._http_delete(url)
 
     def retrieve_instance_metadata(
@@ -2638,21 +2669,21 @@ class DICOMwebClient(object):
         series_instance_uid: str,
         sop_instance_uid: str
     ) -> Dict[str, dict]:
-        """Retrieves metadata of an individual DICOM instance.
+        """Retrieve metadata of an individual instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
+            SOP Instance UID
 
         Returns
         -------
         Dict[str, dict]
-            metadata in DICOM JSON format
+            Metadata of instance in DICOM JSON format
 
         """
         if study_instance_uid is None:
@@ -2671,7 +2702,10 @@ class DICOMwebClient(object):
                 'instance metadata.'
             )
         url = self._get_instances_url(
-            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid
         )
         url += '/metadata'
         return self._http_get_application_json(url)[0]
@@ -2684,29 +2718,29 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
-        """Retrieves an individual, server-side rendered DICOM instance.
+        """Retrieve an individual, server-side rendered instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            SOP Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
-        params: Dict[str], optional
-            additional parameters relevant for given `media_type`,
+        params: Union[Dict[str, Any], None], optional
+            Additional parameters relevant for given `media_type`,
             e.g., ``{"quality": 95}`` for ``"image/jpeg"``
 
         Returns
         -------
         bytes
-            rendered representation of instance
+            Rendered representation of instance
 
         """
         if study_instance_uid is None:
@@ -2725,7 +2759,10 @@ class DICOMwebClient(object):
                 'rendered instance.'
             )
         url = self._get_instances_url(
-            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid
         )
         url += '/rendered'
         if media_types is None:
@@ -2755,29 +2792,29 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         stream: bool = False
     ) -> Iterator[bytes]:
-        """Gets frames of a DICOM instance.
+        """Get frames of an instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
+            SOP Instance UID
         frame_numbers: Sequence[int]
-            one-based positional indices of the frames within the instance
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            One-based positional indices of the frames within the instance
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         stream: bool, optional
-            whether data should be streamed (i.e., requested using chunked
+            Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
 
         Returns
         -------
         Iterator[bytes]
-            pixel data for each frame
+            Pixel data for each frame
 
         """
         if study_instance_uid is None:
@@ -2793,7 +2830,10 @@ class DICOMwebClient(object):
                 'SOP Instance UID is required for retrieval of frames.'
             )
         url = self._get_instances_url(
-            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid
         )
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += f'/frames/{frame_list}'
@@ -2835,26 +2875,26 @@ class DICOMwebClient(object):
         frame_numbers: Sequence[int],
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
     ) -> List[bytes]:
-        """Retrieves one or more frames of a DICOM instance.
+        """Retrieve one or more frames of an image instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
+            SOP Instance UID
         frame_numbers: Sequence[int]
-            one-based positional indices of the frames within the instance
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            One-based positional indices of the frames within the instance
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
         Returns
         -------
         List[bytes]
-            pixel data for each frame
+            Pixel data for each frame
 
         """
         return list(
@@ -2876,26 +2916,26 @@ class DICOMwebClient(object):
         frame_numbers: Sequence[int],
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
     ) -> Iterator[bytes]:
-        """Iterates over frames of a DICOM instance.
+        """Iterate over frames of an image instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
+            SOP Instance UID
         frame_numbers: Sequence[int]
-            one-based positional indices of the frames within the instance
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media types and optionally the UIDs of the
+            One-based positional indices of the frames within the instance
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
         Returns
         -------
         Iterator[bytes]
-            pixel data for each frame
+            Pixel data for each frame
 
         Note
         ----
@@ -2920,30 +2960,29 @@ class DICOMwebClient(object):
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
-        """Retrieves one or more server-side rendered frames of a
-        DICOM instance.
+        """Retrieve one or more server-side rendered frames of an instance.
 
         Parameters
         ----------
         study_instance_uid: str
-            unique study identifier
+            Study Instance UID
         series_instance_uid: str
-            unique series identifier
+            Series Instance UID
         sop_instance_uid: str
-            unique instance identifier
+            SOP Instance UID
         frame_numbers: Sequence[int]
-            one-based positional index of the frame within the instance
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
-            acceptable media type (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            One-based positional index of the frame within the instance
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media type (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``)
-        params: Dict[str], optional
-            additional parameters relevant for given `media_type`,
+        params: Union[Dict[str, Any], None], optional
+            Additional parameters relevant for given `media_type`,
             e.g., ``{"quality": 95}`` for ``"image/jpeg"`` media type
 
         Returns
         -------
         bytes
-            rendered frames
+            Rendered representation of frames
 
         Note
         ----
@@ -2965,7 +3004,10 @@ class DICOMwebClient(object):
                 'SOP Instance UID is required for retrieval of rendered frame.'
             )
         url = self._get_instances_url(
-            'wado', study_instance_uid, series_instance_uid, sop_instance_uid
+            _Transaction.RETRIEVE,
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid
         )
         url += '/frames/{frame_numbers}/rendered'.format(
             frame_numbers=','.join([str(n) for n in frame_numbers])
@@ -2989,34 +3031,34 @@ class DICOMwebClient(object):
     def lookup_keyword(
         tag: Union[str, int, Tuple[str, str], pydicom.tag.BaseTag]
     ) -> str:
-        """Looks up the keyword of a DICOM attribute.
+        """Look up the keyword of a DICOM attribute.
 
         Parameters
         ----------
         tag: Union[str, int, Tuple[str, str], pydicom.tag.BaseTag]
-            attribute tag (e.g. ``"00080018"``)
+            Attribute tag (e.g. ``"00080018"``)
 
         Returns
         -------
         str
-            attribute keyword (e.g. ``"SOPInstanceUID"``)
+            Attribute keyword (e.g. ``"SOPInstanceUID"``)
 
         """
         return pydicom.datadict.keyword_for_tag(tag)
 
     @staticmethod
     def lookup_tag(keyword: str) -> str:
-        """Looks up the tag of a DICOM attribute.
+        """Look up the tag of a DICOM attribute.
 
         Parameters
         ----------
         keyword: str
-            attribute keyword (e.g. ``"SOPInstanceUID"``)
+            Attribute keyword (e.g. ``"SOPInstanceUID"``)
 
         Returns
         -------
         str
-            attribute tag as HEX string (e.g. ``"00080018"``)
+            Attribute tag as HEX string (e.g. ``"00080018"``)
 
         """
         tag = pydicom.datadict.tag_for_keyword(keyword)

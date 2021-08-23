@@ -9,11 +9,7 @@ import pydicom
 from requests.exceptions import HTTPError
 from retrying import RetryError
 
-from dicomweb_client.api import (
-    DICOMwebClient,
-    load_json_dataset,
-    _load_xml_dataset
-)
+from dicomweb_client.api import DICOMwebClient, _load_xml_dataset
 
 
 def test_content_extraction_from_part():
@@ -214,16 +210,26 @@ def test_search_for_series(httpserver, client, cache_dir):
     )
 
 
+def test_search_for_series_of_study(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('search_for_series.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    study_uid = '1.2.3.4'
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    client.search_for_series(study_instance_uid=study_uid)
+    request = httpserver.requests[0]
+    assert request.path == f'/studies/{study_uid}/series'
+
+
 def test_search_for_series_wrong_uid_type(httpserver, client, cache_dir):
-    study_instance_uid = ['1.2.3.4']
     with pytest.raises(TypeError):
-        client.search_for_series(study_instance_uid=study_instance_uid)
+        client.search_for_series(study_instance_uid=['1.2.3.4'])
 
 
 def test_search_for_series_wrong_uid_value(httpserver, client, cache_dir):
-    study_instance_uid = '1_2_3_4'
     with pytest.raises(ValueError):
-        client.search_for_series(study_instance_uid=study_instance_uid)
+        client.search_for_series(study_instance_uid='1_2_3_4')
 
 
 def test_search_for_series_limit_offset(httpserver, client, cache_dir):
@@ -261,6 +267,31 @@ def test_search_for_instances(httpserver, client, cache_dir):
         mime[0] in ('application/json', 'application/dicom+json')
         for mime in request.accept_mimetypes
     )
+
+
+def test_search_for_instances_of_series(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('search_for_instances.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_uid = '1.2.3.4'
+    series_uid = '5.6.7.8'
+    client.search_for_instances(study_uid, series_uid)
+    request = httpserver.requests[0]
+    assert request.path == f'/studies/{study_uid}/series/{series_uid}/instances'
+
+
+def test_search_for_instances_of_study(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('search_for_instances.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_uid = '1.2.3.4'
+    client.search_for_instances(study_uid)
+    request = httpserver.requests[0]
+    assert request.path == f'/studies/{study_uid}/instances'
 
 
 def test_search_for_instances_limit_offset(httpserver, client, cache_dir):
@@ -337,18 +368,16 @@ def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
         content = f.read()
     headers = {'content-type': 'application/dicom+json'}
     httpserver.serve_content(content=content, code=200, headers=headers)
-    study_instance_uid = '1.2.3'
-    series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
-    client.retrieve_instance_metadata(
-        study_instance_uid, series_instance_uid, sop_instance_uid
-    )
+    study_uid = '1.2.3'
+    series_uid = '1.2.4'
+    instance_uid = '1.2.5'
+    client.retrieve_instance_metadata(study_uid, series_uid, instance_uid)
     request = httpserver.requests[0]
     expected_path = (
         '/wadors'
-        f'/studies/{study_instance_uid}'
-        f'/series/{series_instance_uid}'
-        f'/instances/{sop_instance_uid}/metadata'
+        f'/studies/{study_uid}'
+        f'/series/{series_uid}'
+        f'/instances/{instance_uid}/metadata'
     )
     assert request.path == expected_path
 
@@ -378,11 +407,9 @@ def test_iter_series(client, httpserver, cache_dir):
     chunked_message = _chunk_message(message, chunk_size)
 
     httpserver.serve_content(content=chunked_message, code=200, headers=headers)
-    study_instance_uid = '1.2.3'
-    series_instance_uid = '1.2.4'
-    iterator = client.iter_series(
-        study_instance_uid, series_instance_uid
-    )
+    study_uid = '1.2.3'
+    series_uid = '1.2.4'
+    iterator = client.iter_series(study_uid, series_uid)
     assert isinstance(iterator, Generator)
     response = list(iterator)
     for instance in response:
@@ -391,11 +418,7 @@ def test_iter_series(client, httpserver, cache_dir):
             raw_result = fp.getvalue()
         assert raw_result == data
     request = httpserver.requests[0]
-    expected_path = (
-        f'/studies/{study_instance_uid}'
-        f'/series/{series_instance_uid}'
-    )
-    assert request.path == expected_path
+    assert request.path == f'/studies/{study_uid}/series/{series_uid}'
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
     assert len(response) == n_resources
 
@@ -795,7 +818,7 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
 
 
 def test_store_instance_error_with_retries(httpserver, client, cache_dir):
-    dataset = load_json_dataset({})
+    dataset = pydicom.Dataset.from_json({})
     dataset.is_little_endian = True
     dataset.is_implicit_VR = True
     max_attempts = 2
@@ -819,7 +842,7 @@ def test_store_instance_error_with_retries(httpserver, client, cache_dir):
 
 
 def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
-    dataset = load_json_dataset({})
+    dataset = pydicom.Dataset.from_json({})
     dataset.is_little_endian = True
     dataset.is_implicit_VR = True
     client.set_http_retry_params(retry=False)
@@ -906,7 +929,7 @@ def test_load_json_dataset_da(httpserver, client, cache_dir):
             'Value': value
         }
     }
-    dataset = load_json_dataset(dicom_json)
+    dataset = pydicom.Dataset.from_json(dicom_json)
     assert dataset.StudyDate == value[0]
 
 
@@ -918,7 +941,7 @@ def test_load_json_dataset_tm(httpserver, client, cache_dir):
             'Value': value,
         },
     }
-    dataset = load_json_dataset(dicom_json)
+    dataset = pydicom.Dataset.from_json(dicom_json)
     assert dataset.StudyTime == value[0]
 
 
@@ -931,7 +954,7 @@ def test_load_json_dataset_pn_vm1(httpserver, client, cache_dir):
             'Value': value,
         },
     }
-    dataset = load_json_dataset(dicom_json)
+    dataset = pydicom.Dataset.from_json(dicom_json)
     assert dataset.ReferringPhysicianName == name
 
 
@@ -944,7 +967,7 @@ def test_load_json_dataset_pn_vm2(httpserver, client, cache_dir):
             'Value': value,
         },
     }
-    dataset = load_json_dataset(dicom_json)
+    dataset = pydicom.Dataset.from_json(dicom_json)
     assert dataset.ConsultingPhysicianName == names
 
 
@@ -956,7 +979,7 @@ def test_load_json_dataset_pn_vm1_empty(httpserver, client, cache_dir):
             'Value': value,
         },
     }
-    dataset = load_json_dataset(dicom_json)
+    dataset = pydicom.Dataset.from_json(dicom_json)
     # This returns different results for Python2 (None) and Python3 ("")
     assert dataset.ReferringPhysicianName in (None, '')
 
@@ -969,7 +992,7 @@ def test_load_json_dataset_pn_vm2_empty(httpserver, client, cache_dir):
             'Value': value,
         },
     }
-    dataset = load_json_dataset(dicom_json)
+    dataset = pydicom.Dataset.from_json(dicom_json)
     assert dataset.ConsultingPhysicianName == ''
 
 
