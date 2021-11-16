@@ -1,6 +1,18 @@
+"""Client to access DICOM files through a layer of abstraction.
+
+Facilitates serverless access to data stored locally on a file system as
+DICOM Part10 files.
+
+Note
+----
+This is not a client implementation of the DICOM File Service and does not
+depend on the presence of DICOMDIR files.
+
+"""
 import io
 import logging
 import math
+import os
 import re
 import sqlite3
 import sys
@@ -11,7 +23,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
-import numpy as np
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
 from pydicom.dataset import Dataset, FileMetaDataset
@@ -847,7 +858,7 @@ class DICOMfileClient:
                 sop_instance_uid = ds.SOPInstanceUID
                 instances[sop_instance_uid] = tuple(instance_metadata)
             except AttributeError as error:
-                logger.error(f'failed to parse file "{file_path}": {error}')
+                logger.warn(f'failed to parse file "{file_path}": {error}')
                 continue
 
             if not i % n:
@@ -987,15 +998,30 @@ class DICOMfileClient:
                     [str(p) for p in batch]
                 )
                 results += cursor.fetchall()
+            cursor.close()
 
+        self._delete_instances_from_db(
+            uids=[
+                (
+                    r['StudyInstanceUID'],
+                    r['SeriesInstanceUID'],
+                    r['SOPInstanceUID'],
+                )
+                for r in results
+            ]
+        )
+
+    def _delete_instances_from_db(
+        self,
+        uids: Sequence[Tuple[str, str, str]]
+    ) -> None:
+        with self._connection as connection:
+            cursor = connection.cursor()
             # Delete instances as well as any parent series or studies that
             # would be empty after the instances are deleted.
             studies_to_check = set()
             series_to_check = set()
-            for r in results:
-                study_instance_uid = r['StudyInstanceUID']
-                series_instance_uid = r['SeriesInstanceUID']
-                sop_instance_uid = r['SOPInstanceUID']
+            for study_instance_uid, series_instance_uid, sop_instance_uid in uids:  # noqa
                 cursor.executemany(
                     'DELETE FROM instances WHERE SOPInstanceUID=?',
                     sop_instance_uid
@@ -1802,6 +1828,63 @@ class DICOMfileClient:
 
         return collection
 
+    def retrieve_bulkdata(
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None
+    ) -> List[bytes]:
+        """Retrieve bulk data at a given location.
+
+        Parameters
+        ----------
+        url: str
+            Location of the bulk data
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
+
+        Returns
+        -------
+        Iterator[bytes]
+            Bulk data items
+
+
+        """
+        raise NotImplementedError(
+            'Retrieval of bulkdata is not (yet) implemented.'
+        )
+
+    def iter_bulkdata(
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None
+    ) -> Iterator[bytes]:
+        """Iterate over bulk data items at a given location.
+
+        Parameters
+        ----------
+        url: str
+            Location of the bulk data
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
+
+        Returns
+        -------
+        Iterator[bytes]
+            Bulk data items
+
+        """
+        raise NotImplementedError(
+            'Retrieval of bulkdata is not (yet) implemented.'
+        )
+
     def retrieve_study_metadata(
         self,
         study_instance_uid: str,
@@ -1860,12 +1943,11 @@ class DICOMfileClient:
         )
         series_index = self._get_series(study_instance_uid)
         for study_instance_uid, series_instance_uid in series_index:
-            instance_index = self._get_instances(
+            uids = self._get_instances(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
             )
-            for i in instance_index:
-                study_instance_uid, series_instance_uid, sop_instance_uid = i
+            for study_instance_uid, series_instance_uid, sop_instance_uid in uids:  # noqa
                 yield self.retrieve_instance(
                     study_instance_uid=study_instance_uid,
                     series_instance_uid=series_instance_uid,
@@ -1976,6 +2058,39 @@ class DICOMfileClient:
             media_types=media_types,
         )
         return list(iterator)
+
+    def retrieve_series_rendered(
+        self, study_instance_uid,
+        series_instance_uid,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None
+    ) -> bytes:
+        """Retrieve rendered representation of a series.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
+            ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
+            ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
+        params: Union[Dict[str, Any], None], optional
+            Additional parameters relevant for given `media_type`,
+            e.g., ``{"quality": 95}`` for ``"image/jpeg"``
+
+        Returns
+        -------
+        bytes
+            Rendered representation of series
+
+        """
+        raise NotImplementedError(
+            'Retrieval of rendered series is not (yet) supported.'
+        )
 
     def retrieve_series_metadata(
         self,
@@ -2139,6 +2254,43 @@ class DICOMfileClient:
         # cannot be encoded in the Explicit VR Little Endian Transfer Syntax.
 
         return dataset
+
+    def retrieve_instance_rendered(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, Any]] = None
+    ) -> bytes:
+        """Retrieve an individual, server-side rendered instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+        sop_instance_uid: str
+            SOP Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
+            ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
+            ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
+        params: Union[Dict[str, Any], None], optional
+            Additional parameters relevant for given `media_type`,
+            e.g., ``{"quality": 95}`` for ``"image/jpeg"``
+
+        Returns
+        -------
+        bytes
+            Rendered representation of instance
+
+        """
+        raise NotImplementedError(
+            'Retrieval of rendered instances is not (yet) supported.'
+        )
 
     def iter_instance_frames(
         self,
@@ -2610,3 +2762,100 @@ class DICOMfileClient:
                 failure_item.ReferencedSOPClassUID = ds.SOPClassUID
                 failure_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
                 response.FailedSOPSequence.append(failure_item)
+
+    def delete_study(self, study_instance_uid: str) -> None:
+        """Delete all instances of a study.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+
+        """
+        if study_instance_uid is None:
+            raise ValueError(
+              'Study Instance UID is required for deletion of a study.'
+            )
+        uids = self._get_instances(study_instance_uid)
+        for study_instance_uid, series_instance_uid, sop_instance_uid in uids:
+            self.delete_instance(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid,
+            )
+
+    def delete_series(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str
+    ) -> None:
+        """Delete all instances of a series.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+
+        """
+        if study_instance_uid is None:
+            raise ValueError(
+              'Study Instance UID is required for deletion of a series.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for deletion of a series.'
+            )
+        uids = self._get_instances(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+        )
+        for study_instance_uid, series_instance_uid, sop_instance_uid in uids:
+            self.delete_instance(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid,
+            )
+
+    def delete_instance(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str
+    ) -> None:
+        """Delete specified instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+        sop_instance_uid: str
+            SOP Instance UID
+
+        """
+        if study_instance_uid is None:
+            raise ValueError(
+              'Study Instance UID is required for deletion of an instance.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for deletion of an instance.'
+            )
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for deletion of an instance.'
+            )
+        file_path = self._get_instance_file_path(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid,
+        )
+        self._delete_instances_from_db(
+            uids=[
+                (study_instance_uid, series_instance_uid, sop_instance_uid)
+            ]
+        )
+        os.remove(file_path)

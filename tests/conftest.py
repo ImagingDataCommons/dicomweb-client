@@ -31,5 +31,3 @@ def file_client():
     '''Instance of `dicomweb_client.api.DICOMwebClient`.'''
     base_dir = Path(DATA_ROOT)
     return DICOMfileClient(base_dir, recreate_db=True)
-
-

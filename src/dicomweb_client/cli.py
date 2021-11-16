@@ -11,7 +11,7 @@ from io import BytesIO
 
 import pydicom
 
-from dicomweb_client.api import DICOMwebClient, load_json_dataset
+from dicomweb_client.api import DICOMwebClient
 from dicomweb_client.log import configure_logging
 from dicomweb_client.session_utils import (
     create_session,
@@ -401,11 +401,11 @@ def _print_metadata(data, prettify=False, dicomize=False):
     if dicomize:
         if isinstance(data, list):
             for ds in data:
-                dcm_ds = load_json_dataset(ds)
+                dcm_ds = pydicom.dataset.Dataset.from_json(ds)
                 print(dcm_ds)
                 print('\n')
         else:
-            dcm_ds = load_json_dataset(data)
+            dcm_ds = pydicom.dataset.Dataset.from_json(data)
             print(dcm_ds)
     elif prettify:
         print(json.dumps(data, indent=4, sort_keys=True))
@@ -429,7 +429,7 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
     filepath = os.path.join(directory, filename)
     logger.info('save metadata to file: {}'.format(filepath))
     if dicomize:
-        dataset = load_json_dataset(data)
+        dataset = pydicom.dataset.Dataset.from_json(data)
         dataset.save_as(filepath)
     else:
         with open(filepath, 'w') as f:
