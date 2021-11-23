@@ -335,9 +335,7 @@ class _ImageFileReader:
                     f'File is not a valid DICOM file: "{self._filepath}"'
                 )
             except Exception:
-                raise OSError(
-                    f'Could not read file: "{self._filepath}"'
-                )
+                raise OSError(f'Could not read file: "{self._filepath}"')
 
             transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
             if transfer_syntax_uid is None:
@@ -1851,11 +1849,18 @@ class DICOMfileClient:
         Iterator[bytes]
             Bulk data items
 
+        Raises
+        ------
+        IOError
+            When requested resource is not found at `url`
 
         """
-        raise NotImplementedError(
-            'Retrieval of bulkdata is not (yet) implemented.'
+        iterator = self.iter_bulkdata(
+            url=url,
+            media_types=media_types,
+            byte_range=byte_range
         )
+        return list(iterator)
 
     def iter_bulkdata(
         self,
@@ -1880,10 +1885,21 @@ class DICOMfileClient:
         Iterator[bytes]
             Bulk data items
 
+        Raises
+        ------
+        IOError
+            When requested resource is not found at `url`
+
         """
-        raise NotImplementedError(
-            'Retrieval of bulkdata is not (yet) implemented.'
-        )
+        # The retrieve_study_metadata, retrieve_series_metadata, and
+        # retrieve_instance_metadata methods currently include all bulkdata
+        # into metadata resources by value rather than by reference, i.e.,
+        # using the "InlineBinary" rather than the "BulkdataURI" key.
+        # Therefore, no valid URL should exist for any bulkdata at this point.
+        # If that behavior gets changed, i.e., if bulkdata gets included into
+        # metadata using "BulkdataURI", then the implementation of this method
+        # will need to change as well.
+        raise IOError(f'Resource does not exist: "{url}".')
 
     def retrieve_study_metadata(
         self,
@@ -2088,9 +2104,7 @@ class DICOMfileClient:
             Rendered representation of series
 
         """
-        raise NotImplementedError(
-            'Retrieval of rendered series is not (yet) supported.'
-        )
+        raise ValueError('Retrieval of rendered series is not supported.')
 
     def retrieve_series_metadata(
         self,
@@ -2287,10 +2301,44 @@ class DICOMfileClient:
         bytes
             Rendered representation of instance
 
+        Note
+        ----
+        Only rendering of single-frame image instances is supported.
+
         """
-        raise NotImplementedError(
-            'Retrieval of rendered instances is not (yet) supported.'
+        file_path = self._get_instance_file_path(
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid,
         )
+        image_file_reader = self._get_image_file_reader(file_path)
+        metadata = image_file_reader.metadata
+        if int(metadata.NumberOfFrames) > 1:
+            raise ValueError(
+                'Rendering of multi-frame image instance is not supported.'
+            )
+        frame_index = 0
+        frame = image_file_reader.read_frame(frame_index)
+        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
+
+        codec_name, codec_kwargs = self._get_image_codec_parameters(
+            metadata=metadata,
+            transfer_syntax_uid=transfer_syntax_uid,
+            media_types=media_types,
+            params=params
+        )
+
+        if codec_name is None:
+            pixels = frame
+        else:
+            array = image_file_reader.decode_frame(frame_index, frame)
+            image = Image.fromarray(array)
+            with io.BytesIO() as fp:
+                image.save(fp, codec_name, **codec_kwargs)
+                fp.seek(0)
+                pixels = fp.read()
+
+        return pixels
 
     def iter_instance_frames(
         self,
@@ -2503,26 +2551,56 @@ class DICOMfileClient:
             f'retrieve rendered frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
+        if len(frame_numbers) == 0:
+            raise ValueError('A frame number must be provided.')
+        elif len(frame_numbers) > 1:
+            raise ValueError(
+                'Only rendering of a single frame is supported for now.'
+            )
+        frame_number = frame_numbers[0]
+
         file_path = self._get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
         )
-
-        if len(frame_numbers) == 0:
-            raise ValueError('A frame number must be provided.')
-        elif len(frame_numbers) > 1:
-            raise NotImplementedError(
-                "Only rendering of a single frame is supported."
-            )
-        frame_number = frame_numbers[0]
-
         image_file_reader = self._get_image_file_reader(file_path)
         frame_index = frame_number - 1
         frame = image_file_reader.read_frame(frame_index)
         metadata = image_file_reader.metadata
-
         transfer_syntax_uid = image_file_reader.transfer_syntax_uid
+
+        if frame_number > int(metadata.NumberOfFrames):
+            raise ValueError(
+                'Provided frame number exceeds number of frames.'
+            )
+
+        codec_name, codec_kwargs = self._get_image_codec_parameters(
+            metadata=metadata,
+            transfer_syntax_uid=transfer_syntax_uid,
+            media_types=media_types,
+            params=params
+        )
+
+        if codec_name is None:
+            pixels = frame
+        else:
+            array = image_file_reader.decode_frame(frame_index, frame)
+            image = Image.fromarray(array)
+            with io.BytesIO() as fp:
+                image.save(fp, codec_name, **codec_kwargs)
+                fp.seek(0)
+                pixels = fp.read()
+
+        return pixels
+
+    def _get_image_codec_parameters(
+        self,
+        metadata: Dataset,
+        transfer_syntax_uid: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        params: Optional[Dict[str, str]] = None,
+    ) -> Tuple[str, Dict[str, Any]]:
         if media_types is not None:
             acceptable_media_types = list(set([
                 m[0]
@@ -2560,12 +2638,9 @@ class DICOMfileClient:
                     image_type = 'jpeg'
             else:
                 raise ValueError(
-                    'Cannot retrieve frames of instance "{}" in rendered '
+                    'Cannot retrieve frames of instance in rendered '
                     'format using any of the acceptable media types: '
-                    '"{}".'.format(
-                        sop_instance_uid,
-                        '", "'.join(acceptable_media_types)
-                    )
+                    '"{}".'.format('", "'.join(acceptable_media_types))
                 )
         else:
             if transfer_syntax_uid == '1.2.840.10008.1.2.4.50':
@@ -2573,11 +2648,6 @@ class DICOMfileClient:
                 image_type = None
             else:
                 image_type = 'jpeg'
-
-        if frame_number > int(metadata.NumberOfFrames):
-            raise ValueError(
-                'Provided frame number exceeds number of frames.'
-            )
 
         image_kwargs = {
             # Avoid re-compression when encoding in PNG format
@@ -2604,17 +2674,7 @@ class DICOMfileClient:
                     f'ICC Profile "{include_icc_profile}" is not supported.'
                 )
 
-        if image_type is None:
-            pixels = frame
-        else:
-            array = image_file_reader.decode_frame(frame_index, frame)
-            image = Image.fromarray(array)
-            with io.BytesIO() as fp:
-                image.save(fp, image_type, **image_kwargs[image_type])
-                fp.seek(0)
-                pixels = fp.read()
-
-        return pixels
+        return (image_type, image_kwargs[image_type])
 
     @staticmethod
     def lookup_keyword(
