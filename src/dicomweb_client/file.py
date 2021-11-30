@@ -1514,7 +1514,7 @@ class DICOMfileClient:
             search_params['StudyInstanceUID'] = study_instance_uid
             all_series = False
 
-        searchable_keywords = self._attributes[_QueryResourceType.STUDIES]
+        searchable_keywords = list(self._attributes[_QueryResourceType.STUDIES])
         searchable_keywords.extend(
             self._attributes[_QueryResourceType.SERIES]
         )
@@ -1684,7 +1684,7 @@ class DICOMfileClient:
                     f'of study "{study_instance_uid}"'
                 )
 
-        searchable_keywords = self._attributes[_QueryResourceType.STUDIES]
+        searchable_keywords = list(self._attributes[_QueryResourceType.STUDIES])
         searchable_keywords.extend(
             self._attributes[_QueryResourceType.SERIES]
         )
