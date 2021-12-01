@@ -2,8 +2,8 @@ import json
 import tempfile
 
 import pytest
+import pydicom
 
-from dicomweb_client.api import load_json_dataset
 from dicomweb_client.cli import main
 
 
@@ -620,7 +620,7 @@ def test_search_for_studies_dicomize(parser, httpserver, cache_dir, capsys):
         content = f.read()
     parsed_content = json.loads(content)
     dicomized_content = '\n\n\n'.join([
-        repr(load_json_dataset(instance))
+        repr(pydicom.dataset.Dataset.from_json(instance))
         for instance in parsed_content
     ])
     dicomized_content += '\n\n\n'

@@ -32,6 +32,7 @@ setuptools.setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Development Status :: 4 - Beta',
     ],
     entry_points={
@@ -49,8 +50,11 @@ setuptools.setup(
     },
     python_requires='>=3.6',
     install_requires=[
-        'pydicom>=2.0',
+        'numpy>=1.19',
         'requests>=2.18',
         'retrying>=1.3.3',
+        'Pillow>=8.3',
+        'pydicom>=2.2',
+        'typing-extensions>=4.0; python_version < "3.8.0"'
     ]
 )
