@@ -5,7 +5,7 @@ DICOM Part10 files.
 
 Note
 ----
-This is not a client implementation of the DICOM File Service and does not
+This is **not** an implementation of the DICOM File Service and does not
 depend on the presence of DICOMDIR files.
 
 """
@@ -622,6 +622,15 @@ class DICOMfileClient:
     """Client for managing DICOM Part10 files in a DICOMweb-like manner.
 
     The class exposes the same interface as the ``DICOMwebClient`` class.
+    Parameters and return values methods have the same types, but the types of
+    exceptions may differ between ``DICOMwebClient`` and ``DICOMfileClient``.
+
+    Note
+    ----
+    The class internally uses an in-memory database and persists it on disk to
+    facilitate faster subsequent data access. However, the implementation
+    details of the database and the structure of any database files stored on
+    the file system may change at any time and should not be relied on.
 
     """
 
@@ -639,13 +648,19 @@ class DICOMfileClient:
             Path to base directory. This directory is expected to contain
             DICOM files as well as ``DICOMDIR`` files.
         update_db: bool, optional
-            Whether the database should be updated (default: ``False``)
+            Whether the database should be updated (default: ``False``). If
+            ``True``, the client will search `base_dir` recursively for new
+            DICOM Part10 files and create database entries for each file.
+            The client will further delete any database entries for files that
+            no longer exist on the file system.
         recreate_db: bool, optional
-            Whether the database should be recreated (default: ``False``)
+            Whether the database should be recreated (default: ``False``). If
+            ``True``, the client will search `base_dir` recursively for DICOM
+            Part10 files and create database entries for each file.
 
         """
         self.base_dir = Path(base_dir).resolve()
-        self._db_filepath = self.base_dir.joinpath('dicom-file-client.db')
+        self._db_filepath = self.base_dir.joinpath('.dicom-file-client.db')
         self._db_connection = None
         if recreate_db:
             self._drop_db()
@@ -1415,8 +1430,7 @@ class DICOMfileClient:
 
         Note
         ----
-        The `fields` parameter is ignored and is only kept for
-        compatibility with the DICOMweb client.
+        No additional `fields` are currently supported.
 
         """  # noqa: E501
         logger.info('search for studies')
@@ -1649,8 +1663,7 @@ class DICOMfileClient:
 
         Note
         ----
-        The `fields` parameter is ignored and is only kept for
-        compatibility with the DICOMweb client.
+        No additional `fields` are currently supported.
 
         """  # noqa: E501
         if search_filters is None:
@@ -2303,7 +2316,7 @@ class DICOMfileClient:
 
         Note
         ----
-        Only rendering of single-frame image instances is supported.
+        Only rendering of single-frame image instances is currently supported.
 
         """
         file_path = self._get_instance_file_path(
