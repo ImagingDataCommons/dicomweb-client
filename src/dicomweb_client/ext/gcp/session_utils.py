@@ -29,6 +29,12 @@ def create_session_from_gcp_credentials(
     -------
     requests.Session
         Google Cloud authorized session.
+
+    Note
+    ----
+    Credentials will be read from environment variable
+    ``GOOGLE_APPLICATION_CREDENTIALS`` if set.
+
     """
     if google_credentials is None:
         google_credentials, _ = google.auth.default(
