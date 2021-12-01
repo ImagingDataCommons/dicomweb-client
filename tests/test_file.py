@@ -29,6 +29,7 @@ INSTANCE_ATTRIBUTES = {
     'SOPClassUID',
     'SOPInstanceUID',
     'InstanceNumber',
+    'TransferSyntaxUID',
 }
 
 

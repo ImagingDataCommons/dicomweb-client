@@ -781,6 +781,7 @@ class DICOMfileClient:
                     Columns INTEGER,
                     BitsAllocated INTEGER,
                     NumberOfFrames INTEGER,
+                    TransferSyntaxUID TEXT NOT NULL,
                     _file_path TEXT,
                     PRIMARY KEY (
                         StudyInstanceUID,
@@ -868,6 +869,7 @@ class DICOMfileClient:
 
                 instance_metadata = self._extract_instance_metadata(ds)
                 instance_metadata.append(str(rel_file_path))
+                instance_metadata.append(str(ds.file_meta.TransferSyntaxUID))
                 sop_instance_uid = ds.SOPInstanceUID
                 instances[sop_instance_uid] = tuple(instance_metadata)
             except AttributeError as error:
@@ -987,7 +989,7 @@ class DICOMfileClient:
             )
             cursor.executemany(
                 'INSERT OR REPLACE INTO instances '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 instances
             )
             cursor.close()
@@ -1070,7 +1072,7 @@ class DICOMfileClient:
         cursor.execute(f'SELECT * FROM {table} LIMIT 1')
         attributes = [
             item[0] for item in cursor.description
-            if not item[0].startswith('_')
+            if not item[0].startswith('_') and item[0] != 'TransferSyntaxUID'
         ]
         cursor.close()
         return attributes
@@ -1742,6 +1744,7 @@ class DICOMfileClient:
                 'Columns',
                 'BitsAllocated',
                 'NumberOfFrames',
+                'TransferSyntaxUID',
             ]
             if study_instances:
                 includefields += [
@@ -2789,6 +2792,7 @@ class DICOMfileClient:
                     sop_instance_uid
                 ])
                 instance_metadata.append(str(rel_file_path))
+                instance_metadata.append(str(ds.file_meta.TransferSyntaxUID))
                 instances[sop_instance_uid] = tuple(instance_metadata)
 
                 with io.BytesIO() as b:
