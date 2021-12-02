@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.abspath(pkg_dir))
 # -- Project information -----------------------------------------------------
 
 project = 'dicomweb-client'
-copyright = '2020, MGH Computational Pathology'
+copyright = '2021, MGH Computational Pathology'
 author = 'Markus D. Herrmann'
 
 # The full version, including alpha/beta/rc tags

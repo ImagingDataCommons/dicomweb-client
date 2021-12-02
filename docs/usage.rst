@@ -10,6 +10,9 @@ The client can be used with any DICOMweb server, such as `dcm4che <http://www.dc
 Application Programming Interface (API)
 ---------------------------------------
 
+Interacting with a remote DICOMweb server
++++++++++++++++++++++++++++++++++++++++++
+
 To interact with a publicly accessible server, you only need to provide the ``url`` for the server address.
 
 .. code-block:: python
@@ -122,6 +125,18 @@ Note that GCP authentication requires installation of the package distribution w
         session=session
     )
 
+Accessing local DICOM Part10 files
+++++++++++++++++++++++++++++++++++
+
+The package provides the :class:`dicomweb_client.api.DICOMfileClient` class for accessing data stored as DICOM Part10 files on a file system.
+The class exposes the same :class:`dicomweb_client.api.DICOMClient` interface as the :class:`dicomweb_client.api.DICOMwebClient` and can be used as a drop-in replacement.
+
+.. code-block:: python
+
+    from dicomweb_client.api import DICOMfileClient
+
+    client = DICOMfileClient("/path/to/directory")
+
 
 .. _storeinstances:
 
@@ -132,11 +147,11 @@ Store a single dataset obtained from a PS3.10 file:
 
 .. code-block:: python
 
-    from dicomweb_client.api import DICOMwebClient
     import pydicom
 
     filename = "/path/to/file.dcm"
     dataset = pydicom.dcmread(filename)
+
     client.store_instances(datasets=[dataset])
 
 

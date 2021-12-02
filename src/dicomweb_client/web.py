@@ -142,10 +142,10 @@ class DICOMwebClient:
 
         These parameters determine whether and how individual HTTP requests
         will be retried in case the origin server responds with an error code
-        defined in |retriable_error_codes|.
+        defined in `retriable_error_codes`.
         The retrying method uses exponential back off using the multiplier
-        |wait_exponential_multiplier| for a max attempts defined by
-        |max_attempts|.
+        `wait_exponential_multiplier` for a max attempts defined by
+        `max_attempts`.
 
         Parameters
         ----------

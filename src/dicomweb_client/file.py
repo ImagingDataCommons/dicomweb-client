@@ -1,14 +1,4 @@
-"""Client to access DICOM files through a layer of abstraction.
-
-Facilitates serverless access to data stored locally on a file system as
-DICOM Part10 files.
-
-Note
-----
-This is **not** an implementation of the DICOM File Service and does not
-depend on the presence of DICOMDIR files.
-
-"""
+"""Client to access DICOM Part10 files through a layer of abstraction."""
 import io
 import logging
 import math
@@ -621,16 +611,27 @@ class DICOMfileClient:
 
     """Client for managing DICOM Part10 files in a DICOMweb-like manner.
 
-    The class exposes the same interface as the ``DICOMwebClient`` class.
-    Parameters and return values methods have the same types, but the types of
-    exceptions may differ between ``DICOMwebClient`` and ``DICOMfileClient``.
+    Facilitates serverless access to data stored locally on a file system as
+    DICOM Part10 files.
 
     Note
     ----
-    The class internally uses an in-memory database and persists it on disk to
-    facilitate faster subsequent data access. However, the implementation
+    The class exposes the same :class:`dicomweb_client.api.DICOMClient`
+    interface as the :class:`dicomweb_client.api.DICOMwebClient` class.
+    While method parameters and return values have the same types, but the
+    types of exceptions may differ.
+
+    Note
+    ----
+    The class internally uses an in-memory database, which is persisted on disk
+    to facilitate faster subsequent data access. However, the implementation
     details of the database and the structure of any database files stored on
     the file system may change at any time and should not be relied on.
+
+    Note
+    ----
+    This is **not** an implementation of the DICOM File Service and does not
+    depend on the presence of ``DICOMDIR`` files.
 
     """
 
@@ -645,8 +646,7 @@ class DICOMfileClient:
         Parameters
         ----------
         base_dir: Union[pathlib.Path, str]
-            Path to base directory. This directory is expected to contain
-            DICOM files as well as ``DICOMDIR`` files.
+            Path to base directory containing DICOM files
         update_db: bool, optional
             Whether the database should be updated (default: ``False``). If
             ``True``, the client will search `base_dir` recursively for new
@@ -661,10 +661,14 @@ class DICOMfileClient:
         """
         self.base_dir = Path(base_dir).resolve()
         self._db_filepath = self.base_dir.joinpath('.dicom-file-client.db')
+        if not self._db_filepath.exists():
+            update_db = True
+
         self._db_connection = None
         if recreate_db:
             self._drop_db()
             update_db = True
+
         self._create_db()
 
         self._attributes = {
