@@ -1048,7 +1048,7 @@ class DICOMfileClient:
                 studies_to_check.add(study_instance_uid)
                 series_to_check.add((study_instance_uid, series_instance_uid))
 
-            for study_instance_uid, series_instance_uid in studies_to_check:
+            for study_instance_uid, series_instance_uid in series_to_check:
                 n_in_series = self._count_instances_in_series(
                     series_instance_uid
                 )
