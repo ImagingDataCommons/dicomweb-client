@@ -872,8 +872,8 @@ class DICOMfileClient:
                 series[series_instance_uid] = tuple(series_metadata)
 
                 instance_metadata = self._extract_instance_metadata(ds)
-                instance_metadata.append(str(rel_file_path))
                 instance_metadata.append(str(ds.file_meta.TransferSyntaxUID))
+                instance_metadata.append(str(rel_file_path))
                 sop_instance_uid = ds.SOPInstanceUID
                 instances[sop_instance_uid] = tuple(instance_metadata)
             except AttributeError as error:
@@ -2795,8 +2795,8 @@ class DICOMfileClient:
                     'instances',
                     sop_instance_uid
                 ])
-                instance_metadata.append(str(rel_file_path))
                 instance_metadata.append(str(ds.file_meta.TransferSyntaxUID))
+                instance_metadata.append(str(rel_file_path))
                 instances[sop_instance_uid] = tuple(instance_metadata)
 
                 with io.BytesIO() as b:
