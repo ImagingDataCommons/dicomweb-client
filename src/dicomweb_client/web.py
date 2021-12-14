@@ -2094,7 +2094,9 @@ class DICOMwebClient:
         """  # noqa: E501
         if study_instance_uid is not None:
             self._assert_uid_format(study_instance_uid)
-        logger.info(f'search for series of study "{study_instance_uid}"')
+            logger.info(f'search for series of study "{study_instance_uid}"')
+        else:
+            logger.info('search for series')
         url = self._get_series_url(_Transaction.SEARCH, study_instance_uid)
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters

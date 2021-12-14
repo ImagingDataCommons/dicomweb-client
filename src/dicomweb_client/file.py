@@ -724,7 +724,7 @@ class DICOMfileClient:
     def _connection(self) -> sqlite3.Connection:
         """sqlite3.Connection: database connection"""
         if self._db_connection is None:
-            self._db_connection = sqlite3.connect(self._db_filepath)
+            self._db_connection = sqlite3.connect(str(self._db_filepath))
             self._db_connection.row_factory = sqlite3.Row
         return self._db_connection
 

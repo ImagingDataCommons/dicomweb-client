@@ -1,15 +1,18 @@
+import sys
 from typing import (
     Any,
     Dict,
     Iterator,
     List,
     Optional,
-    Protocol,
-    runtime_checkable,
     Sequence,
     Tuple,
     Union,
 )
+if sys.version_info.minor < 8:
+    from typing_extensions import Protocol, runtime_checkable
+else:
+    from typing import Protocol, runtime_checkable
 
 from pydicom.dataset import Dataset
 
