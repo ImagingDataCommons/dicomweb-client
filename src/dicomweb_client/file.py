@@ -333,6 +333,7 @@ class _ImageFileReader:
                     'File is not a valid DICOM file: "{self._filepath}".'
                     'It lacks File Meta Information.'
                 )
+            self._fp = DicomFileLike(open(self._filepath, 'rb'))
             self._fp.is_little_endian = transfer_syntax_uid.is_little_endian
             self._fp.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
             self._transfer_syntax_uid = transfer_syntax_uid
