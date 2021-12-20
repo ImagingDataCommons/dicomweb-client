@@ -2014,7 +2014,7 @@ class DICOMfileClient:
 
         """
         logger.info(f'retrieve all instances of study "{study_instance_uid}"')
-        iterator = self.iter_studies(
+        iterator = self.iter_study(
             study_instance_uid=study_instance_uid,
             media_types=media_types,
         )
