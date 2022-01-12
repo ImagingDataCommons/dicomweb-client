@@ -1410,7 +1410,8 @@ class DICOMfileClient:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for studies.
 
@@ -1428,6 +1429,8 @@ class DICOMfileClient:
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included
 
         Returns
         -------
@@ -1492,7 +1495,8 @@ class DICOMfileClient:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for series.
 
@@ -1512,6 +1516,8 @@ class DICOMfileClient:
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included
 
         Returns
         -------
@@ -1639,7 +1645,8 @@ class DICOMfileClient:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for instances.
 
@@ -1661,6 +1668,8 @@ class DICOMfileClient:
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included
 
         Returns
         -------
@@ -2416,16 +2425,18 @@ class DICOMfileClient:
                 else m
                 for m in media_types
             ]))
-            if transfer_syntax_uid.is_encapsulated:
-                are_media_types_valid = all(
-                    m.startswith('image')
-                    for m in acceptable_media_types
+            are_media_types_valid = all(
+                m.startswith('image') or
+                m.startswith('application/octet-stream')
+                for m in acceptable_media_types
+            )
+            if not are_media_types_valid:
+                raise ValueError(
+                    'Instance frames can only be retrieved '
+                    'using media type "image/{jpeg,jls,jp2,jpx,dicom-rle}" or '
+                    '"application/octet-stream".'
                 )
-                if not are_media_types_valid:
-                    raise ValueError(
-                        'Compressed instance frames can only be '
-                        'retrieved using media type "image".'
-                    )
+            if transfer_syntax_uid.is_encapsulated:
                 if 'image/jp2k' in acceptable_media_types:
                     if transfer_syntax_uid == '1.2.840.10008.1.2.4.90':
                         image_type = None
@@ -2445,16 +2456,6 @@ class DICOMfileClient:
                         )
                     )
             else:
-                are_media_types_valid = all(
-                    m == 'application/octet-stream'
-                    for m in acceptable_media_types
-                )
-                if not are_media_types_valid:
-                    raise ValueError(
-                        'Uncompressed instance frames can only be '
-                        'retrieved using media type '
-                        '"application/octet-stream".'
-                    )
                 image_type = None
         else:
             # Return as stored.

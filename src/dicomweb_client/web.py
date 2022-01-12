@@ -15,6 +15,7 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Mapping,
     Optional,
     Set,
     Sequence,
@@ -630,7 +631,8 @@ class DICOMwebClient:
         self,
         url: str,
         params: Optional[Dict[str, Any]] = None,
-        stream: bool = False
+        stream: bool = False,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """GET a resource with "applicaton/dicom+json" media type.
 
@@ -643,6 +645,8 @@ class DICOMwebClient:
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
+        get_remaining: bool, optional
+            Whether remaining data should also be requested
 
         Returns
         -------
@@ -650,22 +654,36 @@ class DICOMwebClient:
             Content of HTTP message body in DICOM JSON format
 
         """
-        content_type = 'application/dicom+json, application/json'
-        response = self._http_get(
-            url,
-            params=params,
-            headers={'Accept': content_type},
-            stream=stream
-        )
-        if response.content:
-            decoded_response = response.json()
-            # All metadata resources are expected to be sent as a JSON array of
-            # DICOM data sets. However, some origin servers may incorrectly
-            # sent an individual data set.
-            if isinstance(decoded_response, dict):
-                return [decoded_response]
-            return decoded_response
-        return []
+
+        def get(url, params, stream):
+            response = self._http_get(
+                url,
+                params=params,
+                headers={'Accept': 'application/dicom+json, application/json'},
+                stream=stream
+            )
+            if response.content:
+                decoded_response = response.json()
+                # All metadata resources are expected to be sent as a JSON
+                # array of DICOM data sets. However, some origin servers may
+                # incorrectly sent an individual data set.
+                if isinstance(decoded_response, dict):
+                    return [decoded_response]
+                return decoded_response
+            return []
+
+        if get_remaining:
+            results = []
+            params['offset'] = params.get('offset', 0)
+            while True:
+                subset = get(url, params, stream)
+                if len(subset) == 0:
+                    break
+                results.extend(subset)
+                params['offset'] += len(subset)
+            return results
+        else:
+            return get(url, params, stream)
 
     @classmethod
     def _extract_part_content(cls, part: bytes) -> Union[bytes, None]:
@@ -1610,7 +1628,8 @@ class DICOMwebClient:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for studies.
 
@@ -1628,6 +1647,9 @@ class DICOMwebClient:
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included (this may repeatedly
+            query the server for remaining results)
 
         Returns
         -------
@@ -1648,7 +1670,11 @@ class DICOMwebClient:
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
-        return self._http_get_application_json(url, params)
+        return self._http_get_application_json(
+            url,
+            params=params,
+            get_remaining=get_remaining
+        )
 
     @classmethod
     def _parse_media_type(cls, media_type: str) -> Tuple[str, str]:
@@ -2057,7 +2083,8 @@ class DICOMwebClient:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for series.
 
@@ -2077,6 +2104,9 @@ class DICOMwebClient:
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included (this may repeatedly
+            query the server for remaining results)
 
         Returns
         -------
@@ -2101,7 +2131,11 @@ class DICOMwebClient:
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
-        return self._http_get_application_json(url, params)
+        return self._http_get_application_json(
+            url,
+            params=params,
+            get_remaining=get_remaining
+        )
 
     def _get_series(
         self,
@@ -2417,7 +2451,8 @@ class DICOMwebClient:
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for instances.
 
@@ -2439,6 +2474,9 @@ class DICOMwebClient:
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included (this may repeatedly
+            query the server for remaining results)
 
         Returns
         -------
@@ -2469,7 +2507,11 @@ class DICOMwebClient:
         params = self._parse_qido_query_parameters(
             fuzzymatching, limit, offset, fields, search_filters
         )
-        return self._http_get_application_json(url, params)
+        return self._http_get_application_json(
+            url,
+            params=params,
+            get_remaining=get_remaining
+        )
 
     def retrieve_instance(
         self,

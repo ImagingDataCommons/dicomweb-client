@@ -200,6 +200,12 @@ In this case, the method can be called repeatedly to request remaining results u
         studies.extend(subset)
         offset += len(subset)
 
+The same can be achieved more conveniently using the ``get_remaining`` parameter.
+
+.. code-block:: python
+
+    studies = client.search_for_studies(get_remaining=True)
+
 
 .. _searchforseries:
 

@@ -28,7 +28,8 @@ class DICOMClient(Protocol):
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for studies.
 
@@ -46,6 +47,9 @@ class DICOMClient(Protocol):
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included (this may repeatedly
+            query the server for remaining results)
 
         Returns
         -------
@@ -228,7 +232,8 @@ class DICOMClient(Protocol):
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for series.
 
@@ -248,6 +253,9 @@ class DICOMClient(Protocol):
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included (this may repeatedly
+            query the server for remaining results)
 
         Returns
         -------
@@ -425,7 +433,8 @@ class DICOMClient(Protocol):
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
     ) -> List[Dict[str, dict]]:
         """Search for instances.
 
@@ -447,6 +456,9 @@ class DICOMClient(Protocol):
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
+        get_remaining: bool, optional
+            Whether remaining results should be included (this may repeatedly
+            query the server for remaining results)
 
         Returns
         -------
