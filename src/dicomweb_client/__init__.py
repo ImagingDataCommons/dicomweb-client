@@ -1,4 +1,4 @@
-__version__ = '0.54.4'
+__version__ = '0.55.0'
 
 from dicomweb_client.api import DICOMwebClient, DICOMfileClient
 from dicomweb_client.protocol import DICOMClient
