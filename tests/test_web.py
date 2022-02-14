@@ -742,6 +742,35 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
 
 
+def test_retrieve_instance_frames_jls(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jls'))
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="image/jls"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    frame_numbers = [114]
+    frame_list = ','.join([str(n) for n in frame_numbers])
+    result = client.retrieve_instance_frames(
+        study_instance_uid, series_instance_uid, sop_instance_uid,
+        frame_numbers, media_types=('image/jls', )
+    )
+    assert list(result) == [content]
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+        f'/frames/{frame_list}'
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
+
+
 def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
