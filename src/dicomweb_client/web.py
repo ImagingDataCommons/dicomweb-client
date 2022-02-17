@@ -15,7 +15,6 @@ from typing import (
     Dict,
     Iterator,
     List,
-    Mapping,
     Optional,
     Set,
     Sequence,
