@@ -585,26 +585,42 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
 
 
 def test_retrieve_instance_wrong_transfer_syntax(httpserver, client, cache_dir):
-    cache_filename = str(cache_dir.joinpath('file.dcm'))
-    with open(cache_filename, 'rb') as f:
-        content = f.read()
-    media_type = 'application/dicom'
-    boundary = 'boundary'
-    headers = {
-        'content-type': (
-            'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
-        ),
-    }
-    httpserver.serve_content(content=content, code=200, headers=headers)
-    study_instance_uid = '1.2.3'
-    series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
     with pytest.raises(ValueError):
         client.retrieve_instance(
-            study_instance_uid, series_instance_uid, sop_instance_uid,
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
             media_types=(('application/dicom', '1.2.3', ), )
+        )
+
+
+def test_retrieve_instance_wrong_media_type(httpserver, client, cache_dir):
+    with pytest.raises(ValueError):
+        client.retrieve_instance(
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
+            media_types=('application/octet-stream', )
+        )
+
+
+def test_retrieve_instance_wrong_media_type_2(httpserver, client, cache_dir):
+    with pytest.raises(ValueError):
+        client.retrieve_instance(
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
+            media_types=('application/dicom', 'application/octet-stream', )
+        )
+
+
+def test_retrieve_instance_wrong_media_type_3(httpserver, client, cache_dir):
+    with pytest.raises(ValueError):
+        client.retrieve_instance(
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
+            media_types=('image/', )
         )
 
 
@@ -689,9 +705,9 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
 
 
-def test_retrieve_instance_frames_jpeg_default_transfer_syntax(httpserver,
-                                                               client,
-                                                               cache_dir):
+def test_retrieve_instance_frames_jpeg_default_transfer_syntax(
+    httpserver, client, cache_dir
+):
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
@@ -699,18 +715,121 @@ def test_retrieve_instance_frames_jpeg_default_transfer_syntax(httpserver,
         'content-type': 'multipart/related; type="image/jpeg"',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
-    study_instance_uid = '1.2.3'
-    series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
-    frame_numbers = [114]
     client.retrieve_instance_frames(
-        study_instance_uid, series_instance_uid, sop_instance_uid,
-        frame_numbers, media_types=(
+        study_instance_uid='1.2.3',
+        series_instance_uid='1.2.4',
+        sop_instance_uid='1.2.5',
+        frame_numbers=[114],
+        media_types=(
             ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
         )
     )
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
+
+
+def test_retrieve_instance_frames_no_media_type(
+    httpserver, client, cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="image/jpeg"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    client.retrieve_instance_frames(
+        study_instance_uid='1.2.3',
+        series_instance_uid='1.2.4',
+        sop_instance_uid='1.2.5',
+        frame_numbers=[114],
+        media_types=None,
+    )
+    request = httpserver.requests[0]
+    assert len(request.accept_mimetypes) == 1
+    assert '*/*' in request.accept_mimetypes[0][0]
+
+
+def test_retrieve_instance_frames_any_media_type(
+    httpserver, client, cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="image/jpeg"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    client.retrieve_instance_frames(
+        study_instance_uid='1.2.3',
+        series_instance_uid='1.2.4',
+        sop_instance_uid='1.2.5',
+        frame_numbers=[114],
+        media_types=('*/*', ),
+    )
+    request = httpserver.requests[0]
+    assert len(request.accept_mimetypes) == 1
+    assert '*/*' in request.accept_mimetypes[0][0]
+
+
+def test_retrieve_instance_frames_multiple_media_types(
+    httpserver, client, cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jpg'))
+    with open(cache_filename, 'rb') as f:
+        content = f.read()
+    headers = {
+        'content-type': 'multipart/related; type="image/jpeg"',
+    }
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    client.retrieve_instance_frames(
+        study_instance_uid='1.2.3',
+        series_instance_uid='1.2.4',
+        sop_instance_uid='1.2.5',
+        frame_numbers=[114],
+        media_types=(
+            ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
+            ('image/jp2', '1.2.840.10008.1.2.4.90', ),
+            ('image/jls', '1.2.840.10008.1.2.4.80', ),
+            ('application/octet-stream', '*', ),
+        )
+    )
+    request = httpserver.requests[0]
+    assert len(request.accept_mimetypes) == 4
+    assert 'image/jpeg' in request.accept_mimetypes[0][0]
+    assert 'image/jp2' in request.accept_mimetypes[1][0]
+    assert 'image/jls' in request.accept_mimetypes[2][0]
+    assert 'application/octet-stream' in request.accept_mimetypes[3][0]
+
+
+def test_retrieve_instance_frames_wrong_media_type(
+    httpserver, client, cache_dir
+):
+    with pytest.raises(ValueError):
+        client.retrieve_instance_frames(
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
+            frame_numbers=[1],
+            media_types=(
+                ('image/png', '1.2.840.10008.1.2.4.50', ),
+            )
+        )
+
+
+def test_retrieve_instance_frames_wrong_media_type_combination(
+    httpserver, client, cache_dir
+):
+    with pytest.raises(ValueError):
+        client.retrieve_instance_frames(
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
+            frame_numbers=[1],
+            media_types=(
+                ('image/jpeg', 'application/dicom', ),
+            )
+        )
 
 
 def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
@@ -801,16 +920,16 @@ def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
     assert request.accept_mimetypes[0][0][:11] == headers['content-type'][:11]
 
 
-def test_retrieve_instance_frames_rendered_jpeg_transfer_syntax(httpserver,
-                                                                client):
-    study_instance_uid = '1.2.3'
-    series_instance_uid = '1.2.4'
-    sop_instance_uid = '1.2.5'
-    frame_numbers = [1]
+def test_retrieve_instance_frames_rendered_jpeg_transfer_syntax(
+    httpserver, client
+):
     with pytest.raises(TypeError):
         client.retrieve_instance_frames_rendered(
-            study_instance_uid, series_instance_uid, sop_instance_uid,
-            frame_numbers, media_types=(
+            study_instance_uid='1.2.3',
+            series_instance_uid='1.2.4',
+            sop_instance_uid='1.2.5',
+            frame_numbers=[1],
+            media_types=(
                 ('image/jpeg', '1.2.840.10008.1.2.4.50', ),
             )
         )

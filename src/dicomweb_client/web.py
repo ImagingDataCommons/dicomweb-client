@@ -853,7 +853,13 @@ class DICOMwebClient:
         if sep_index == -1:
             raise ValueError(error_message)
         media_type_type = media_type[:sep_index]
-        if media_type_type not in {'application', 'image', 'text', 'video'}:
+        if media_type_type not in {
+            '*',
+            'application',
+            'image',
+            'text',
+            'video',
+        }:
             raise ValueError(error_message)
         if media_type.find('/', sep_index + 1) > 0:
             raise ValueError(error_message)
@@ -1098,6 +1104,77 @@ class DICOMwebClient:
             for part in self._decode_multipart_message(response, stream=stream)
         )
 
+    def _http_get_multipart(
+        self,
+        url: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        byte_range: Optional[Tuple[int, int]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        stream: bool = False
+    ) -> Iterator[bytes]:
+        """GET a multipart resource with any media type.
+
+        Parameters
+        ----------
+        url: str
+            Unique resource locator
+        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+            Acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes (defaults to ``("*/*", )``)
+        byte_range: Union[Tuple[int, int], None], optional
+            Start and end of byte range
+        params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
+        stream: bool, optional
+            Whether data should be streamed (i.e., requested using chunked
+            transfer encoding)
+
+        Returns
+        -------
+        Iterator[bytes]
+            Content of HTTP message body parts
+
+        """
+        default_media_type = '*/*'
+        supported_media_types = {
+            '1.2.840.10008.1.2.1': 'application/octet-stream',
+            '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
+            '1.2.840.10008.1.2.4.50': 'image/jpeg',
+            '1.2.840.10008.1.2.4.51': 'image/jpeg',
+            '1.2.840.10008.1.2.4.57': 'image/jpeg',
+            '1.2.840.10008.1.2.4.70': 'image/jpeg',
+            '1.2.840.10008.1.2.4.80': 'image/jls',
+            '1.2.840.10008.1.2.4.81': 'image/jls',
+            '1.2.840.10008.1.2.4.90': 'image/jp2',
+            '1.2.840.10008.1.2.4.91': 'image/jp2',
+            '1.2.840.10008.1.2.4.92': 'image/jpx',
+            '1.2.840.10008.1.2.4.93': 'image/jpx',
+            '1.2.840.10008.1.2.4.100': 'video/mpeg2',
+            '1.2.840.10008.1.2.4.101': 'video/mpeg2',
+            '1.2.840.10008.1.2.4.102': 'video/mp4',
+            '1.2.840.10008.1.2.4.103': 'video/mp4',
+            '1.2.840.10008.1.2.4.104': 'video/mp4',
+            '1.2.840.10008.1.2.4.105': 'video/mp4',
+            '1.2.840.10008.1.2.4.106': 'video/mp4',
+        }
+        if media_types is None:
+            media_types = (default_media_type, )
+        headers = {
+            'Accept': self._build_multipart_accept_header_field_value(
+                media_types,
+                supported_media_types
+            ),
+        }
+        if byte_range is not None:
+            headers['Range'] = self._build_range_header_field_value(byte_range)
+        response = self._http_get(
+            url,
+            params=params,
+            headers=headers,
+            stream=stream
+        )
+        return self._decode_multipart_message(response, stream=stream)
+
     def _http_get_multipart_application_octet_stream(
         self,
         url: str,
@@ -1158,7 +1235,6 @@ class DICOMwebClient:
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         params: Optional[Dict[str, Any]] = None,
-        rendered: bool = False,
         stream: bool = False
     ) -> Iterator[bytes]:
         """GET a multipart resource with "image/" media type.
@@ -1174,8 +1250,6 @@ class DICOMwebClient:
             Start and end of byte range
         params: Union[Dict[str, Any], None], optional
             Additional HTTP GET query parameters
-        rendered: bool, optional
-            Whether resource should be requested using rendered media types
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
@@ -1187,32 +1261,23 @@ class DICOMwebClient:
 
         """
         headers = {}
-        supported_media_types: Union[set, dict]
-        if rendered:
-            supported_media_types = {
-                'image/jpeg',
-                'image/gif',
-                'image/png',
-                'image/jp2',
-            }
-        else:
-            supported_media_types = {
-                '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
-                '1.2.840.10008.1.2.4.50': 'image/jpeg',
-                '1.2.840.10008.1.2.4.51': 'image/jpeg',
-                '1.2.840.10008.1.2.4.57': 'image/jpeg',
-                '1.2.840.10008.1.2.4.70': 'image/jpeg',
-                '1.2.840.10008.1.2.4.80': 'image/jls',
-                '1.2.840.10008.1.2.4.81': 'image/jls',
-                '1.2.840.10008.1.2.4.90': 'image/jp2',
-                '1.2.840.10008.1.2.4.91': 'image/jp2',
-                '1.2.840.10008.1.2.4.92': 'image/jpx',
-                '1.2.840.10008.1.2.4.93': 'image/jpx',
-            }
-            if byte_range is not None:
-                headers['Range'] = self._build_range_header_field_value(
-                    byte_range
-                )
+        supported_media_types = {
+            '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
+            '1.2.840.10008.1.2.4.50': 'image/jpeg',
+            '1.2.840.10008.1.2.4.51': 'image/jpeg',
+            '1.2.840.10008.1.2.4.57': 'image/jpeg',
+            '1.2.840.10008.1.2.4.70': 'image/jpeg',
+            '1.2.840.10008.1.2.4.80': 'image/jls',
+            '1.2.840.10008.1.2.4.81': 'image/jls',
+            '1.2.840.10008.1.2.4.90': 'image/jp2',
+            '1.2.840.10008.1.2.4.91': 'image/jp2',
+            '1.2.840.10008.1.2.4.92': 'image/jpx',
+            '1.2.840.10008.1.2.4.93': 'image/jpx',
+        }
+        if byte_range is not None:
+            headers['Range'] = self._build_range_header_field_value(
+                byte_range
+            )
         headers['Accept'] = self._build_multipart_accept_header_field_value(
             media_types,
             supported_media_types
@@ -1231,7 +1296,6 @@ class DICOMwebClient:
         media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         params: Optional[Dict[str, Any]] = None,
-        rendered: bool = False,
         stream: bool = False
     ) -> Iterator[bytes]:
         """GET a multipart resource with "video/" media type.
@@ -1247,8 +1311,6 @@ class DICOMwebClient:
             Start and end of byte range
         params: Union[Dict[str, Any], None], optional
             Additional HTTP GET query parameters
-        rendered: bool, optional
-            Whether resource should be requested using rendered media types
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
@@ -1260,29 +1322,19 @@ class DICOMwebClient:
 
         """
         headers = {}
-        supported_media_types: Union[set, dict]
-        if rendered:
-            supported_media_types = {
-                'video/',
-                'video/*',
-                'video/mpeg2',
-                'video/mp4',
-                'video/H265',
-            }
-        else:
-            supported_media_types = {
-                '1.2.840.10008.1.2.4.100': 'video/mpeg2',
-                '1.2.840.10008.1.2.4.101': 'video/mpeg2',
-                '1.2.840.10008.1.2.4.102': 'video/mp4',
-                '1.2.840.10008.1.2.4.103': 'video/mp4',
-                '1.2.840.10008.1.2.4.104': 'video/mp4',
-                '1.2.840.10008.1.2.4.105': 'video/mp4',
-                '1.2.840.10008.1.2.4.106': 'video/mp4',
-            }
-            if byte_range is not None:
-                headers['Range'] = self._build_range_header_field_value(
-                    byte_range
-                )
+        supported_media_types = {
+            '1.2.840.10008.1.2.4.100': 'video/mpeg2',
+            '1.2.840.10008.1.2.4.101': 'video/mpeg2',
+            '1.2.840.10008.1.2.4.102': 'video/mp4',
+            '1.2.840.10008.1.2.4.103': 'video/mp4',
+            '1.2.840.10008.1.2.4.104': 'video/mp4',
+            '1.2.840.10008.1.2.4.105': 'video/mp4',
+            '1.2.840.10008.1.2.4.106': 'video/mp4',
+        }
+        if byte_range is not None:
+            headers['Range'] = self._build_range_header_field_value(
+                byte_range
+            )
         headers['Accept'] = self._build_multipart_accept_header_field_value(
             media_types,
             supported_media_types
@@ -1701,20 +1753,20 @@ class DICOMwebClient:
         return media_type_type, media_type_subtype
 
     @classmethod
-    def _get_common_media_type(
+    def _get_common_media_types(
         cls,
         media_types: Tuple[Union[str, Tuple[str, str]]]
-    ) -> str:
-        """Get common type of acceptable media types.
+    ) -> List[str]:
+        """Get media types of one resource category.
 
         Also asserts that only one type of a given category of DICOM resources
-        (``"application/dicom"``), compressed bulkdata resources
-        (``"image/"``, ``"video/"``) or uncompressed bulkdata resources
-        (``"application/octet-stream"``).
+        (``"application/dicom"``) or bulkdata resources
+        (compressed: ``"image/"``, ``"video/"``,
+        uncompressed: ``"application/octet-stream"``).
         For example, ``("image/jpeg", "image/jp2")`` or
         ``("application/dicom", "application/dicom")`` will pass and
-        return ``"image/"`` or ``"application/dicom"``, respectively. However,
-        ``("image/jpeg", "video/mpeg2")`` or
+        return ``["image/"]`` or ``["application/dicom"]``, respectively.
+        However, ``("image/jpeg", "video/mpeg2")`` or
         ``("application/dicom", "application/octet-stream")``
         will raise an exception.
 
@@ -1726,8 +1778,8 @@ class DICOMwebClient:
 
         Returns
         -------
-        str
-            Common type of media type category
+        List[str]
+            Media types of one resource category
 
         Raises
         ------
@@ -1753,8 +1805,17 @@ class DICOMwebClient:
                 'No common acceptable media type could be identified.'
             )
         elif len(set(common_media_types)) > 1:
-            raise ValueError('Acceptable media types must have the same type.')
-        return common_media_types[0]
+            if not (
+                len(set(common_media_types)) == 2 and
+                'image/' in common_media_types and
+                'application/octet-stream' in common_media_types
+            ):
+                raise ValueError(
+                    'Acceptable media types must all correspond to the same '
+                    'resource category (e.g., DICOM resources or '
+                    'bulkdata resources).'
+                )
+        return common_media_types
 
     def _get_bulkdata(
         self,
@@ -1785,27 +1846,33 @@ class DICOMwebClient:
 
         """
         if media_types is None:
-            return self._http_get_multipart_application_octet_stream(
+            return self._http_get_multipart(
                 url, media_types, byte_range=byte_range, stream=stream
             )
-        common_media_type = self._get_common_media_type(media_types)
-        if common_media_type == 'application/octet-stream':
-            return self._http_get_multipart_application_octet_stream(
-                url, media_types, byte_range=byte_range, stream=stream
-            )
-        elif common_media_type.startswith('image'):
-            return self._http_get_multipart_image(
-                url, media_types, byte_range=byte_range, stream=stream
-            )
-        elif common_media_type.startswith('video'):
-            return self._http_get_multipart_video(
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            return self._http_get_multipart(
                 url, media_types, byte_range=byte_range, stream=stream
             )
         else:
-            raise ValueError(
-                f'Media type "{common_media_type}" is not supported for '
-                'retrieval of bulkdata.'
-            )
+            common_media_type = common_media_types[0]
+            if common_media_type == 'application/octet-stream':
+                return self._http_get_multipart_application_octet_stream(
+                    url, media_types, byte_range=byte_range, stream=stream
+                )
+            elif common_media_type.startswith('image'):
+                return self._http_get_multipart_image(
+                    url, media_types, byte_range=byte_range, stream=stream
+                )
+            elif common_media_type.startswith('video'):
+                return self._http_get_multipart_video(
+                    url, media_types, byte_range=byte_range, stream=stream
+                )
+            else:
+                raise ValueError(
+                    f'Media type "{common_media_type}" is not supported for '
+                    'retrieval of bulkdata.'
+                )
 
     def retrieve_bulkdata(
         self,
@@ -1910,7 +1977,13 @@ class DICOMwebClient:
                 url,
                 stream=stream
             )
-        common_media_type = self._get_common_media_type(media_types)
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            raise ValueError(
+                'Only media type "application/dicom" is supported for '
+                'retrieval of a study.'
+            )
+        common_media_type = common_media_types[0]
         if common_media_type != 'application/dicom':
             raise ValueError(
                 f'Media type "{common_media_type}" is not supported for '
@@ -2189,7 +2262,13 @@ class DICOMwebClient:
                 url,
                 stream=stream
             )
-        common_media_type = self._get_common_media_type(media_types)
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            raise ValueError(
+                'Only media type "application/dicom" is supported for '
+                'retrieval of a series.'
+            )
+        common_media_type = common_media_types[0]
         if common_media_type != 'application/dicom':
             raise ValueError(
                 f'Media type "{common_media_type}" is not supported for '
@@ -2385,7 +2464,13 @@ class DICOMwebClient:
         if media_types is None:
             response = self._http_get(url, params)
             return response.content
-        common_media_type = self._get_common_media_type(media_types)
+
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            # Try and hope for the best...
+            return self._http_get(url, params)
+
+        common_media_type = common_media_types[0]
         if common_media_type.startswith('image'):
             return self._http_get_image(url, media_types, params)
         elif common_media_type.startswith('video'):
@@ -2576,13 +2661,21 @@ class DICOMwebClient:
             series_instance_uid,
             sop_instance_uid
         )
-        if media_types is not None:
-            common_media_type = self._get_common_media_type(media_types)
-            if common_media_type != 'application/dicom':
-                raise ValueError(
-                    f'Media type "{common_media_type}" is not supported for '
-                    'retrieval of an instance. It must be "application/dicom".'
-                )
+        if media_types is None:
+            media_types = (('application/dicom', '*'), )
+
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            raise ValueError(
+                'Only media type "application/dicom" is supported for '
+                'retrieval of an instance.'
+            )
+        common_media_type = common_media_types[0]
+        if common_media_type != 'application/dicom':
+            raise ValueError(
+                f'Media type "{common_media_type}" is not supported for '
+                'retrieval of an instance. It must be "application/dicom".'
+            )
         iterator = self._http_get_multipart_application_dicom(url, media_types)
         instances = list(iterator)
         if len(instances) > 1:
@@ -2776,9 +2869,17 @@ class DICOMwebClient:
         )
         url += '/rendered'
         if media_types is None:
+            # Try and hope for the best...
             response = self._http_get(url, params)
             return response.content
-        common_media_type = self._get_common_media_type(media_types)
+
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            # Try and hope for the best...
+            response = self._http_get(url, params)
+            return response.content
+
+        common_media_type = common_media_types[0]
         if common_media_type.startswith('image'):
             return self._http_get_image(url, media_types, params)
         elif common_media_type.startswith('video'):
@@ -2848,11 +2949,17 @@ class DICOMwebClient:
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += f'/frames/{frame_list}'
         if media_types is None:
-            return self._http_get_multipart_application_octet_stream(
+            return self._http_get_multipart(url, stream=stream)
+
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            return self._http_get_multipart(
                 url,
+                media_types=media_types,
                 stream=stream
             )
-        common_media_type = self._get_common_media_type(media_types)
+
+        common_media_type = common_media_types[0]
         if common_media_type == 'application/octet-stream':
             return self._http_get_multipart_application_octet_stream(
                 url,
@@ -2867,6 +2974,12 @@ class DICOMwebClient:
             )
         elif common_media_type.startswith('video'):
             return self._http_get_multipart_video(
+                url,
+                media_types=media_types,
+                stream=stream
+            )
+        elif common_media_type.startswith('*'):
+            return self._http_get_multipart(
                 url,
                 media_types=media_types,
                 stream=stream
@@ -3026,7 +3139,14 @@ class DICOMwebClient:
             # Try and hope for the best...
             response = self._http_get(url, params)
             return response.content
-        common_media_type = self._get_common_media_type(media_types)
+
+        common_media_types = self._get_common_media_types(media_types)
+        if len(common_media_types) > 1:
+            # Try and hope for the best...
+            response = self._http_get(url, params)
+            return response.content
+
+        common_media_type = common_media_types[0]
         if common_media_type.startswith('image'):
             return self._http_get_image(url, media_types, params)
         elif common_media_type.startswith('video'):
