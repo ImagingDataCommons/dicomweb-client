@@ -4,6 +4,11 @@ import io
 import re
 
 import setuptools
+from pathlib import Path
+
+root_directory = Path(__file__).parent
+readme_filepath = root_directory.joinpath('README.md')
+long_description = readme_filepath.read_text()
 
 with io.open('src/dicomweb_client/__init__.py', 'rt', encoding='utf8') as f:
     version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)
@@ -13,9 +18,10 @@ setuptools.setup(
     name='dicomweb-client',
     version=version,
     description='Client for DICOMweb RESTful services.',
+    long_description=long_description,
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/mghcomputationalpathology/dicomweb-client',
+    url='https://github.com/herrmannlab/dicomweb-client',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
