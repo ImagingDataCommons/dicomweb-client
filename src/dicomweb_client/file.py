@@ -1,4 +1,5 @@
 """Client to access DICOM Part10 files through a layer of abstraction."""
+import collections
 import io
 import logging
 import math
@@ -11,8 +12,11 @@ import traceback
 from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union,
+)
 
+import numpy as np
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
 from pydicom.dataset import Dataset, FileMetaDataset
@@ -437,7 +441,7 @@ class _ImageFileReader:
     @property
     def _pixels_per_frame(self) -> int:
         """int: Number of pixels per frame"""
-        return int(math.prod([
+        return int(np.product([
             self.metadata.Rows,
             self.metadata.Columns,
             self.metadata.SamplesPerPixel
@@ -606,6 +610,56 @@ class _QueryResourceType(Enum):
     STUDIES = 'studies'
     SERIES = 'series'
     INSTANCES = 'instances'
+
+
+def _build_acceptable_media_type_lut(
+    media_types: Tuple[Union[str, Tuple[str, str]]],
+    supported_media_type_lut: Mapping[str, List[str]]
+) -> Mapping[str, List[str]]:
+    # If no acceptable transfer syntax has been specified, then we just return
+    # the instance in whatever transfer syntax is has been stored.  This
+    # behavior should be compliant with the standard (Part 18 Section 8.7.3.4):
+    # If the Transfer Syntax is not specified in a message, then the Default
+    # Transfer Syntax shall be used, unless the origin server has only access
+    # to the pixel data in lossy compressed form or the pixel data in a
+    # lossless compressed form that is of such length that it cannot be encoded
+    # in the Explicit VR Little Endian Transfer Syntax.
+    acceptable_media_type_lut = collections.defaultdict(set)
+    for m in media_types:
+        if isinstance(m, tuple):
+            media_type = str(m[0])
+            if media_type not in supported_media_type_lut:
+                raise ValueError(
+                    f'Media type "{media_type}" is not a valid for '
+                    'retrieval of instance frames.'
+                )
+            if len(m) > 1:
+                ts_uid = str(m[1])
+                if ts_uid not in supported_media_type_lut[media_type]:
+                    raise ValueError(
+                        f'Transfer syntax "{ts_uid}" is not a valid for '
+                        'retrieval of instance frames with media type '
+                        f'"{media_type}".'
+                    )
+                acceptable_media_type_lut[media_type].add(ts_uid)
+            else:
+                acceptable_media_type_lut[media_type].update(
+                    supported_media_type_lut[media_type]
+                )
+        elif isinstance(m, str):
+            media_type = str(m)
+            if media_type not in supported_media_type_lut:
+                raise ValueError(
+                    f'Media type "{media_type}" is not a valid for '
+                    'retrieval of instance frames.'
+                )
+            acceptable_media_type_lut[media_type].update(
+                supported_media_type_lut[media_type]
+            )
+        else:
+            raise ValueError('Argument "media_types" is malformatted.')
+
+    return acceptable_media_type_lut
 
 
 class DICOMfileClient:
@@ -2243,29 +2297,56 @@ class DICOMfileClient:
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
 
-        if media_types is not None:
-            acceptable_media_types = [
-                m[0]
-                if isinstance(m, tuple)
-                else m
-                for m in media_types
-            ]
-            are_media_types_valid = all(
-                m == 'application/dicom'
-                for m in acceptable_media_types
-            )
-            if not are_media_types_valid:
-                raise ValueError(
-                    'Instances can only be retrieved using media type '
-                    '"application/dicom".'
-                )
-            acceptable_transfer_syntax_uids = [
-                m[1]
-                for m in media_types
-                if isinstance(m, tuple) and len(m) == 2
-            ]
-        else:
-            acceptable_transfer_syntax_uids = []
+        transfer_syntax_uid_lut = {
+            '1.2.840.10008.1.2.1': 'application/dicom',
+            '1.2.840.10008.1.2.4.50': 'application/dicom',
+            '1.2.840.10008.1.2.4.51': 'application/dicom',
+            '1.2.840.10008.1.2.4.57': 'application/dicom',
+            '1.2.840.10008.1.2.4.70': 'application/dicom',
+            '1.2.840.10008.1.2.4.80': 'application/dicom',
+            '1.2.840.10008.1.2.4.81': 'application/dicom',
+            '1.2.840.10008.1.2.4.90': 'application/dicom',
+            '1.2.840.10008.1.2.4.91': 'application/dicom',
+            '1.2.840.10008.1.2.4.92': 'application/dicom',
+            '1.2.840.10008.1.2.4.93': 'application/dicom',
+        }
+
+        supported_media_type_lut = {
+            'application/dicom': {
+                '1.2.840.10008.1.2.1',
+                '1.2.840.10008.1.2.4.50',
+                '1.2.840.10008.1.2.4.51',
+                '1.2.840.10008.1.2.4.57',
+                '1.2.840.10008.1.2.4.70',
+                '1.2.840.10008.1.2.4.80',
+                '1.2.840.10008.1.2.4.81',
+                '1.2.840.10008.1.2.4.90',
+                '1.2.840.10008.1.2.4.91',
+                '1.2.840.10008.1.2.4.92',
+                '1.2.840.10008.1.2.4.93',
+                '*',
+            },
+        }
+        supported_media_type_lut['application/*'] = set(
+            supported_media_type_lut['application/dicom']
+        )
+        supported_media_type_lut['application/'] = set(
+            supported_media_type_lut['application/dicom']
+        )
+        supported_media_type_lut['*/*'] = set(
+            supported_media_type_lut['application/dicom']
+        )
+        supported_media_type_lut['*/'] = set(
+            supported_media_type_lut['application/dicom']
+        )
+
+        if media_types is None:
+            media_types = (('application/dicom', '*'), )
+
+        acceptable_media_type_lut = _build_acceptable_media_type_lut(
+            media_types,
+            supported_media_type_lut
+        )
 
         file_path = self._get_instance_file_path(
             study_instance_uid,
@@ -2273,29 +2354,42 @@ class DICOMfileClient:
             sop_instance_uid,
         )
         dataset = dcmread(file_path)
-
         transfer_syntax_uid = dataset.file_meta.TransferSyntaxUID
-        if len(acceptable_transfer_syntax_uids) > 0:
-            # TODO: encode Frame items of encapsulated Pixel Data element in
-            # one of the acceptable transfer syntaxes.
-            if transfer_syntax_uid not in acceptable_transfer_syntax_uids:
+
+        # Check whether the expected media is specified as one of the
+        # acceptable media types.
+        expected_media_type = transfer_syntax_uid_lut[transfer_syntax_uid]
+        found_matching_media_type = False
+        wildcards = {'*/*', '*/', 'application/*', 'application/'}
+        if any([w in acceptable_media_type_lut for w in wildcards]):
+            found_matching_media_type = True
+        elif expected_media_type in acceptable_media_type_lut:
+            found_matching_media_type = True
+            # If expected media type is specified as one of the acceptable
+            # media types, check whether the corresponding transfer syntax is
+            # appropriate.
+            expected_transfer_syntaxes = acceptable_media_type_lut[
+                expected_media_type
+            ]
+            if (
+                transfer_syntax_uid not in expected_transfer_syntaxes and
+                '*' not in expected_transfer_syntaxes
+            ):
                 raise ValueError(
-                    'Cannot retrieve instance "{}" in any of the '
-                    'acceptable transfer syntaxes: "{}".'.format(
-                        sop_instance_uid,
-                        ", ".join(acceptable_transfer_syntax_uids)
+                    'Instance cannot be retrieved using media type "{}" '
+                    'with any of the specified transfer syntaxes: "{}".'.format(
+                        expected_media_type,
+                        '", "'.join(expected_transfer_syntaxes)
                     )
                 )
 
-        # If no acceptable transfer syntax has been specified, then we just
-        # return the instance in whatever transfer syntax is has been stored.
-        # This behavior should be compliant with the standard.
-        # According to Part 18 Section 8.7.3.4:
-        # If the Transfer Syntax is not specified in a message, then the
-        # Default Transfer Syntax shall be used, unless the origin server has
-        # only access to the pixel data in lossy compressed form or the pixel
-        # data in a lossless compressed form that is of such length that it
-        # cannot be encoded in the Explicit VR Little Endian Transfer Syntax.
+        if not found_matching_media_type:
+            raise ValueError(
+                'Instance cannot be retrieved using any of the '
+                'acceptable media types: "{}".'.format(
+                    '", "'.join(media_types)
+                )
+            )
 
         return dataset
 
@@ -2343,7 +2437,7 @@ class DICOMfileClient:
         )
         image_file_reader = self._get_image_file_reader(file_path)
         metadata = image_file_reader.metadata
-        if int(metadata.NumberOfFrames) > 1:
+        if int(getattr(metadata, 'NumberOfFrames', '1')) > 1:
             raise ValueError(
                 'Rendering of multi-frame image instance is not supported.'
             )
@@ -2418,54 +2512,143 @@ class DICOMfileClient:
         metadata = image_file_reader.metadata
         transfer_syntax_uid = image_file_reader.transfer_syntax_uid
 
-        if media_types is not None:
-            acceptable_media_types = list(set([
-                m[0]
-                if isinstance(m, tuple)
-                else m
-                for m in media_types
-            ]))
-            are_media_types_valid = all(
-                m.startswith('image') or
-                m.startswith('application/octet-stream')
-                for m in acceptable_media_types
-            )
-            if not are_media_types_valid:
-                raise ValueError(
-                    'Instance frames can only be retrieved '
-                    'using media type "image/{jpeg,jls,jp2,jpx,dicom-rle}" or '
-                    '"application/octet-stream".'
-                )
-            if transfer_syntax_uid.is_encapsulated:
-                if 'image/jp2k' in acceptable_media_types:
-                    if transfer_syntax_uid == '1.2.840.10008.1.2.4.90':
-                        image_type = None
-                    else:
-                        # Lossless recompression
-                        image_type = 'jp2k'
-                elif ('image/jpeg' in acceptable_media_types and
-                      transfer_syntax_uid == '1.2.840.10008.1.2.4.50'):
-                    # Avoid lossy recompression of lossy compressed frames.
-                    image_type = None
-                else:
-                    raise ValueError(
-                        'Cannot retrieve frames of instance "{}" using '
-                        'any of the acceptable media types: "{}".'.format(
-                            sop_instance_uid,
-                            '", "'.join(acceptable_media_types)
-                        )
-                    )
-            else:
-                image_type = None
+        transfer_syntax_uid_lut = {
+            '1.2.840.10008.1.2.1': 'application/octet-stream',
+            '1.2.840.10008.1.2.4.50': 'image/jpeg',
+            '1.2.840.10008.1.2.4.51': 'image/jpeg',
+            '1.2.840.10008.1.2.4.57': 'image/jpeg',
+            '1.2.840.10008.1.2.4.70': 'image/jpeg',
+            '1.2.840.10008.1.2.4.80': 'image/jls',
+            '1.2.840.10008.1.2.4.81': 'image/jls',
+            '1.2.840.10008.1.2.4.90': 'image/jp2',
+            '1.2.840.10008.1.2.4.91': 'image/jp2',
+            '1.2.840.10008.1.2.4.92': 'image/jpx',
+            '1.2.840.10008.1.2.4.93': 'image/jpx',
+        }
+
+        supported_media_type_lut = {
+            'image/jpeg': {
+                '1.2.840.10008.1.2.4.50',
+                '1.2.840.10008.1.2.4.51',
+                '1.2.840.10008.1.2.4.57',
+                '1.2.840.10008.1.2.4.70',
+                '*',
+            },
+            'image/jls': {
+                '1.2.840.10008.1.2.4.80',
+                '1.2.840.10008.1.2.4.81',
+                '*',
+            },
+            'image/jp2': {
+                '1.2.840.10008.1.2.4.90',
+                '1.2.840.10008.1.2.4.91',
+                '*',
+            },
+            'image/jpx': {
+                '1.2.840.10008.1.2.4.92',
+                '1.2.840.10008.1.2.4.93',
+                '*',
+            },
+            'application/octet-stream': {
+                '1.2.840.10008.1.2.1',
+                '*',
+            },
+        }
+        supported_media_type_lut['image/*'] = set().union(*[
+            supported_media_type_lut['image/jpeg'],
+            supported_media_type_lut['image/jls'],
+            supported_media_type_lut['image/jp2'],
+            supported_media_type_lut['image/jpx'],
+        ])
+        supported_media_type_lut['image/'] = set().union(*[
+            supported_media_type_lut['image/jpeg'],
+            supported_media_type_lut['image/jls'],
+            supported_media_type_lut['image/jp2'],
+            supported_media_type_lut['image/jpx'],
+        ])
+        supported_media_type_lut['application/*'] = set().union(*[
+            supported_media_type_lut['application/octet-stream'],
+        ])
+        supported_media_type_lut['application/'] = set().union(*[
+            supported_media_type_lut['application/octet-stream'],
+        ])
+        supported_media_type_lut['*/*'] = set().union(*[
+            supported_media_type_lut['image/*'],
+            supported_media_type_lut['application/*'],
+        ])
+        supported_media_type_lut['*/'] = set().union(*[
+            supported_media_type_lut['image/*'],
+            supported_media_type_lut['application/*'],
+        ])
+
+        if media_types is None:
+            media_types = ('*/*', )
+
+        acceptable_media_type_lut = _build_acceptable_media_type_lut(
+            media_types,
+            supported_media_type_lut
+        )
+
+        # Check whether the expected media is specified as one of the
+        # acceptable media types.
+        expected_media_type = transfer_syntax_uid_lut[transfer_syntax_uid]
+        found_matching_media_type = False
+        if transfer_syntax_uid.is_encapsulated:
+            wildcards = {'*/*', '*/', 'image/*', 'image/'}
+            if any([w in acceptable_media_type_lut for w in wildcards]):
+                found_matching_media_type = True
         else:
-            # Return as stored.
+            wildcards = {'*/*', '*/', 'application/*', 'application/'}
+            if any([w in acceptable_media_type_lut for w in wildcards]):
+                found_matching_media_type = True
+
+        if expected_media_type in acceptable_media_type_lut:
+            found_matching_media_type = True
+            # If expected media type is specified as one of the acceptable
+            # media types, check whether the corresponding transfer syntax is
+            # appropriate.
+            expected_transfer_syntaxes = acceptable_media_type_lut[
+                expected_media_type
+            ]
+            if (
+                transfer_syntax_uid not in expected_transfer_syntaxes and
+                '*' not in expected_transfer_syntaxes
+            ):
+                raise ValueError(
+                    'Instance frames cannot be retrieved using media type "{}" '
+                    'with any of the specified transfer syntaxes: "{}".'.format(
+                        expected_media_type,
+                        '", "'.join(expected_transfer_syntaxes)
+                    )
+                )
+
+        if found_matching_media_type:
             image_type = None
+        else:
+            # If expected media is not specified as one of the acceptable media
+            # types, check whether one of the acceptable media types is
+            # suitable for lossless recompression of the frame.
+            if (
+                'image/jp2' in acceptable_media_type_lut and
+                (
+                    '1.2.840.10008.1.2.4.90'
+                    in acceptable_media_type_lut['image/jp2']
+                )
+            ):
+                image_type = 'jpeg2000'
+            else:
+                raise ValueError(
+                    'Instance frames cannot be retrieved using any of the '
+                    'acceptable media types: "{}".'.format(
+                        '", "'.join(media_types)
+                    )
+                )
 
         for frame_number in frame_numbers:
             frame_index = frame_number - 1
             frame = image_file_reader.read_frame(frame_index)
 
-            if frame_number > int(metadata.NumberOfFrames):
+            if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
                 raise ValueError(
                     f'Provided frame number {frame_number} exceeds number '
                     'of available frames.'
@@ -2477,9 +2660,7 @@ class DICOMfileClient:
                 if image_type is None:
                     pixels = frame
                 else:
-                    image_kwargs = {
-                        'jp2k': {'optimize': False},
-                    }
+                    image_kwargs = {'jp2k': {'optimize': False}}
                     array = image_file_reader.decode_frame(frame_index, frame)
                     image = Image.fromarray(array)
                     with io.BytesIO() as fp:
@@ -2488,8 +2669,7 @@ class DICOMfileClient:
                             image_type,
                             **image_kwargs[image_type]
                         )
-                        fp.seek(0)
-                        pixels = fp.read()
+                        pixels = fp.getvalue()
 
             yield pixels
 
@@ -2592,7 +2772,7 @@ class DICOMfileClient:
         metadata = image_file_reader.metadata
         transfer_syntax_uid = image_file_reader.transfer_syntax_uid
 
-        if frame_number > int(metadata.NumberOfFrames):
+        if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
             raise ValueError(
                 'Provided frame number exceeds number of frames.'
             )
@@ -2641,12 +2821,12 @@ class DICOMfileClient:
                 )
             if 'image/png' in acceptable_media_types:
                 image_type = 'png'
-            elif 'image/jp2k' in acceptable_media_types:
+            elif 'image/jp2' in acceptable_media_types:
                 if transfer_syntax_uid == '1.2.840.10008.1.2.4.90':
                     image_type = None
                 else:
                     # Lossless recompression
-                    image_type = 'jp2k'
+                    image_type = 'jpeg2000'
             elif 'image/jpeg' in acceptable_media_types:
                 if transfer_syntax_uid == '1.2.840.10008.1.2.4.50':
                     # Avoid lossy recompression of lossy compressed frames.
@@ -2675,7 +2855,7 @@ class DICOMfileClient:
             # Avoid re-compression when encoding in PNG format
             'png': {'compress_level': 0, 'optimize': False},
             'jpeg': {'quality': 100, 'optimize': False},
-            'jp2k': {'optimize': False},
+            'jpeg2000': {'optimize': False},
         }
         if params is not None:
             include_icc_profile = params.get('icc_profile', 'no')

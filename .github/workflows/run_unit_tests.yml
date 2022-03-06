@@ -33,4 +33,4 @@ jobs:
         flake8 --exclude='bin,build,.eggs'
     - name: Test with pytest
       run: |
-        pytest --cov=dicomweb_client --cov-fail-under=55 tests
+        pytest --cov=dicomweb_client --cov-fail-under=65 tests

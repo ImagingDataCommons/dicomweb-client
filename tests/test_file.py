@@ -1,4 +1,5 @@
 from pydicom.dataset import Dataset
+import pytest
 
 
 STUDY_ATTRIBUTES = {
@@ -173,7 +174,7 @@ def test_search_for_instances_in_series(file_client):
             assert not hasattr(test_instance_pydicom, attr)
 
 
-def retrieve_series_metadata(file_client):
+def test_retrieve_series_metadata(file_client):
     instances = file_client.retrieve_series_metadata(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2'
@@ -194,7 +195,7 @@ def retrieve_series_metadata(file_client):
             assert hasattr(test_instance_pydicom, attr)
 
 
-def retrieve_instance_metadata(file_client):
+def test_retrieve_instance_metadata(file_client):
     instance = file_client.retrieve_instance_metadata(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
@@ -213,7 +214,7 @@ def retrieve_instance_metadata(file_client):
         assert hasattr(instance_pydicom, attr)
 
 
-def retrieve_instance(file_client):
+def test_retrieve_instance(file_client):
     instance = file_client.retrieve_instance(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
@@ -222,7 +223,47 @@ def retrieve_instance(file_client):
     assert isinstance(instance, Dataset)
 
 
-def retrieve_instance_frames(file_client):
+def test_retrieve_instance_with_default_media_type(file_client):
+    instance = file_client.retrieve_instance(
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95',
+        media_types=('application/dicom', )
+    )
+    assert isinstance(instance, Dataset)
+
+
+def test_retrieve_instance_with_wrong_media_type(file_client):
+    with pytest.raises(ValueError):
+        file_client.retrieve_instance(
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95',
+            media_types=('application/octet-stream', )
+        )
+
+
+def test_retrieve_instance_with_any_transfer_syntax(file_client):
+    instance = file_client.retrieve_instance(
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95',
+        media_types=(('application/dicom', '*'), )
+    )
+    assert isinstance(instance, Dataset)
+
+
+def test_retrieve_instance_with_wrong_transfer_syntax(file_client):
+    with pytest.raises(ValueError):
+        file_client.retrieve_instance(
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
+            '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95',
+            media_types=(('application/dicom', '1.2.840.10008.1.2.4.50'), )
+        )
+
+
+def test_retrieve_instance_frames(file_client):
     frames = file_client.retrieve_instance_frames(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
@@ -236,11 +277,12 @@ def retrieve_instance_frames(file_client):
         assert isinstance(test_frame, bytes)
 
 
-def retrieve_instance_frames_rendered(file_client):
+def test_retrieve_instance_frames_rendered(file_client):
     frame = file_client.retrieve_instance_frames_rendered(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.95',
-        frame_numbers=[1]
+        frame_numbers=[1],
+        media_types=('image/png', )
     )
     assert isinstance(frame, bytes)
