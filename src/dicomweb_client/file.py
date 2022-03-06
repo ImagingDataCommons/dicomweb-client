@@ -16,6 +16,7 @@ from typing import (
     Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union,
 )
 
+import numpy as np
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
 from pydicom.dataset import Dataset, FileMetaDataset
@@ -440,7 +441,7 @@ class _ImageFileReader:
     @property
     def _pixels_per_frame(self) -> int:
         """int: Number of pixels per frame"""
-        return int(math.prod([
+        return int(np.product([
             self.metadata.Rows,
             self.metadata.Columns,
             self.metadata.SamplesPerPixel
