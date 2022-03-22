@@ -13,7 +13,16 @@ from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
 from typing import (
-    Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union,
+    Any,
+    Dict,
+    Iterator,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
 )
 
 import numpy as np
@@ -22,7 +31,7 @@ from PIL.ImageCms import ImageCmsProfile, createProfile
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate, get_frame_offsets
 from pydicom.errors import InvalidDicomError
-from pydicom.filebase import DicomFile, DicomFileLike
+from pydicom.filebase import DicomFileLike
 from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
 from pydicom.filereader import (
     data_element_offset_to_value,
@@ -57,12 +66,12 @@ _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
 
 
-def _get_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
+def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     """Read or build the Basic Offset Table (BOT).
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFile
+    fp: pydicom.filebase.DicomFileLike
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element
     number_of_frames: int
@@ -102,12 +111,12 @@ def _get_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
     return basic_offset_table
 
 
-def _read_bot(fp: DicomFile) -> List[int]:
+def _read_bot(fp: DicomFileLike) -> List[int]:
     """Read the Basic Offset Table (BOT) of an encapsulated Pixel Data element.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFile
+    fp: pydicom.filebase.DicomFileLike
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element
 
@@ -142,12 +151,12 @@ def _read_bot(fp: DicomFile) -> List[int]:
     return offsets
 
 
-def _build_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
+def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
     """Build a Basic Offset Table (BOT) for an encapsulated Pixel Data element.
 
     Parameters
     ----------
-    fp: pydicom.filebase.DicomFile
+    fp: pydicom.filebase.DicomFileLike
         Pointer for DICOM PS3.10 file stream positioned at the first byte of
         the Pixel Data element following the empty Basic Offset Table (BOT)
     number_of_frames: int
@@ -203,7 +212,7 @@ def _build_bot(fp: DicomFile, number_of_frames: int) -> List[int]:
                 f'Length of Frame item #{i} is zero.'
             )
 
-        first_two_bytes = fp.read(2, 1)
+        first_two_bytes = fp.read(2)
         if not fp.is_little_endian:
             first_two_bytes = first_two_bytes[::-1]
 
@@ -247,6 +256,8 @@ class _ImageFileReader:
             DICOM Part10 file containing a dataset of an image SOP Instance
 
         """
+        self._filepointer: Union[DicomFileLike, None]
+        self._filepath: Union[Path, None]
         if isinstance(fp, DicomFileLike):
             is_little_endian, is_implicit_VR = self._check_file_format(fp)
             try:
@@ -271,17 +282,51 @@ class _ImageFileReader:
                     'Transfer syntax of file object does not have '
                     'attribute "is_implicit_VR".'
                 )
-            self._fp = fp
+            self._filepointer = fp
             self._filepath = None
         elif isinstance(fp, (str, Path)):
             self._filepath = Path(fp)
-            self._fp = None
+            self._filepointer = None
         else:
             raise TypeError(
                 'Argument "filename" must either an open DICOM file object or '
                 'the path to a DICOM file stored on disk.'
             )
-        self._metadata = None
+        self._metadata: Union[Dataset, None] = None
+
+    def _check_file_format(self, fp: DicomFileLike) -> Tuple[bool, bool]:
+        """Check whether file object represents a DICOM Part 10 file.
+
+        Parameters
+        ----------
+        fp: pydicom.filebase.DicomFileLike
+            DICOM file object
+
+        Returns
+        -------
+        is_little_endian: bool
+            Whether the data set is encoded in little endian transfer syntax
+        is_implicit_VR: bool
+            Whether value representations of data elements in the data set
+            are implicit
+
+        Raises
+        ------
+        InvalidDicomError
+            If the file object does not represent a DICOM Part 10 file
+
+        """
+        def is_main_tag(tag: BaseTag, VR: Optional[str], length: int) -> bool:
+            return tag >= 0x00040000
+
+        pos = fp.tell()
+        ds = read_partial(fp, stop_when=is_main_tag)  # type: ignore
+        fp.seek(pos)
+        transfer_syntax_uid = UID(ds.file_meta.TransferSyntaxUID)
+        return (
+            transfer_syntax_uid.is_little_endian,
+            transfer_syntax_uid.is_implicit_VR,
+        )
 
     def __enter__(self) -> '_ImageFileReader':
         self.open()
@@ -298,6 +343,12 @@ class _ImageFileReader:
             for tb in traceback.format_tb(except_trace):
                 sys.stdout.write(tb)
             raise
+
+    @property
+    def _fp(self) -> DicomFileLike:
+        if self._filepointer is None:
+            raise IOError('File has not been opened for reading.')
+        return self._filepointer
 
     def open(self) -> None:
         """Open file for reading.
@@ -319,17 +370,20 @@ class _ImageFileReader:
 
         """
         logger.debug('read File Meta Information')
-        if self._fp is None:
+        if self._filepointer is None:
+            # This should not happen is just for mypy to be happy
+            if self._filepath is None:
+                raise ValueError(f'File not found: "{self._filepath}".')
             try:
                 file_meta = read_file_meta_info(self._filepath)
             except FileNotFoundError:
-                raise FileNotFoundError(f'File not found: "{self._filepath}"')
+                raise ValueError('No file path was set.')
             except InvalidDicomError:
                 raise InvalidDicomError(
-                    f'File is not a valid DICOM file: "{self._filepath}"'
+                    f'File is not a valid DICOM file: "{self._filepath}".'
                 )
             except Exception:
-                raise OSError(f'Could not read file: "{self._filepath}"')
+                raise IOError(f'Could not read file: "{self._filepath}".')
 
             transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
             if transfer_syntax_uid is None:
@@ -337,12 +391,14 @@ class _ImageFileReader:
                     'File is not a valid DICOM file: "{self._filepath}".'
                     'It lacks File Meta Information.'
                 )
-            self._fp = DicomFileLike(open(self._filepath, 'rb'))
-            self._fp.is_little_endian = transfer_syntax_uid.is_little_endian
-            self._fp.is_implicit_VR = transfer_syntax_uid.is_implicit_VR
-            self._transfer_syntax_uid = transfer_syntax_uid
+            self._transfer_syntax_uid: UID = transfer_syntax_uid
+            is_little_endian = transfer_syntax_uid.is_little_endian
+            is_implicit_VR = transfer_syntax_uid.is_implicit_VR
+            self._filepointer = DicomFileLike(open(self._filepath, 'rb'))
+            self._filepointer.is_little_endian = is_little_endian
+            self._filepointer.is_implicit_VR = is_implicit_VR
 
-    def _read_metadata(self) -> None:
+    def _read_metadata(self) -> Dataset:
         """Read metadata from file.
 
         Caches the metadata and additional information such as the offset of
@@ -355,14 +411,14 @@ class _ImageFileReader:
             raise IOError('File has not been opened for reading.')
 
         try:
-            metadata = dcmread(self._fp, stop_before_pixels=True)
+            tmp = dcmread(self._fp, stop_before_pixels=True)
         except Exception as err:
             raise IOError(f'DICOM metadata cannot be read from file: "{err}"')
 
         # Construct a new Dataset that is fully decoupled from the file, i.e.,
         # that does not contain any File Meta Information
-        del metadata.file_meta
-        self._metadata = Dataset(metadata)
+        del tmp.file_meta
+        self._metadata = Dataset(tmp)
 
         self._pixel_data_offset = self._fp.tell()
         # Determine whether dataset contains a Pixel Data element
@@ -421,10 +477,7 @@ class _ImageFileReader:
                 'Length of Basic Offset Table does not match Number of Frames.'
             )
 
-    @property
-    def filepath(self) -> Path:
-        """pathlib.Path: Path to file"""
-        return self._filepath
+        return self._metadata
 
     @property
     def transfer_syntax_uid(self) -> UID:
@@ -435,7 +488,7 @@ class _ImageFileReader:
     def metadata(self) -> Dataset:
         """pydicom.dataset.Dataset: Metadata"""
         if self._metadata is None:
-            self._read_metadata()
+            self._metadata = self._read_metadata()
         return self._metadata
 
     @property
@@ -462,7 +515,8 @@ class _ImageFileReader:
 
     def close(self) -> None:
         """Close file."""
-        self._fp.close()
+        if self._fp is not None:
+            self._fp.close()
 
     def read_frame(self, index: int) -> bytes:
         """Read the pixel data of an individual frame item.
@@ -489,7 +543,7 @@ class _ImageFileReader:
         logger.debug(f'read frame #{index}')
 
         if self._metadata is None:
-            self._read_metadata()
+            self._metadata = self._read_metadata()
 
         frame_offset = self._basic_offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
@@ -613,9 +667,9 @@ class _QueryResourceType(Enum):
 
 
 def _build_acceptable_media_type_lut(
-    media_types: Tuple[Union[str, Tuple[str, str]]],
-    supported_media_type_lut: Mapping[str, List[str]]
-) -> Mapping[str, List[str]]:
+    media_types: Tuple[Union[str, Tuple[str, str]], ...],
+    supported_media_type_lut: Mapping[str, Iterable[str]]
+) -> Mapping[str, Iterable[str]]:
     # If no acceptable transfer syntax has been specified, then we just return
     # the instance in whatever transfer syntax is has been stored.  This
     # behavior should be compliant with the standard (Part 18 Section 8.7.3.4):
@@ -719,7 +773,7 @@ class DICOMfileClient:
         if not self._db_filepath.exists():
             update_db = True
 
-        self._db_connection = None
+        self._db_connection: Union[sqlite3.Connection, None] = None
         if recreate_db:
             self._drop_db()
             update_db = True
@@ -746,7 +800,7 @@ class DICOMfileClient:
             elapsed = round(end - start)
             logger.info(f'updated database in {elapsed} seconds')
 
-        self._reader_cache = OrderedDict()
+        self._reader_cache: OrderedDict[Path, _ImageFileReader] = OrderedDict()
         self._max_reader_cache_size = 50
 
     def __getstate__(self) -> dict:
@@ -926,9 +980,10 @@ class DICOMfileClient:
                 series_instance_uid = ds.SeriesInstanceUID
                 series[series_instance_uid] = tuple(series_metadata)
 
-                instance_metadata = self._extract_instance_metadata(ds)
-                instance_metadata.append(str(ds.file_meta.TransferSyntaxUID))
-                instance_metadata.append(str(rel_file_path))
+                instance_metadata = self._extract_instance_metadata(
+                    ds,
+                    rel_file_path
+                )
                 sop_instance_uid = ds.SOPInstanceUID
                 instances[sop_instance_uid] = tuple(instance_metadata)
             except AttributeError as error:
@@ -972,33 +1027,65 @@ class DICOMfileClient:
     def _extract_study_metadata(
         self,
         dataset: Dataset
-    ) -> Sequence[Union[str, int, None]]:
-        return [
+    ) -> Tuple[
+        str,
+        Optional[str],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+        Optional[str],
+    ]:
+        return tuple([
             self._get_data_element_value(dataset, attr)
             for attr in self._attributes[_QueryResourceType.STUDIES]
-        ]
+        ])  # type: ignore
 
     def _extract_series_metadata(
         self,
         dataset: Dataset
-    ) -> Sequence[Union[str, int, None]]:
-        return [
+    ) -> Tuple[
+        str,
+        str,
+        str,
+        Optional[str],
+        Optional[int],
+    ]:
+        return tuple([
             self._get_data_element_value(dataset, attr)
             for attr in self._attributes[_QueryResourceType.SERIES]
-        ]
+        ])  # type: ignore
 
     def _extract_instance_metadata(
         self,
-        dataset: Dataset
-    ) -> Sequence[Union[str, int, None]]:
-        return [
+        dataset: Dataset,
+        file_path: Union[Path, str]
+    ) -> Tuple[
+        str,
+        str,
+        str,
+        str,
+        Optional[int],
+        Optional[int],
+        Optional[int],
+        Optional[int],
+        Optional[int],
+        str,
+        str,
+    ]:
+        metadata = [
             self._get_data_element_value(dataset, attr)
             for attr in self._attributes[_QueryResourceType.INSTANCES]
         ]
+        metadata.append(str(dataset.file_meta.TransferSyntaxUID))
+        metadata.append(str(file_path))
+        return tuple(metadata)  # type: ignore
 
     def _insert_into_db(
         self,
-        studies: Sequence[
+        studies: Iterable[
             Tuple[
                 str,
                 Optional[str],
@@ -1011,7 +1098,7 @@ class DICOMfileClient:
                 Optional[str],
             ]
         ],
-        series: Sequence[
+        series: Iterable[
             Tuple[
                 str,
                 str,
@@ -1020,7 +1107,7 @@ class DICOMfileClient:
                 Optional[int],
             ]
         ],
-        instances: Sequence[
+        instances: Iterable[
             Tuple[
                 str,
                 str,
@@ -1030,6 +1117,8 @@ class DICOMfileClient:
                 Optional[int],
                 Optional[int],
                 Optional[int],
+                Optional[int],
+                str,
                 str,
             ]
         ]
@@ -1181,6 +1270,8 @@ class DICOMfileClient:
                     keyword = key
                     try:
                         tag = tag_for_keyword(keyword)
+                        if tag is None:
+                            raise
                         vr = dictionary_VR(tag)
                     except Exception:
                         logger.warning(
@@ -1391,8 +1482,8 @@ class DICOMfileClient:
             self._reader_cache[file_path] = image_file_reader
             if len(self._reader_cache) > self._max_reader_cache_size:
                 # Remove the last entry.
-                tmp = self._reader_cache.popitem(last=False)
-                tmp.close()
+                tmp_path, tmp_reader = self._reader_cache.popitem(last=False)
+                tmp_reader.close()
         return image_file_reader
 
     def _get_instance_file_path(
@@ -1913,7 +2004,7 @@ class DICOMfileClient:
     def retrieve_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> List[bytes]:
         """Retrieve bulk data at a given location.
@@ -1922,7 +2013,7 @@ class DICOMfileClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1938,7 +2029,7 @@ class DICOMfileClient:
         IOError
             When requested resource is not found at `url`
 
-        """
+        """  # noqa: E501
         iterator = self.iter_bulkdata(
             url=url,
             media_types=media_types,
@@ -1949,7 +2040,7 @@ class DICOMfileClient:
     def iter_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> Iterator[bytes]:
         """Iterate over bulk data items at a given location.
@@ -1958,7 +2049,7 @@ class DICOMfileClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1974,7 +2065,7 @@ class DICOMfileClient:
         IOError
             When requested resource is not found at `url`
 
-        """
+        """  # noqa: E501
         # The retrieve_study_metadata, retrieve_series_metadata, and
         # retrieve_instance_metadata methods currently include all bulkdata
         # into metadata resources by value rather than by reference, i.e.,
@@ -2020,7 +2111,7 @@ class DICOMfileClient:
     def iter_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[Dataset]:
         """Iterate over all instances of a study.
 
@@ -2028,7 +2119,7 @@ class DICOMfileClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2037,7 +2128,7 @@ class DICOMfileClient:
         Iterator[pydicom.dataset.Dataset]
             Instances
 
-        """
+        """  # noqa: E501
         logger.info(
             f'iterate over all instances of study "{study_instance_uid}"'
         )
@@ -2058,7 +2149,7 @@ class DICOMfileClient:
     def retrieve_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[Dataset]:
         """Retrieve all instances of a study.
 
@@ -2066,7 +2157,7 @@ class DICOMfileClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2075,7 +2166,7 @@ class DICOMfileClient:
         Sequence[pydicom.dataset.Dataset]
             Instances
 
-        """
+        """  # noqa: E501
         logger.info(f'retrieve all instances of study "{study_instance_uid}"')
         iterator = self.iter_study(
             study_instance_uid=study_instance_uid,
@@ -2087,7 +2178,7 @@ class DICOMfileClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[Dataset]:
         """Iterate over all instances of a series.
 
@@ -2097,7 +2188,7 @@ class DICOMfileClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2106,7 +2197,7 @@ class DICOMfileClient:
         Iterator[pydicom.dataset.Dataset]
             Instances
 
-        """
+        """  # noqa: E501
         logger.info(
             f'iterate over all instances of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
@@ -2128,7 +2219,7 @@ class DICOMfileClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[Dataset]:
         """Retrieve all instances of a series.
 
@@ -2138,7 +2229,7 @@ class DICOMfileClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2147,7 +2238,7 @@ class DICOMfileClient:
         Sequence[pydicom.dataset.Dataset]
             Instances
 
-        """
+        """  # noqa: E501
         logger.info(
             f'retrieve all instances of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
@@ -2162,7 +2253,7 @@ class DICOMfileClient:
     def retrieve_series_rendered(
         self, study_instance_uid,
         series_instance_uid,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve rendered representation of a series.
@@ -2173,7 +2264,7 @@ class DICOMfileClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
@@ -2187,7 +2278,7 @@ class DICOMfileClient:
         bytes
             Rendered representation of series
 
-        """
+        """  # noqa: E501
         raise ValueError('Retrieval of rendered series is not supported.')
 
     def retrieve_series_metadata(
@@ -2270,7 +2361,7 @@ class DICOMfileClient:
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Dataset:
         """Retrieve metadata of a single instance.
 
@@ -2282,7 +2373,7 @@ class DICOMfileClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Tuple[Union[str, Tuple[str, str]]], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2291,7 +2382,7 @@ class DICOMfileClient:
         pydicom.dataset.Dataset
             Instance
 
-        """
+        """  # noqa: E501
         logger.info(
             f'retrieve instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
@@ -2386,9 +2477,7 @@ class DICOMfileClient:
         if not found_matching_media_type:
             raise ValueError(
                 'Instance cannot be retrieved using any of the '
-                'acceptable media types: "{}".'.format(
-                    '", "'.join(media_types)
-                )
+                f'acceptable media types: {media_types}.'
             )
 
         return dataset
@@ -2398,7 +2487,7 @@ class DICOMfileClient:
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve an individual, server-side rendered instance.
@@ -2411,7 +2500,7 @@ class DICOMfileClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
@@ -2429,7 +2518,7 @@ class DICOMfileClient:
         ----
         Only rendering of single-frame image instances is currently supported.
 
-        """
+        """  # noqa: E501
         file_path = self._get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
@@ -2458,7 +2547,7 @@ class DICOMfileClient:
             array = image_file_reader.decode_frame(frame_index, frame)
             image = Image.fromarray(array)
             with io.BytesIO() as fp:
-                image.save(fp, codec_name, **codec_kwargs)
+                image.save(fp, codec_name, **codec_kwargs)  # type: ignore
                 fp.seek(0)
                 pixels = fp.read()
 
@@ -2470,7 +2559,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: List[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[bytes]:
         """Iterate over frames of an image instance.
 
@@ -2484,7 +2573,7 @@ class DICOMfileClient:
             SOP Instance UID
         frame_numbers: List[int]
             Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2493,7 +2582,7 @@ class DICOMfileClient:
         List[bytes]
             Frames
 
-        """
+        """  # noqa: E501
         logger.info(
             f'iterate over frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
@@ -2639,9 +2728,7 @@ class DICOMfileClient:
             else:
                 raise ValueError(
                     'Instance frames cannot be retrieved using any of the '
-                    'acceptable media types: "{}".'.format(
-                        '", "'.join(media_types)
-                    )
+                    f'acceptable media types: {media_types}.'
                 )
 
         for frame_number in frame_numbers:
@@ -2660,14 +2747,14 @@ class DICOMfileClient:
                 if image_type is None:
                     pixels = frame
                 else:
-                    image_kwargs = {'jp2k': {'optimize': False}}
+                    image_kwargs = {'jpeg2000': {'irreversible': False}}
                     array = image_file_reader.decode_frame(frame_index, frame)
                     image = Image.fromarray(array)
                     with io.BytesIO() as fp:
                         image.save(
                             fp,
                             image_type,
-                            **image_kwargs[image_type]
+                            **image_kwargs[image_type]   # type: ignore
                         )
                         pixels = fp.getvalue()
 
@@ -2679,7 +2766,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: List[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[bytes]:
         """Retrieve one or more frames of an image instance.
 
@@ -2693,7 +2780,7 @@ class DICOMfileClient:
             SOP Instance UID
         frame_numbers: List[int]
             Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2702,7 +2789,7 @@ class DICOMfileClient:
         List[bytes]
             Frames
 
-        """
+        """  # noqa: E501
         logger.info(
             f'retrieve frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
@@ -2722,7 +2809,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: List[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, str]] = None,
     ) -> bytes:
         """Retrieve server-side rendered frames of an image instance.
@@ -2737,7 +2824,7 @@ class DICOMfileClient:
             SOP Instance UID
         frame_numbers: List[int]
             Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         params: Union[Dict[str, str], None], optional
@@ -2748,7 +2835,7 @@ class DICOMfileClient:
         bytes
             Rendered representation of frames
 
-        """
+        """  # noqa: E501
         logger.info(
             f'retrieve rendered frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
@@ -2800,9 +2887,9 @@ class DICOMfileClient:
         self,
         metadata: Dataset,
         transfer_syntax_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, str]] = None,
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> Tuple[Optional[str], Dict[str, Any]]:
         if media_types is not None:
             acceptable_media_types = list(set([
                 m[0]
@@ -2851,13 +2938,13 @@ class DICOMfileClient:
             else:
                 image_type = 'jpeg'
 
-        image_kwargs = {
+        image_kwargs: Dict[str, Any] = {
             # Avoid re-compression when encoding in PNG format
             'png': {'compress_level': 0, 'optimize': False},
             'jpeg': {'quality': 100, 'optimize': False},
-            'jpeg2000': {'optimize': False},
+            'jpeg2000': {'irreversible': False},
         }
-        if params is not None:
+        if params is not None and image_type is not None:
             include_icc_profile = params.get('icc_profile', 'no')
             if include_icc_profile == 'yes':
                 icc_profile = metadata.OpticalPathSequence[0].ICCProfile
@@ -2876,17 +2963,20 @@ class DICOMfileClient:
                     f'ICC Profile "{include_icc_profile}" is not supported.'
                 )
 
+        if image_type is None:
+            return (image_type, {})
+
         return (image_type, image_kwargs[image_type])
 
     @staticmethod
     def lookup_keyword(
-        tag: Union[str, int, Tuple[str, str], BaseTag]
+        tag: Union[int, str, Tuple[int, int], BaseTag]
     ) -> str:
         """Look up the keyword of a DICOM attribute.
 
         Parameters
         ----------
-        tag: Union[str, int, Tuple[str, str], pydicom.tag.BaseTag]
+        tag: Union[str, int, Tuple[int, int], pydicom.tag.BaseTag]
             Attribute tag (e.g. ``"00080018"``)
 
         Returns
@@ -2895,7 +2985,10 @@ class DICOMfileClient:
             Attribute keyword (e.g. ``"SOPInstanceUID"``)
 
         """
-        return keyword_for_tag(tag)
+        keyword = keyword_for_tag(tag)
+        if keyword is None:
+            raise KeyError(f'Could not find a keyword for tag {tag}.')
+        return keyword
 
     @staticmethod
     def lookup_tag(keyword: str) -> str:
@@ -2913,6 +3006,8 @@ class DICOMfileClient:
 
         """
         tag = tag_for_keyword(keyword)
+        if tag is None:
+            raise KeyError(f'Could not find a tag for "{keyword}".')
         tag = Tag(tag)
         return '{0:04x}{1:04x}'.format(tag.group, tag.element).upper()
 
@@ -2946,9 +3041,46 @@ class DICOMfileClient:
         # sets to files on disk. This will allow us to "roll back" in case of
         # an error. We may want to consider implementing this in a more
         # sophisticated way in case it becomes a performance bottleneck.
-        studies = {}
-        series = {}
-        instances = {}
+        studies: Dict[
+            str,
+            Tuple[
+                str,
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+            ]
+        ] = {}
+        series: Dict[
+            str,
+            Tuple[
+                str,
+                str,
+                str,
+                Optional[str],
+                Optional[int],
+            ]
+        ] = {}
+        instances: Dict[
+            str,
+            Tuple[
+                str,
+                str,
+                str,
+                str,
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                str,
+                str,
+            ]
+        ] = {}
         successes = []
         failures = []
         for ds in datasets:
@@ -2959,15 +3091,18 @@ class DICOMfileClient:
             )
 
             try:
+                if study_instance_uid is not None:
+                    if ds.StudyInstanceUID != study_instance_uid:
+                        continue
+                else:
+                    study_instance_uid = ds.StudyInstanceUID
                 study_metadata = self._extract_study_metadata(ds)
-                study_instance_uid = ds.StudyInstanceUID
-                studies[study_instance_uid] = tuple(study_metadata)
+                studies[study_instance_uid] = study_metadata
 
                 series_metadata = self._extract_series_metadata(ds)
                 series_instance_uid = ds.SeriesInstanceUID
-                series[series_instance_uid] = tuple(series_metadata)
+                series[series_instance_uid] = series_metadata
 
-                instance_metadata = self._extract_instance_metadata(ds)
                 sop_instance_uid = ds.SOPInstanceUID
                 rel_file_path = '/'.join([
                     'studies',
@@ -2977,9 +3112,11 @@ class DICOMfileClient:
                     'instances',
                     sop_instance_uid
                 ])
-                instance_metadata.append(str(ds.file_meta.TransferSyntaxUID))
-                instance_metadata.append(str(rel_file_path))
-                instances[sop_instance_uid] = tuple(instance_metadata)
+                instance_metadata = self._extract_instance_metadata(
+                    ds,
+                    rel_file_path
+                )
+                instances[sop_instance_uid] = instance_metadata
 
                 with io.BytesIO() as b:
                     dcmwrite(b, ds, write_like_original=False)
@@ -3025,6 +3162,8 @@ class DICOMfileClient:
                 failure_item.ReferencedSOPClassUID = ds.SOPClassUID
                 failure_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
                 response.FailedSOPSequence.append(failure_item)
+
+        return response
 
     def delete_study(self, study_instance_uid: str) -> None:
         """Delete all instances of a study.
