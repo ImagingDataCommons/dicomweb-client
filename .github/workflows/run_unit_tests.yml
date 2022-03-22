@@ -31,6 +31,9 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 --exclude='bin,build,.eggs'
+    - name: Check type hints with mypy
+      run: |
+        mypy src
     - name: Test with pytest
       run: |
         pytest --cov=dicomweb_client --cov-fail-under=65 tests
