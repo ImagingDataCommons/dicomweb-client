@@ -673,6 +673,8 @@ class DICOMwebClient:
 
         if get_remaining:
             results = []
+            if params is None:
+                params = {}
             params['offset'] = params.get('offset', 0)
             while True:
                 subset = get(url, params, stream)
@@ -895,7 +897,7 @@ class DICOMwebClient:
     @classmethod
     def _build_accept_header_field_value(
         cls,
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None],
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None],
         supported_media_types: Set[str]
     ) -> str:
         """Build an accept header field value for a request message.
@@ -936,14 +938,14 @@ class DICOMwebClient:
     @classmethod
     def _build_multipart_accept_header_field_value(
         cls,
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None],
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None],
         supported_media_types: Union[Dict[str, str], Set[str]]
     ) -> str:
         """Build an accept header field value for a multipart request message.
 
         Parameters
         ----------
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None]
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None]
             Acceptable media types and optionally the UIDs of the corresponding
             transfer syntaxes
         supported_media_types: Union[Dict[str, str], Set[str]]
@@ -1018,7 +1020,7 @@ class DICOMwebClient:
     def _http_get_multipart_application_dicom(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> Iterator[pydicom.dataset.Dataset]:
@@ -1028,7 +1030,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes, (defaults to
             ``("application/dicom", "1.2.840.10008.1.2.1")``)
@@ -1043,7 +1045,7 @@ class DICOMwebClient:
         Iterator[pydicom.dataset.Dataset]
             DICOM data sets
 
-        """
+        """  # noqa: E501
         default_media_type = 'application/dicom'
         supported_media_types = {
             '1.2.840.10008.1.2.1': default_media_type,
@@ -1106,7 +1108,7 @@ class DICOMwebClient:
     def _http_get_multipart(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
@@ -1117,7 +1119,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes (defaults to ``("*/*", )``)
         byte_range: Union[Tuple[int, int], None], optional
@@ -1133,7 +1135,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Content of HTTP message body parts
 
-        """
+        """  # noqa: E501
         default_media_type = '*/*'
         supported_media_types = {
             '1.2.840.10008.1.2.1': 'application/octet-stream',
@@ -1177,7 +1179,7 @@ class DICOMwebClient:
     def _http_get_multipart_application_octet_stream(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
@@ -1188,7 +1190,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes (defaults to
             ``("application/octet-stream", "1.2.840.10008.1.2.1")``)
@@ -1205,7 +1207,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Content of HTTP message body parts
 
-        """
+        """  # noqa: E501
         default_media_type = 'application/octet-stream'
         supported_media_types = {
             '1.2.840.10008.1.2.1': default_media_type,
@@ -1231,7 +1233,7 @@ class DICOMwebClient:
     def _http_get_multipart_image(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
@@ -1242,7 +1244,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1258,7 +1260,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Content of HTTP message body parts
 
-        """
+        """  # noqa: E501
         headers = {}
         supported_media_types = {
             '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
@@ -1292,7 +1294,7 @@ class DICOMwebClient:
     def _http_get_multipart_video(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
@@ -1303,7 +1305,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Tuple[Union[str, Tuple[str, str]]]
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1319,7 +1321,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Content of HTTP message body parts
 
-        """
+        """  # noqa: E501
         headers = {}
         supported_media_types = {
             '1.2.840.10008.1.2.4.100': 'video/mpeg2',
@@ -1383,7 +1385,7 @@ class DICOMwebClient:
     def _http_get_image(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
@@ -1393,7 +1395,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Image media type (choices: ``"image/jpeg"``, ``"image/gif"``,
             ``"image/jp2"``, ``"image/png"``)
         params: Union[Dict[str, Any], None], optional
@@ -1407,7 +1409,7 @@ class DICOMwebClient:
         bytes
             Content of HTTP message body
 
-        """
+        """  # noqa: E501
         supported_media_types = {
             'image/',
             'image/*',
@@ -1431,7 +1433,7 @@ class DICOMwebClient:
     def _http_get_video(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
@@ -1441,7 +1443,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Video media type (choices: ``"video/mpeg"``, ``"video/mp4"``,
             ``"video/H265"``)
         params: Union[Dict[str, Any], None], optional
@@ -1455,7 +1457,7 @@ class DICOMwebClient:
         bytes
             Content of HTTP message body
 
-        """
+        """  # noqa: E501
         supported_media_types = {
             'video/',
             'video/*',
@@ -1478,7 +1480,7 @@ class DICOMwebClient:
     def _http_get_text(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None,
         stream: bool = False
     ) -> bytes:
@@ -1488,7 +1490,7 @@ class DICOMwebClient:
         ----------
         url: str
             Unique resource locator
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Text media type (choices: ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``)
         params: Union[Dict[str, Any], None], optional
@@ -1502,7 +1504,7 @@ class DICOMwebClient:
         bytes
             Content of HTTP message body
 
-        """
+        """  # noqa: E501
         supported_media_types = {
             'text/',
             'text/*',
@@ -1754,7 +1756,7 @@ class DICOMwebClient:
     @classmethod
     def _get_common_media_types(
         cls,
-        media_types: Tuple[Union[str, Tuple[str, str]]]
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[str]:
         """Get media types of one resource category.
 
@@ -1771,7 +1773,7 @@ class DICOMwebClient:
 
         Parameters
         ----------
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -1785,7 +1787,7 @@ class DICOMwebClient:
         ValueError
             when no media types are provided or more than one type is provided
 
-        """
+        """  # noqa: E501
         if media_types is None:
             raise ValueError('No acceptable media types provided.')
         common_media_types = []
@@ -1819,7 +1821,7 @@ class DICOMwebClient:
     def _get_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         stream: bool = False,
     ) -> Iterator[bytes]:
@@ -1829,7 +1831,7 @@ class DICOMwebClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1843,7 +1845,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Bulk data items
 
-        """
+        """  # noqa: E501
         if media_types is None:
             return self._http_get_multipart(
                 url, media_types, byte_range=byte_range, stream=stream
@@ -1876,7 +1878,7 @@ class DICOMwebClient:
     def retrieve_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> List[bytes]:
         """Retrieve bulk data at a given location.
@@ -1885,7 +1887,7 @@ class DICOMwebClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1896,7 +1898,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Bulk data items
 
-        """
+        """  # noqa: E501
         return list(
             self._get_bulkdata(
                 url=url,
@@ -1909,7 +1911,7 @@ class DICOMwebClient:
     def iter_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> Iterator[bytes]:
         """Iterate over bulk data items at a given location.
@@ -1918,7 +1920,7 @@ class DICOMwebClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -1933,7 +1935,7 @@ class DICOMwebClient:
         ----
         Data is streamed from the DICOMweb server.
 
-        """
+        """  # noqa: E501
         return self._get_bulkdata(
             url=url,
             media_types=media_types,
@@ -1944,7 +1946,7 @@ class DICOMwebClient:
     def _get_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         stream: bool = False
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Get all instances of a study.
@@ -1953,7 +1955,7 @@ class DICOMwebClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxescceptable transfer syntax UIDs
         stream: bool, optional
@@ -1965,7 +1967,7 @@ class DICOMwebClient:
         Iterator[pydicom.dataset.Dataset]
             Instances
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of study.'
@@ -1997,7 +1999,7 @@ class DICOMwebClient:
     def retrieve_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
     ) -> List[pydicom.dataset.Dataset]:
         """Retrieve all instances of a study.
 
@@ -2005,7 +2007,7 @@ class DICOMwebClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -2024,7 +2026,7 @@ class DICOMwebClient:
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         return list(
             self._get_study(
                 study_instance_uid=study_instance_uid,
@@ -2036,7 +2038,7 @@ class DICOMwebClient:
     def iter_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Iterate over all instances of a study.
 
@@ -2044,7 +2046,7 @@ class DICOMwebClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -2067,7 +2069,7 @@ class DICOMwebClient:
         ----
         Data is streamed from the DICOMweb server.
 
-        """
+        """  # noqa: E501
         return self._get_study(
             study_instance_uid=study_instance_uid,
             media_types=media_types,
@@ -2213,7 +2215,7 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         stream: bool = False
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Get instances of a series.
@@ -2224,7 +2226,7 @@ class DICOMwebClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         stream: bool, optional
@@ -2236,7 +2238,7 @@ class DICOMwebClient:
         Iterator[pydicom.dataset.Dataset]
             Instances
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of series.'
@@ -2283,7 +2285,7 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[pydicom.dataset.Dataset]:
         """Retrieve all instances of a series.
 
@@ -2293,7 +2295,7 @@ class DICOMwebClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -2312,7 +2314,7 @@ class DICOMwebClient:
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         return list(
             self._get_series(
                 study_instance_uid=study_instance_uid,
@@ -2326,7 +2328,7 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Iterate over all instances of a series.
 
@@ -2336,7 +2338,7 @@ class DICOMwebClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -2359,7 +2361,7 @@ class DICOMwebClient:
         ----
         Data is streamed from the DICOMweb server.
 
-        """
+        """  # noqa: E501
         return self._get_series(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
@@ -2414,7 +2416,7 @@ class DICOMwebClient:
     def retrieve_series_rendered(
         self, study_instance_uid,
         series_instance_uid,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve rendered representation of a series.
@@ -2425,7 +2427,7 @@ class DICOMwebClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
@@ -2439,7 +2441,7 @@ class DICOMwebClient:
         bytes
             Rendered representation of series
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of '
@@ -2467,7 +2469,8 @@ class DICOMwebClient:
         common_media_types = self._get_common_media_types(media_types)
         if len(common_media_types) > 1:
             # Try and hope for the best...
-            return self._http_get(url, params)
+            response = self._http_get(url, params)
+            return response.content
 
         common_media_type = common_media_types[0]
         if common_media_type.startswith('image'):
@@ -2602,7 +2605,7 @@ class DICOMwebClient:
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
     ) -> pydicom.dataset.Dataset:
         """Retrieve an individual instance.
 
@@ -2614,7 +2617,7 @@ class DICOMwebClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -2633,7 +2636,7 @@ class DICOMwebClient:
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of instance.'
@@ -2817,7 +2820,7 @@ class DICOMwebClient:
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve an individual, server-side rendered instance.
@@ -2830,7 +2833,7 @@ class DICOMwebClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
@@ -2844,7 +2847,7 @@ class DICOMwebClient:
         bytes
             Rendered representation of instance
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of '
@@ -2899,7 +2902,7 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         stream: bool = False
     ) -> Iterator[bytes]:
         """Get frames of an instance.
@@ -2914,7 +2917,7 @@ class DICOMwebClient:
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional indices of the frames within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         stream: bool, optional
@@ -2926,7 +2929,7 @@ class DICOMwebClient:
         Iterator[bytes]
             Pixel data for each frame
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of frames.'
@@ -2995,7 +2998,7 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[bytes]:
         """Retrieve one or more frames of an image instance.
 
@@ -3009,7 +3012,7 @@ class DICOMwebClient:
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional indices of the frames within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -3018,7 +3021,7 @@ class DICOMwebClient:
         List[bytes]
             Pixel data for each frame
 
-        """
+        """  # noqa: E501
         return list(
             self._get_instance_frames(
                 study_instance_uid=study_instance_uid,
@@ -3036,7 +3039,7 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[bytes]:
         """Iterate over frames of an image instance.
 
@@ -3050,7 +3053,7 @@ class DICOMwebClient:
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional indices of the frames within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -3063,7 +3066,7 @@ class DICOMwebClient:
         ----
         Data is streamed from the DICOMweb server.
 
-        """
+        """  # noqa: E501
         return self._get_instance_frames(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
@@ -3079,7 +3082,7 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve one or more server-side rendered frames of an instance.
@@ -3094,7 +3097,7 @@ class DICOMwebClient:
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional index of the frame within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media type (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``)
         params: Union[Dict[str, Any], None], optional
@@ -3110,7 +3113,7 @@ class DICOMwebClient:
         ----
         Not all media types are compatible with all SOP classes.
 
-        """
+        """  # noqa: E501
         if study_instance_uid is None:
             raise ValueError(
                 'Study Instance UID is required for retrieval of '
@@ -3158,7 +3161,7 @@ class DICOMwebClient:
 
     @staticmethod
     def lookup_keyword(
-        tag: Union[str, int, Tuple[str, str], pydicom.tag.BaseTag]
+        tag: Union[str, int, Tuple[int, int], pydicom.tag.BaseTag]
     ) -> str:
         """Look up the keyword of a DICOM attribute.
 
@@ -3173,7 +3176,10 @@ class DICOMwebClient:
             Attribute keyword (e.g. ``"SOPInstanceUID"``)
 
         """
-        return pydicom.datadict.keyword_for_tag(tag)
+        keyword = pydicom.datadict.keyword_for_tag(tag)
+        if keyword is None:
+            raise KeyError(f'Could not find a keyword for tag {tag}.')
+        return keyword
 
     @staticmethod
     def lookup_tag(keyword: str) -> str:
@@ -3191,5 +3197,7 @@ class DICOMwebClient:
 
         """
         tag = pydicom.datadict.tag_for_keyword(keyword)
+        if tag is None:
+            raise KeyError(f'Could not find a tag for "{keyword}".')
         tag = pydicom.tag.Tag(tag)
         return '{0:04x}{1:04x}'.format(tag.group, tag.element).upper()
