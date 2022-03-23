@@ -12,7 +12,7 @@ from typing import (
 if sys.version_info.minor < 8:
     from typing_extensions import Protocol, runtime_checkable
 else:
-    from typing import Protocol, runtime_checkable
+    from typing import Protocol, runtime_checkable  # type: ignore
 
 from pydicom.dataset import Dataset
 
@@ -64,13 +64,13 @@ class DICOMClient(Protocol):
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
 
-        """  # noqa: E501: E501
+        """  # noqa: E501
         pass
 
     def retrieve_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> List[bytes]:
         """Retrieve bulk data at a given location.
@@ -79,7 +79,7 @@ class DICOMClient(Protocol):
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -90,13 +90,13 @@ class DICOMClient(Protocol):
         List[bytes]
             Bulk data items
 
-        """
+        """  # noqa: E501
         pass
 
     def iter_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> Iterator[bytes]:
         """Iterate over bulk data items at a given location.
@@ -105,7 +105,7 @@ class DICOMClient(Protocol):
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
@@ -116,13 +116,13 @@ class DICOMClient(Protocol):
         Iterator[bytes]
             Bulk data items
 
-        """
+        """  # noqa: E501
         pass
 
     def retrieve_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
     ) -> List[Dataset]:
         """Retrieve all instances of a study.
 
@@ -130,7 +130,7 @@ class DICOMClient(Protocol):
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -149,13 +149,13 @@ class DICOMClient(Protocol):
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         pass
 
     def iter_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
     ) -> Iterator[Dataset]:
         """Iterate over all instances of a study.
 
@@ -163,7 +163,7 @@ class DICOMClient(Protocol):
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -182,7 +182,7 @@ class DICOMClient(Protocol):
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         pass
 
     def retrieve_study_metadata(
@@ -277,7 +277,7 @@ class DICOMClient(Protocol):
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[Dataset]:
         """Retrieve all instances of a series.
 
@@ -287,7 +287,7 @@ class DICOMClient(Protocol):
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -306,14 +306,14 @@ class DICOMClient(Protocol):
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         pass
 
     def iter_series(
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[Dataset]:
         """Iterate over all instances of a series.
 
@@ -323,7 +323,7 @@ class DICOMClient(Protocol):
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -342,7 +342,7 @@ class DICOMClient(Protocol):
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         pass
 
     def retrieve_series_metadata(
@@ -370,7 +370,7 @@ class DICOMClient(Protocol):
     def retrieve_series_rendered(
         self, study_instance_uid,
         series_instance_uid,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve rendered representation of a series.
@@ -381,7 +381,7 @@ class DICOMClient(Protocol):
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
@@ -395,7 +395,7 @@ class DICOMClient(Protocol):
         bytes
             Rendered representation of series
 
-        """
+        """  # noqa: E501
         pass
 
     def delete_series(
@@ -481,7 +481,7 @@ class DICOMClient(Protocol):
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
     ) -> Dataset:
         """Retrieve an individual instance.
 
@@ -493,7 +493,7 @@ class DICOMClient(Protocol):
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
 
@@ -512,7 +512,7 @@ class DICOMClient(Protocol):
         acceptable transfer syntaxes using the wildcard
         ``("application/dicom", "*")``.
 
-        """
+        """  # noqa: E501
         pass
 
     def store_instances(
@@ -597,7 +597,7 @@ class DICOMClient(Protocol):
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve an individual, server-side rendered instance.
@@ -610,7 +610,7 @@ class DICOMClient(Protocol):
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
@@ -624,7 +624,7 @@ class DICOMClient(Protocol):
         bytes
             Rendered representation of instance
 
-        """
+        """  # noqa: E501
         pass
 
     def retrieve_instance_frames(
@@ -633,7 +633,7 @@ class DICOMClient(Protocol):
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> List[bytes]:
         """Retrieve one or more frames of an image instance.
 
@@ -647,7 +647,7 @@ class DICOMClient(Protocol):
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional indices of the frames within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -656,7 +656,7 @@ class DICOMClient(Protocol):
         List[bytes]
             Pixel data for each frame
 
-        """
+        """  # noqa: E501
         pass
 
     def iter_instance_frames(
@@ -665,7 +665,7 @@ class DICOMClient(Protocol):
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Iterator[bytes]:
         """Iterate over frames of an image instance.
 
@@ -679,7 +679,7 @@ class DICOMClient(Protocol):
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional indices of the frames within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -688,7 +688,7 @@ class DICOMClient(Protocol):
         Iterator[bytes]
             Pixel data for each frame
 
-        """
+        """  # noqa: E501
         pass
 
     def retrieve_instance_frames_rendered(
@@ -697,7 +697,7 @@ class DICOMClient(Protocol):
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]]]] = None,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve one or more server-side rendered frames of an instance.
@@ -712,7 +712,7 @@ class DICOMClient(Protocol):
             SOP Instance UID
         frame_numbers: Sequence[int]
             One-based positional index of the frame within the instance
-        media_types: Union[Tuple[Union[str, Tuple[str, str]]], None], optional
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media type (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``)
         params: Union[Dict[str, Any], None], optional
@@ -728,5 +728,5 @@ class DICOMClient(Protocol):
         ----
         Not all media types are compatible with all SOP classes.
 
-        """
+        """  # noqa: E501
         pass
