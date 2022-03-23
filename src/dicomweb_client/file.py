@@ -748,7 +748,8 @@ class DICOMfileClient:
         self,
         base_dir: Union[Path, str],
         update_db: bool = False,
-        recreate_db: bool = False
+        recreate_db: bool = False,
+        in_memory: bool = False
     ):
         """Instantiate client.
 
@@ -766,14 +767,22 @@ class DICOMfileClient:
             Whether the database should be recreated (default: ``False``). If
             ``True``, the client will search `base_dir` recursively for DICOM
             Part10 files and create database entries for each file.
+        in_memory: bool, optional
+            Whether the database should only be stored in memory (default:
+            ``False``).
 
         """
         self.base_dir = Path(base_dir).resolve()
-        self._db_filepath = self.base_dir.joinpath('.dicom-file-client.db')
+        if in_memory:
+            filename = ':memory:'
+        else:
+            filename = '.dicom-file-client.db'
+        self._db_filepath = self.base_dir.joinpath(filename)
         if not self._db_filepath.exists():
             update_db = True
 
-        self._db_connection: Union[sqlite3.Connection, None] = None
+        self._db_connection_handle: Union[sqlite3.Connection, None] = None
+        self._db_cursor_handle: Union[sqlite3.Cursor, None] = None
         if recreate_db:
             self._drop_db()
             update_db = True
@@ -819,28 +828,42 @@ class DICOMfileClient:
         # This is critical for applications that rely on Python multiprocessing
         # such as PyTorch or TensorFlow.
         try:
-            if self._db_connection is not None:
-                self._db_connection.commit()
-                self._db_connection.close()
+            if self._db_cursor_handle is not None:
+                self._db_curor_handle.execute('PRAGMA optimize')
+                self._db_cursor_handle.close()
+            if self._db_connection_handle is not None:
+                self._db_connection_handle.commit()
+                self._db_connection_handle.close()
             for image_file_reader in self._reader_cache.values():
                 image_file_reader.close()
         finally:
-            contents['_db_connection'] = None
+            contents['_db_connection_handle'] = None
+            contents['_db_cursor_handle'] = None
             contents['_reader_cache'] = OrderedDict()
         return contents
 
     @property
     def _connection(self) -> sqlite3.Connection:
         """sqlite3.Connection: database connection"""
-        if self._db_connection is None:
-            self._db_connection = sqlite3.connect(str(self._db_filepath))
-            self._db_connection.row_factory = sqlite3.Row
-        return self._db_connection
+        if self._db_connection_handle is None:
+            self._db_connection_handle = sqlite3.connect(str(self._db_filepath))
+            self._db_connection_handle.row_factory = sqlite3.Row
+        return self._db_connection_handle
+
+    @property
+    def _cursor(self) -> sqlite3.Cursor:
+        if self._db_cursor_handle is None:
+            self._db_cursor_handle = self._connection.cursor()
+        return self._db_cursor_handle
 
     def _create_db(self):
         """Creating database tables and indices."""
         with self._connection as connection:
             cursor = connection.cursor()
+            cursor.execute('PRAGMA journal_mode = WAL')
+            cursor.execute('PRAGMA synchronous = off')
+            cursor.execute('PRAGMA temp_store = memory')
+            cursor.execute('PRAGMA mmap_size = 30000000000')
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS studies (
                     StudyInstanceUID TEXT NOT NULL,
@@ -1216,20 +1239,16 @@ class DICOMfileClient:
 
     def _get_attributes(self, resource_type: _QueryResourceType) -> List[str]:
         table = resource_type.value
-        cursor = self._connection.cursor()
-        cursor.execute(f'SELECT * FROM {table} LIMIT 1')
+        self._cursor.execute(f'SELECT * FROM {table} LIMIT 1')
         attributes = [
-            item[0] for item in cursor.description
+            item[0] for item in self._cursor.description
             if not item[0].startswith('_') and item[0] != 'TransferSyntaxUID'
         ]
-        cursor.close()
         return attributes
 
     def _get_indexed_file_paths(self) -> List[Path]:
-        cursor = self._connection.cursor()
-        cursor.execute('SELECT _file_path FROM instances')
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute('SELECT _file_path FROM instances')
+        results = self._cursor.fetchall()
         return [self.base_dir.joinpath(r['_file_path']) for r in results]
 
     def _build_query(
@@ -1365,21 +1384,17 @@ class DICOMfileClient:
         return (query_string, query_params)
 
     def _get_modalities_in_study(self, study_instance_uid: str) -> List[str]:
-        cursor = self._connection.cursor()
-        cursor.execute(
+        self._cursor.execute(
             'SELECT DISTINCT Modality FROM series '
             'WHERE StudyInstanceUID = :study_instance_uid',
             {'study_instance_uid': study_instance_uid}
         )
-        results = cursor.fetchall()
-        cursor.close()
+        results = self._cursor.fetchall()
         return [r['Modality'] for r in results]
 
     def _get_studies(self) -> List[str]:
-        cursor = self._connection.cursor()
-        cursor.execute('SELECT StudyInstanceUID FROM studies')
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute('SELECT StudyInstanceUID FROM studies')
+        results = self._cursor.fetchall()
         return [r['StudyInstanceUID'] for r in results]
 
     def _get_series(
@@ -1398,10 +1413,8 @@ class DICOMfileClient:
 
         query_string = ' '.join(query_expressions)
 
-        cursor = self._connection.cursor()
-        cursor.execute(query_string, query_params)
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute(query_string, query_params)
+        results = self._cursor.fetchall()
 
         return [
             (
@@ -1439,10 +1452,8 @@ class DICOMfileClient:
 
         query_string = ' '.join(query_expressions)
 
-        cursor = self._connection.cursor()
-        cursor.execute(query_string, query_params)
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute(query_string, query_params)
+        results = self._cursor.fetchall()
 
         return [
             (
@@ -1492,8 +1503,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str
     ) -> Path:
-        cursor = self._connection.cursor()
-        cursor.execute(
+        self._cursor.execute(
             'SELECT _file_path FROM instances '
             'WHERE StudyInstanceUID = :study_instance_uid '
             'AND SeriesInstanceUID = :series_instance_uid '
@@ -1504,8 +1514,7 @@ class DICOMfileClient:
                 'sop_instance_uid': sop_instance_uid,
             }
         )
-        result = cursor.fetchone()
-        cursor.close()
+        result = self._cursor.fetchone()
         if result is None:
             raise IOError(
                 f'Could not find instance "{sop_instance_uid}" of '
@@ -1515,38 +1524,32 @@ class DICOMfileClient:
         return self.base_dir.joinpath(result['_file_path'])
 
     def _count_series_in_study(self, study_instance_uid: str) -> int:
-        cursor = self._connection.cursor()
-        cursor.execute(
+        self._cursor.execute(
             'SELECT COUNT(SeriesInstanceUID) AS count FROM series '
             'WHERE StudyInstanceUID = :study_instance_uid',
             {'study_instance_uid': study_instance_uid}
         )
-        result = cursor.fetchone()
-        cursor.close()
+        result = self._cursor.fetchone()
         return int(result['count'])
 
     def _count_instances_in_study(self, study_instance_uid: str) -> int:
-        cursor = self._connection.cursor()
-        cursor.execute(
+        self._cursor.execute(
             'SELECT COUNT(SOPInstanceUID) AS count FROM instances '
             'WHERE StudyInstanceUID = :study_instance_uid',
             {'study_instance_uid': study_instance_uid}
         )
-        result = cursor.fetchone()
-        cursor.close()
+        result = self._cursor.fetchone()
         return int(result['count'])
 
     def _count_instances_in_series(self, series_instance_uid: str) -> int:
-        cursor = self._connection.cursor()
-        cursor.execute(
+        self._cursor.execute(
             'SELECT COUNT(SOPInstanceUID) AS count FROM instances '
             'WHERE SeriesInstanceUID = :series_instance_uid',
             {
                 'series_instance_uid': series_instance_uid,
             }
         )
-        result = cursor.fetchone()
-        cursor.close()
+        result = self._cursor.fetchone()
         return int(result['count'])
 
     def search_for_studies(
@@ -1602,10 +1605,8 @@ class DICOMfileClient:
             'SELECT * FROM studies',
             query_filter_string
         ])
-        cursor = self._connection.cursor()
-        cursor.execute(query_string, query_params)
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute(query_string, query_params)
+        results = self._cursor.fetchall()
 
         collection = []
         for row in results:
@@ -1745,10 +1746,8 @@ class DICOMfileClient:
                 query_filter_string
             ])
 
-        cursor = self._connection.cursor()
-        cursor.execute(query_string, query_params)
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute(query_string, query_params)
+        results = self._cursor.fetchall()
 
         collection = []
         for row in results:
@@ -1963,10 +1962,8 @@ class DICOMfileClient:
                 query_filter_string
             ])
 
-        cursor = self._connection.cursor()
-        cursor.execute(query_string, query_params)
-        results = cursor.fetchall()
-        cursor.close()
+        self._cursor.execute(query_string, query_params)
+        results = self._cursor.fetchall()
 
         collection = []
         for row in results:
