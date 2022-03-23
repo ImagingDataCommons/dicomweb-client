@@ -1061,10 +1061,11 @@ class DICOMfileClient:
         Optional[str],
         Optional[str],
     ]:
-        return tuple([
+        metadata = [
             self._get_data_element_value(dataset, attr)
             for attr in self._attributes[_QueryResourceType.STUDIES]
-        ])  # type: ignore
+        ]
+        return tuple(metadata)  # type: ignore
 
     def _extract_series_metadata(
         self,
@@ -1076,10 +1077,11 @@ class DICOMfileClient:
         Optional[str],
         Optional[int],
     ]:
-        return tuple([
+        metadata = [
             self._get_data_element_value(dataset, attr)
             for attr in self._attributes[_QueryResourceType.SERIES]
-        ])  # type: ignore
+        ]
+        return tuple(metadata)  # type: ignore
 
     def _extract_instance_metadata(
         self,
