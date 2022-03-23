@@ -829,7 +829,7 @@ class DICOMfileClient:
         # such as PyTorch or TensorFlow.
         try:
             if self._db_cursor_handle is not None:
-                self._db_curor_handle.execute('PRAGMA optimize')
+                self._db_cursor_handle.execute('PRAGMA optimize')
                 self._db_cursor_handle.close()
             if self._db_connection_handle is not None:
                 self._db_connection_handle.commit()
