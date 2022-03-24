@@ -11,7 +11,6 @@ import time
 import traceback
 from collections import OrderedDict
 from enum import Enum
-from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import (
     Any,
@@ -294,13 +293,7 @@ class _ImageFileReader:
                 'the path to a DICOM file stored on disk.'
             )
 
-        # We use threads to read multiple frames in parallel. Since the
-        # operation is I/O rather CPU limited, we don't need to worry about
-        # the Global Interpreter Lock (GIL) and use lighweight threads
-        # instead of separate processes. However, that won't be as useful for
-        # decoding, since that operation is CPU limited.
-        self._pool: Union[ThreadPool, None] = None
-
+        # Those attributes will be set by the "open()"
         self._metadata: Dataset = Dataset()
         self._is_open = False
         self._as_float = False
@@ -510,7 +503,6 @@ class _ImageFileReader:
                 'Number of Frames.'
             )
 
-        self._pool = ThreadPool()
         self._is_open = True
 
     def _assert_is_open(self) -> None:
@@ -531,45 +523,9 @@ class _ImageFileReader:
 
     def close(self) -> None:
         """Close file."""
-        if self._pool is not None:
-            self._pool.close()
-            self._pool.terminate()
         if self._fp is not None:
             self._fp.close()
         self._is_open = False
-
-    def read_frames(
-        self,
-        indices: Iterable[int],
-        parallel: bool = False
-    ) -> List[bytes]:
-        """Read the pixel data of one or more frame items.
-
-        Parameters
-        ----------
-        indices: Iterable[int]
-            Zero-based frame indices
-        parallel: bool, optional
-            Whether frame items should be read in parallel using multiple
-            threads
-
-        Returns
-        -------
-        List[bytes]
-            Pixel data of frame items encoded in the transfer syntax.
-
-        Raises
-        ------
-        IOError
-            When frames could not be read
-
-        """
-        self._assert_is_open()
-        if parallel:
-            func = self.read_frame
-            return self._pool.map(func, indices)  # type: ignore
-        else:
-            return [self.read_frame(i) for i in indices]
 
     def read_frame(self, index: int) -> bytes:
         """Read the pixel data of an individual frame item.
@@ -678,39 +634,6 @@ class _ImageFileReader:
             else:
                 ds.PixelData = value
             return ds.pixel_array
-
-    def read_and_decode_frames(
-        self,
-        indices: Iterable[int],
-        parallel: bool = False
-    ) -> List[np.ndarray]:
-        """Read and decode the pixel data of one or more frame items.
-
-        Parameters
-        ----------
-        indices: Iterable[int]
-            Zero-based frame indices
-        parallel: bool, optional
-            Whether frame items should be read in parallel using multiple
-            threads
-
-        Returns
-        -------
-        List[numpy.ndarray]
-            Pixel arrays of frame items
-
-        Raises
-        ------
-        IOError
-            When frames could not be read
-
-        """
-        self._assert_is_open()
-        if parallel:
-            func = self.read_and_decode_frame
-            return self._pool.map(func, indices)  # type: ignore
-        else:
-            return [self.read_and_decode_frame(i) for i in indices]
 
     def read_and_decode_frame(self, index: int):
         """Read and decode the pixel data of an individual frame item.
@@ -2927,10 +2850,9 @@ class DICOMfileClient:
             frame_index = frame_number - 1
             frame_indices.append(frame_index)
 
-        frames = image_file_reader.read_frames(frame_indices, parallel=True)
-
         reencoded_frames = []
-        for frame in frames:
+        for frame_index in frame_indices:
+            frame = image_file_reader.read_frame(frame_index)
             if not transfer_syntax_uid.is_encapsulated:
                 reencoded_frame = frame
             else:
