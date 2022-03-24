@@ -11,6 +11,7 @@ import time
 import traceback
 from collections import OrderedDict
 from enum import Enum
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import (
     Any,
@@ -293,6 +294,14 @@ class _ImageFileReader:
                 'the path to a DICOM file stored on disk.'
             )
         self._metadata: Union[Dataset, None] = None
+        self._is_open = False
+
+        # We use threads to read multiple frames in parallel. Since the
+        # operation is I/O rather CPU limited, we don't need to worry about
+        # the Global Interpreter Lock (GIL) and use lighweight threads
+        # instead of separate processes. However, that won't be as useful for
+        # decoding, since that operation is CPU limited.
+        self._pool = Union[ThreadPool, None] = None
 
     def _check_file_format(self, fp: DicomFileLike) -> Tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
@@ -366,14 +375,17 @@ class _ImageFileReader:
 
         Note
         ----
-        Builds a Basic Offset Table to speed up subsequent frame-level access.
+        Reads the metadata of the DICOM Data Set contained in the file and
+        builds a Basic Offset Table to speed up subsequent frame-level access.
 
         """
-        logger.debug('read File Meta Information')
+        if self._is_open:
+            return
         if self._filepointer is None:
             # This should not happen is just for mypy to be happy
             if self._filepath is None:
                 raise ValueError(f'File not found: "{self._filepath}".')
+            logger.debug('read File Meta Information')
             try:
                 file_meta = read_file_meta_info(self._filepath)
             except FileNotFoundError:
@@ -398,25 +410,16 @@ class _ImageFileReader:
             self._filepointer.is_little_endian = is_little_endian
             self._filepointer.is_implicit_VR = is_implicit_VR
 
-    def _read_metadata(self) -> Dataset:
-        """Read metadata from file.
-
-        Caches the metadata and additional information such as the offset of
-        the Pixel Data element and the Basic Offset Table to speed up
-        subsequent access to individual frame items.
-
-        """
         logger.debug('read metadata elements')
-        if self._fp is None:
-            raise IOError('File has not been opened for reading.')
-
         try:
             tmp = dcmread(self._fp, stop_before_pixels=True)
-        except Exception as err:
-            raise IOError(f'DICOM metadata cannot be read from file: "{err}"')
+        except Exception as error:
+            raise IOError(
+                f'DICOM metadata cannot be read from file: "{error}"'
+            )
 
-        # Construct a new Dataset that is fully decoupled from the file, i.e.,
-        # that does not contain any File Meta Information
+        # Construct a new Dataset that is fully decoupled from the file,
+        # i.e., that does not contain any File Meta Information
         del tmp.file_meta
         self._metadata = Dataset(tmp)
 
@@ -450,14 +453,16 @@ class _ImageFileReader:
                     self._fp,
                     number_of_frames=number_of_frames
                 )
-            except Exception as err:
-                raise IOError(f'Failed to build Basic Offset Table: "{err}"')
+            except Exception as error:
+                raise IOError(
+                    f'Failed to build Basic Offset Table: "{error}"'
+                )
             self._first_frame_offset = self._fp.tell()
         else:
             if self._fp.is_implicit_VR:
                 header_offset = 4 + 4  # tag and length
             else:
-                header_offset = 4 + 2 + 2 + 4  # tag, VR, reserved and length
+                header_offset = 4 + 2 + 2 + 4  # tag, VR, reserved, and length
             self._first_frame_offset = self._pixel_data_offset + header_offset
             n_pixels = self._pixels_per_frame
             bits_allocated = self._metadata.BitsAllocated
@@ -474,21 +479,27 @@ class _ImageFileReader:
 
         if len(self._basic_offset_table) != number_of_frames:
             raise ValueError(
-                'Length of Basic Offset Table does not match Number of Frames.'
+                'Length of Basic Offset Table does not match '
+                'Number of Frames.'
             )
 
-        return self._metadata
+        self._pool = ThreadPool()
+        self._is_open = True
+
+    def _assert_is_open(self) -> None:
+        if not self._is_open:
+            raise IOError('DICOM image file has not been opened for reading.')
 
     @property
     def transfer_syntax_uid(self) -> UID:
         """pydicom.uid.UID: Transfer Syntax UID"""
+        self._assert_is_open()
         return self._transfer_syntax_uid
 
     @property
     def metadata(self) -> Dataset:
         """pydicom.dataset.Dataset: Metadata"""
-        if self._metadata is None:
-            self._metadata = self._read_metadata()
+        self._assert_is_open()
         return self._metadata
 
     @property
@@ -503,6 +514,7 @@ class _ImageFileReader:
     @property
     def _bytes_per_frame_uncompressed(self) -> int:
         """int: Number of bytes per frame when uncompressed"""
+        self._assert_is_open()
         n_pixels = self._pixels_per_frame
         bits_allocated = self.metadata.BitsAllocated
         if bits_allocated == 1:
@@ -515,8 +527,42 @@ class _ImageFileReader:
 
     def close(self) -> None:
         """Close file."""
+        self._pool.close()
+        self._pool.terminate()
         if self._fp is not None:
             self._fp.close()
+
+    def read_frames(
+        self,
+        indices: Iterable[int],
+        parallel: bool = False
+    ) -> List[bytes]:
+        """Read the pixel data of one or more frame items.
+
+        Parameters
+        ----------
+        indices: Iterable[int]
+            Zero-based frame indices
+        parallel: bool, optional
+            Whether frame items should be read in parallel using multiple
+            threads
+
+        Returns
+        -------
+        List[bytes]
+            Pixel data of frame items encoded in the transfer syntax.
+
+        Raises
+        ------
+        IOError
+            When frames could not be read
+
+        """
+        self._assert_is_open()
+        if parallel:
+            return self._pool.map(self.read_frame, indices)
+        else:
+            return [self.read_frame(i) for i in indices]
 
     def read_frame(self, index: int) -> bytes:
         """Read the pixel data of an individual frame item.
@@ -537,13 +583,14 @@ class _ImageFileReader:
             When frame could not be read
 
         """
+        self._assert_is_open()
         if index > self.number_of_frames:
-            raise ValueError('Frame index exceeds number of frames in image.')
+            raise ValueError(
+                f'Frame index {index} exceeds number of frames in image: '
+                f'{self.number_of_frames}.'
+            )
 
         logger.debug(f'read frame #{index}')
-
-        if self._metadata is None:
-            self._metadata = self._read_metadata()
 
         frame_offset = self._basic_offset_table[index]
         self._fp.seek(self._first_frame_offset + frame_offset, 0)
@@ -592,6 +639,7 @@ class _ImageFileReader:
             in case of a color image.
 
         """
+        self._assert_is_open()
         logger.debug(f'decode frame #{index}')
 
         metadata = self.metadata
@@ -624,6 +672,38 @@ class _ImageFileReader:
                 ds.PixelData = value
             return ds.pixel_array
 
+    def read_and_decode_frames(
+        self,
+        indices: Iterable[int],
+        parallel: bool = False
+    ) -> List[np.ndarray]:
+        """Read and decode the pixel data of one or more frame items.
+
+        Parameters
+        ----------
+        indices: Iterable[int]
+            Zero-based frame indices
+        parallel: bool, optional
+            Whether frame items should be read in parallel using multiple
+            threads
+
+        Returns
+        -------
+        List[numpy.ndarray]
+            Pixel arrays of frame items
+
+        Raises
+        ------
+        IOError
+            When frames could not be read
+
+        """
+        self._assert_is_open()
+        if parallel:
+            return self._pool.map(self.read_and_decode_frame, indices)
+        else:
+            return [self.read_and_decode_frame(i) for i in indices]
+
     def read_and_decode_frame(self, index: int):
         """Read and decode the pixel data of an individual frame item.
 
@@ -651,6 +731,7 @@ class _ImageFileReader:
     @property
     def number_of_frames(self) -> int:
         """int: Number of frames"""
+        self._assert_is_open()
         try:
             return int(self.metadata.NumberOfFrames)
         except AttributeError:
@@ -2552,54 +2633,11 @@ class DICOMfileClient:
 
         return pixels
 
-    def iter_instance_frames(
+    def _check_media_types_for_instance_frames(
         self,
-        study_instance_uid: str,
-        series_instance_uid: str,
-        sop_instance_uid: str,
-        frame_numbers: List[int],
+        transfer_syntax_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
-    ) -> Iterator[bytes]:
-        """Iterate over frames of an image instance.
-
-        Parameters
-        ----------
-        study_instance_uid: str
-            Study Instance UID
-        series_instance_uid: str
-            Series Instance UID
-        sop_instance_uid: str
-            SOP Instance UID
-        frame_numbers: List[int]
-            Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
-            Acceptable media types and optionally the UIDs of the
-            corresponding transfer syntaxes
-
-        Returns
-        -------
-        List[bytes]
-            Frames
-
-        """  # noqa: E501
-        logger.info(
-            f'iterate over frames of instance "{sop_instance_uid}" of '
-            f'series "{series_instance_uid}" of study "{study_instance_uid}"'
-        )
-        file_path = self._get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
-        )
-
-        if len(frame_numbers) == 0:
-            raise ValueError('At least one frame number must be provided.')
-
-        image_file_reader = self._get_image_file_reader(file_path)
-
-        metadata = image_file_reader.metadata
-        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
-
+    ) -> Union[str, None]:
         transfer_syntax_uid_lut = {
             '1.2.840.10008.1.2.1': 'application/octet-stream',
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
@@ -2723,12 +2761,66 @@ class DICOMfileClient:
                     in acceptable_media_type_lut['image/jp2']
                 )
             ):
-                image_type = 'jpeg2000'
+                image_type = 'image/jp2'
             else:
                 raise ValueError(
                     'Instance frames cannot be retrieved using any of the '
                     f'acceptable media types: {media_types}.'
                 )
+
+        return image_type
+
+    def iter_instance_frames(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str,
+        frame_numbers: List[int],
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+    ) -> Iterator[bytes]:
+        """Iterate over frames of an image instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+        sop_instance_uid: str
+            SOP Instance UID
+        frame_numbers: List[int]
+            Frame numbers
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+            Acceptable media types and optionally the UIDs of the
+            corresponding transfer syntaxes
+
+        Returns
+        -------
+        Iterator[bytes]
+            Frames
+
+        """  # noqa: E501
+        logger.info(
+            f'iterate over frames of instance "{sop_instance_uid}" of '
+            f'series "{series_instance_uid}" of study "{study_instance_uid}"'
+        )
+        file_path = self._get_instance_file_path(
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid,
+        )
+
+        if len(frame_numbers) == 0:
+            raise ValueError('At least one frame number must be provided.')
+
+        image_file_reader = self._get_image_file_reader(file_path)
+        metadata = image_file_reader.metadata
+        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
+
+        reencoding_media_type = self._check_media_types_for_instance_frames(
+            transfer_syntax_uid,
+            media_types
+        )
 
         for frame_number in frame_numbers:
             frame_index = frame_number - 1
@@ -2743,19 +2835,25 @@ class DICOMfileClient:
             if not transfer_syntax_uid.is_encapsulated:
                 pixels = frame
             else:
-                if image_type is None:
+                if reencoding_media_type is None:
                     pixels = frame
-                else:
-                    image_kwargs = {'jpeg2000': {'irreversible': False}}
+                elif reencoding_media_type == 'image/jp2':
+                    image_type = 'jpeg2000'
+                    image_kwargs = {'irreversible': False}
                     array = image_file_reader.decode_frame(frame_index, frame)
                     image = Image.fromarray(array)
                     with io.BytesIO() as fp:
                         image.save(
                             fp,
                             image_type,
-                            **image_kwargs[image_type]   # type: ignore
+                            **image_kwargs   # type: ignore
                         )
                         pixels = fp.getvalue()
+                else:
+                    raise ValueError(
+                        'Cannot re-encode frames using media type '
+                        f'"{reencoding_media_type}".'
+                    )
 
             yield pixels
 
@@ -2793,14 +2891,64 @@ class DICOMfileClient:
             f'retrieve frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        iterator = self.iter_instance_frames(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            sop_instance_uid=sop_instance_uid,
-            frame_numbers=frame_numbers,
-            media_types=media_types
+        file_path = self._get_instance_file_path(
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid,
         )
-        return list(iterator)
+
+        if len(frame_numbers) == 0:
+            raise ValueError('At least one frame number must be provided.')
+
+        image_file_reader = self._get_image_file_reader(file_path)
+        metadata = image_file_reader.metadata
+        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
+
+        reencoding_media_type = self._check_media_types_for_instance_frames(
+            transfer_syntax_uid,
+            media_types
+        )
+
+        frame_indices = []
+        for frame_number in frame_numbers:
+            if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
+                raise ValueError(
+                    f'Provided frame number {frame_number} exceeds number '
+                    'of available frames.'
+                )
+            frame_index = frame_number - 1
+            frame_indices.append(frame_index)
+
+        frames = image_file_reader.read_frames(frame_indices, parallel=True)
+
+        reencoded_frames = []
+        for frame in frames:
+            if not transfer_syntax_uid.is_encapsulated:
+                reencoded_frame = frame
+            else:
+                if reencoding_media_type is None:
+                    reencoded_frame = frame
+                elif reencoding_media_type == 'image/jp2':
+                    image_type = 'jpeg2000'
+                    image_kwargs = {'irreversible': False}
+                    array = image_file_reader.decode_frame(frame_index, frame)
+                    image = Image.fromarray(array)
+                    with io.BytesIO() as fp:
+                        image.save(
+                            fp,
+                            image_type,
+                            **image_kwargs   # type: ignore
+                        )
+                        reencoded_frame = fp.getvalue()
+                else:
+                    raise ValueError(
+                        'Cannot re-encode frames using media type '
+                        f'"{reencoding_media_type}".'
+                    )
+
+            reencoded_frames.append(reencoded_frame)
+
+        return reencoded_frames
 
     def retrieve_instance_frames_rendered(
         self,
