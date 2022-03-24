@@ -293,15 +293,22 @@ class _ImageFileReader:
                 'Argument "filename" must either an open DICOM file object or '
                 'the path to a DICOM file stored on disk.'
             )
-        self._metadata: Union[Dataset, None] = None
-        self._is_open = False
 
         # We use threads to read multiple frames in parallel. Since the
         # operation is I/O rather CPU limited, we don't need to worry about
         # the Global Interpreter Lock (GIL) and use lighweight threads
         # instead of separate processes. However, that won't be as useful for
         # decoding, since that operation is CPU limited.
-        self._pool = Union[ThreadPool, None] = None
+        self._pool: Union[ThreadPool, None] = None
+
+        self._metadata: Dataset = Dataset()
+        self._is_open = False
+        self._as_float = False
+        self._bytes_per_frame_uncompressed: int = -1
+        self._basic_offset_table: List[int] = []
+        self._first_frame_offset: int = -1
+        self._pixel_data_offset: int = -1
+        self._pixels_per_frame: int = -1
 
     def _check_file_format(self, fp: DicomFileLike) -> Tuple[bool, bool]:
         """Check whether file object represents a DICOM Part 10 file.
@@ -379,8 +386,13 @@ class _ImageFileReader:
         builds a Basic Offset Table to speed up subsequent frame-level access.
 
         """
+        # This methods sets several attributes on the object, which cannot
+        # (or should not) be set in the constructor. Other methods assert that
+        # this method has been called first by checking the value of the
+        # "_is_open" attribute.
         if self._is_open:
             return
+
         if self._filepointer is None:
             # This should not happen is just for mypy to be happy
             if self._filepath is None:
@@ -422,6 +434,12 @@ class _ImageFileReader:
         # i.e., that does not contain any File Meta Information
         del tmp.file_meta
         self._metadata = Dataset(tmp)
+
+        self._pixels_per_frame = int(np.product([
+            self._metadata.Rows,
+            self._metadata.Columns,
+            self._metadata.SamplesPerPixel
+        ]))
 
         self._pixel_data_offset = self._fp.tell()
         # Determine whether dataset contains a Pixel Data element
@@ -467,11 +485,20 @@ class _ImageFileReader:
             n_pixels = self._pixels_per_frame
             bits_allocated = self._metadata.BitsAllocated
             if bits_allocated == 1:
+                # Determine the nearest whole number of bytes needed to contain
+                # 1-bit pixel data. e.g. 10 x 10 1-bit pixels is 100 bits,
+                # which are packed into 12.5 -> 13 bytes
+                self._bytes_per_frame_uncompressed = (
+                    n_pixels // 8 + (n_pixels % 8 > 0)
+                )
                 self._basic_offset_table = [
                     int(math.floor(i * n_pixels / 8))
                     for i in range(number_of_frames)
                 ]
             else:
+                self._bytes_per_frame_uncompressed = (
+                    n_pixels * bits_allocated // 8
+                )
                 self._basic_offset_table = [
                     i * self._bytes_per_frame_uncompressed
                     for i in range(number_of_frames)
@@ -502,35 +529,14 @@ class _ImageFileReader:
         self._assert_is_open()
         return self._metadata
 
-    @property
-    def _pixels_per_frame(self) -> int:
-        """int: Number of pixels per frame"""
-        return int(np.product([
-            self.metadata.Rows,
-            self.metadata.Columns,
-            self.metadata.SamplesPerPixel
-        ]))
-
-    @property
-    def _bytes_per_frame_uncompressed(self) -> int:
-        """int: Number of bytes per frame when uncompressed"""
-        self._assert_is_open()
-        n_pixels = self._pixels_per_frame
-        bits_allocated = self.metadata.BitsAllocated
-        if bits_allocated == 1:
-            # Determine the nearest whole number of bytes needed to contain
-            #   1-bit pixel data. e.g. 10 x 10 1-bit pixels is 100 bits, which
-            #   are packed into 12.5 -> 13 bytes
-            return n_pixels // 8 + (n_pixels % 8 > 0)
-        else:
-            return n_pixels * bits_allocated // 8
-
     def close(self) -> None:
         """Close file."""
-        self._pool.close()
-        self._pool.terminate()
+        if self._pool is not None:
+            self._pool.close()
+            self._pool.terminate()
         if self._fp is not None:
             self._fp.close()
+        self._is_open = False
 
     def read_frames(
         self,
@@ -560,7 +566,8 @@ class _ImageFileReader:
         """
         self._assert_is_open()
         if parallel:
-            return self._pool.map(self.read_frame, indices)
+            func = self.read_frame
+            return self._pool.map(func, indices)  # type: ignore
         else:
             return [self.read_frame(i) for i in indices]
 
@@ -700,7 +707,8 @@ class _ImageFileReader:
         """
         self._assert_is_open()
         if parallel:
-            return self._pool.map(self.read_and_decode_frame, indices)
+            func = self.read_and_decode_frame
+            return self._pool.map(func, indices)  # type: ignore
         else:
             return [self.read_and_decode_frame(i) for i in indices]
 
@@ -2635,7 +2643,7 @@ class DICOMfileClient:
 
     def _check_media_types_for_instance_frames(
         self,
-        transfer_syntax_uid: str,
+        transfer_syntax_uid: UID,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Union[str, None]:
         transfer_syntax_uid_lut = {
