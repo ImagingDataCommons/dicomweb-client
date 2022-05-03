@@ -11,7 +11,7 @@ import webbrowser
 from abc import ABCMeta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
-from typing import Any, Callable, List, NamedTuple, NoReturn, Optional, Union
+from typing import Any, Callable, List, NamedTuple, Optional, Union
 
 import requests
 from oauthlib.oauth2 import (  # type: ignore
