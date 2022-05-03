@@ -30,14 +30,14 @@ class TestConfidentialClientCredentials(unittest.TestCase):
 
     def test_construction_missing_client_secret(self) -> None:
         with self.assertRaises(TypeError):
-            ConfidentialClientCredentials(
+            ConfidentialClientCredentials(  # type: ignore
                 client_id="test",
                 token_uri="https://test.mghpathology.org/token"
             )
 
     def test_construction_extra_auth_uri(self) -> None:
         with self.assertRaises(TypeError):
-            ConfidentialClientCredentials(
+            ConfidentialClientCredentials(  # type: ignore
                 client_id="id",
                 client_secret="secret",
                 token_uri="https://test.mghpathology.org/token",
@@ -63,7 +63,7 @@ class TestPublicClientCredentials(unittest.TestCase):
 
     def test_construction_extra_client_secret(self) -> None:
         with self.assertRaises(TypeError):
-            PublicClientCredentials(
+            PublicClientCredentials(  # type: ignore
                 client_id="id",
                 client_secret="secret",
                 token_uri="https://test.mghpathology.org/token",
@@ -71,7 +71,7 @@ class TestPublicClientCredentials(unittest.TestCase):
 
     def test_construction_missing_auth_uri(self) -> None:
         with self.assertRaises(TypeError):
-            PublicClientCredentials(
+            PublicClientCredentials(  # type: ignore
                 client_id="id",
                 token_uri="https://test.mghpathology.org/token",
             )

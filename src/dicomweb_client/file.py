@@ -612,7 +612,7 @@ class _ImageFileReader:
             n_pixels = self._pixels_per_frame
             pixel_offset = int(((index * n_pixels / 8) % 1) * 8)
             pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
-            return pixel_array.reshape(rows, columns)
+            return pixel_array.reshape(rows, columns)  # type: ignore
         else:
             # This hack creates a small dataset containing a Pixel Data element
             # with only a single frame item, which can then be decoded using the
