@@ -52,7 +52,7 @@ setuptools.setup(
     package_dir={'': 'src'},
     extras_require={
         'gcp': [
-            'dataclasses>=0.8; python_version=="3.6"',
+            'dataclasses>=0.8; python_version < "3.7.0"',
             'google-auth>=1.6',
             'google-oauth>=1.0',
         ],
@@ -61,6 +61,7 @@ setuptools.setup(
     install_requires=[
         'numpy>=1.19',
         'requests>=2.18',
+        'requests-oauthlib>=1.2',
         'retrying>=1.3.3',
         'Pillow>=8.3',
         'pydicom>=2.2',

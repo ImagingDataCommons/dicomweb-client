@@ -13,8 +13,8 @@ import requests
 
 
 def create_session_from_gcp_credentials(
-        google_credentials: Optional[Any] = None
-    ) -> requests.Session:
+    google_credentials: Optional[Any] = None
+) -> requests.Session:
     """Creates an authorized session for Google Cloud Platform.
 
     Parameters
