@@ -3,6 +3,8 @@
 [![Build Status](https://github.com/herrmannlab/dicomweb-client/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/herrmannlab/dicomweb-client/actions)
 [![PyPi Distribution](https://img.shields.io/pypi/v/dicomweb-client.svg)](https://pypi.python.org/pypi/dicomweb-client/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/dicomweb-client.svg)](https://pypi.org/project/dicomweb-client/)
+[![Downloads](https://pepy.tech/badge/dicomweb-client)](https://pepy.tech/project/dicomweb-client)
+
 
 Python client for DICOMweb services.
 
