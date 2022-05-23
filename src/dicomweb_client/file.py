@@ -607,7 +607,13 @@ class _ImageFileReader:
 
         metadata = self.metadata
         if metadata.BitsAllocated == 1:
-            unpacked_frame = unpack_bits(value)
+            # Unfortunately, the type of the return value of the unpack_bits()
+            # can be changed dynamically via the as_array argument. This causes
+            # issues for mypy and requires this workaround.
+            unpacked_frame: np.ndarray = unpack_bits(  # type: ignore
+                value,
+                as_array=True
+            )
             rows, columns = metadata.Rows, self.metadata.Columns
             n_pixels = self._pixels_per_frame
             pixel_offset = int(((index * n_pixels / 8) % 1) * 8)
