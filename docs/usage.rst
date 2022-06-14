@@ -470,7 +470,7 @@ Retrieve a set of frames of a given instances as either JPEG 2000 or JPEG-LS com
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         frame_numbers=[1, 2],
-        media_types=('image/jp2', 'image/x-jpls', )
+        media_types=('image/jp2', 'image/jls', )
     )
 
 Retrieve a set of frames of a given instances as either JPEG, JPEG 2000 or JPEG-LS lossless compressed image using specific transfer syntaxes:
@@ -485,7 +485,7 @@ Retrieve a set of frames of a given instances as either JPEG, JPEG 2000 or JPEG-
         media_types=(
             ('image/jpeg', '1.2.840.10008.1.2.4.57', ),
             ('image/jp2', '1.2.840.10008.1.2.4.90', ),
-            ('image/x-jpls', '1.2.840.10008.1.2.4.80', ),
+            ('image/jls', '1.2.840.10008.1.2.4.80', ),
         )
     )
 
