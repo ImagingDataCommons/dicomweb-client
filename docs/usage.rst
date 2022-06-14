@@ -111,17 +111,26 @@ To interact with servers requiring certificate-based authentication, you can pro
 To interact with a server of the Google Healthcare API requiring OpenID Connect based authentication and authorization, provide a session authenticated using the Google Cloud Platform (GCP) credentials.
 See `GCP documentation <https://cloud.google.com/docs/authentication/production>`_ for details.
 
-Note that GCP authentication requires installation of the package distribution with the ``gcp`` extra requirements: ``$ pip install dicomweb-client[gcp]``.
+The library provides the ``gcp`` extension, which facilitates interacting with the DICOMweb interface of the Google Healthcare API.
+Note that the ``gcp`` extension is optional and requires installation of the package distribution with the ``gcp`` extra requirements: ``$ pip install dicomweb-client[gcp]``.
 
 .. code-block:: python
 
     from dicomweb_client.api import DICOMwebClient
-    from dicomweb_client.session_utils import create_session_from_gcp_credentials
+    from dicomweb_client.ext.gcp.session_utils import create_session_from_gcp_credentials
+    from dicomweb_client.ext.gcp.uri import GoogleCloudHealthcareURL
 
     session = create_session_from_gcp_credentials()
 
+    url = GoogleCloudHealthcareURL(
+        project_id='my-project',
+        location='us-east4',
+        dataset_id='my-dataset',
+        dicom_store_id='my-store'
+    )
+
     client = DICOMwebClient(
-        url="https://mydicomwebserver.com",
+        url=str(url),
         session=session
     )
 
@@ -258,7 +267,7 @@ Search for series filtering by *Modality*:
 
 .. code-block:: python
 
-    series = client.search_for_series(search_filters={'Modality': 'CT'})
+    series = client.search_for_series(search_filters={'Modality': 'SM'})
 
 
 .. _searchforinstances:
