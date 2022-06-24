@@ -3235,7 +3235,8 @@ class DICOMfileClient:
                 success_item = Dataset()
                 success_item.ReferencedSOPClassUID = ds.SOPClassUID
                 success_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
-                success_item.RetrieveURL = None
+                success_item.RetrieveURL = None  # TODO
+                response.ReferencedSOPSequence.append(success_item)
 
         if len(failures) > 0:
             response.FailedSOPSequence = []
