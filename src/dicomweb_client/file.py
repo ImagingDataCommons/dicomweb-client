@@ -1028,7 +1028,7 @@ class DICOMfileClient:
                 sop_instance_uid = ds.SOPInstanceUID
                 instances[sop_instance_uid] = tuple(instance_metadata)
             except AttributeError as error:
-                logger.warn(f'failed to parse file "{file_path}": {error}')
+                logger.warning(f'failed to parse file "{file_path}": {error}')
                 continue
 
             if not i % n:
@@ -3003,7 +3003,7 @@ class DICOMfileClient:
                     image_type = None
                 else:
                     # Allow lossy recompression in case of retrieve rendered.
-                    logger.warn(
+                    logger.warning(
                         'frames of instance "{sop_instance_uid}" are lossy '
                         'recompressed upon retrieval'
                     )
