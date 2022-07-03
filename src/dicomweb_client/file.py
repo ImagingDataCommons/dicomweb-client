@@ -14,6 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import (
     Any,
+    Callable,
     Dict,
     Iterator,
     Iterable,
@@ -28,6 +29,7 @@ from typing import (
 import numpy as np
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
+from pydicom import config as pydicom_config
 from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate, get_frame_offsets
@@ -64,6 +66,37 @@ _JPEG2000_SOC_MARKER = b'\xFF\x4F'
 _JPEG2000_EOC_MARKER = b'\xFF\xD9'
 _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
+
+
+def _enforce_standard_conformance(fn: Callable) -> Callable:
+    """Enforce standard conformance during a function call.
+
+    Parameters
+    ----------
+    fn: Callable
+        Function that should be wrapped
+
+    Returns
+    -------
+    Callable
+        Wrapped function
+
+    """
+    def wrapper(*args, **kwargs):
+        default_reading_mode = int(
+            pydicom_config.settings.reading_validation_mode
+        )
+        default_writing_mode = int(
+            pydicom_config.settings.writing_validation_mode
+        )
+        pydicom_config.settings.reading_validation_mode = pydicom_config.RAISE
+        pydicom_config.settings.writing_validation_mode = pydicom_config.RAISE
+        result = fn(*args, **kwargs)
+        pydicom_config.settings.reading_validation_mode = default_reading_mode
+        pydicom_config.settings.writing_validation_mode = default_writing_mode
+        return result
+
+    return wrapper
 
 
 def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
@@ -964,6 +997,7 @@ class DICOMfileClient:
             cursor.execute('DROP TABLE IF EXISTS studies')
             cursor.close()
 
+    @_enforce_standard_conformance
     def _update_db(self):
         """Update database."""
         all_attributes = (
