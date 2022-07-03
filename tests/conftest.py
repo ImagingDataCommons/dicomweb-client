@@ -1,11 +1,16 @@
 from pathlib import Path
 
 import pytest
+from pydicom import config as pydicom_config
 from pydicom.data.data_manager import DATA_ROOT
 
 from dicomweb_client.cli import _get_parser
 from dicomweb_client.api import DICOMwebClient
 from dicomweb_client.file import DICOMfileClient
+
+
+pydicom_config.settings.reading_validation_mode = pydicom_config.WARN
+pydicom_config.settings.writing_validation_mode = pydicom_config.WARN
 
 
 @pytest.fixture

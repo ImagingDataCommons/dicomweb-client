@@ -1990,7 +1990,8 @@ class DICOMfileClient:
             dataset = Dataset()
             for key in row.keys():
                 if not key.startswith('_'):
-                    setattr(dataset, key, row[key])
+                    value = row[key]
+                    setattr(dataset, key, value)
 
             if all_instances:
                 n_series_in_study = self._count_series_in_study(
