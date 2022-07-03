@@ -28,11 +28,12 @@ from typing import (
 import numpy as np
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
+from pydicom import config as pydicom_config
+from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate, get_frame_offsets
 from pydicom.errors import InvalidDicomError
 from pydicom.filebase import DicomFileLike
-from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
 from pydicom.filereader import (
     data_element_offset_to_value,
     dcmread,
@@ -1004,7 +1005,7 @@ class DICOMfileClient:
                         stop_when=is_stop_tag,
                         specific_tags=tags
                     )
-                except (InvalidDicomError, AttributeError):
+                except (InvalidDicomError, AttributeError, ValueError):
                     logger.debug(f'failed to read file "{file_path}"')
                     continue
 
@@ -1027,7 +1028,7 @@ class DICOMfileClient:
                 )
                 sop_instance_uid = ds.SOPInstanceUID
                 instances[sop_instance_uid] = tuple(instance_metadata)
-            except AttributeError as error:
+            except (AttributeError, ValueError) as error:
                 logger.warning(f'failed to parse file "{file_path}": {error}')
                 continue
 
