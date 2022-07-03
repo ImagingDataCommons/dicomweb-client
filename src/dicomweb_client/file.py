@@ -28,7 +28,6 @@ from typing import (
 import numpy as np
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
-from pydicom import config as pydicom_config
 from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate, get_frame_offsets
