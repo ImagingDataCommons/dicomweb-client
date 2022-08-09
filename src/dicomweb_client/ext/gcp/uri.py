@@ -27,7 +27,7 @@ _GCP_RESOURCE_ERROR_TMPL = ('`{attribute}` must match regex {regex}. Actual '
 
 @dataclasses.dataclass(eq=True, frozen=True)
 class GoogleCloudHealthcareURL:
-    """Base URL container for DICOM Stores under the `Google Cloud Healthcare API`_.
+    """URL container for DICOM Stores under the `Google Cloud Healthcare API`_.
 
     This class facilitates the parsing and creation of :py:attr:`URI.base_url`
     corresponding to DICOMweb API Service URLs under the v1_ API. The URLs are
@@ -37,24 +37,26 @@ class GoogleCloudHealthcareURL:
     .. _Google Cloud Healthcare API: https://cloud.google.com/healthcare
     .. _v1: https://cloud.google.com/healthcare/docs/how-tos/transition-guide
 
-    Attributes:
-        project_id: str
-            The ID of the `GCP Project
-            <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#projects>`_
-            that contains the DICOM Store.
-        location: str
-            The `Region name
-            <https://cloud.google.com/healthcare/docs/concepts/regions>`_ of the
-            geographic location configured for the Dataset that contains the
-            DICOM Store.
-        dataset_id: str
-            The ID of the `Dataset
-            <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#datasets_and_data_stores>`_
-            that contains the DICOM Store.
-        dicom_store_id: str
-            The ID of the `DICOM Store
-            <https://cloud.google.com/healthcare/docs/concepts/dicom#dicom_stores>`_.
-    """
+    Attributes
+    ----------
+    project_id: str
+        The ID of the `GCP Project
+        <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#projects>`_
+        that contains the DICOM Store.
+    location: str
+        The `Region name
+        <https://cloud.google.com/healthcare/docs/concepts/regions>`_ of the
+        geographic location configured for the Dataset that contains the
+        DICOM Store.
+    dataset_id: str
+        The ID of the `Dataset
+        <https://cloud.google.com/healthcare/docs/concepts/projects-datasets-data-stores#datasets_and_data_stores>`_
+        that contains the DICOM Store.
+    dicom_store_id: str
+        The ID of the `DICOM Store
+        <https://cloud.google.com/healthcare/docs/concepts/dicom#dicom_stores>`_.
+
+    """  # noqa: E501
     project_id: str
     location: str
     dataset_id: str
@@ -84,7 +86,7 @@ class GoogleCloudHealthcareURL:
 
     @classmethod
     def from_string(cls, base_url: str) -> 'GoogleCloudHealthcareURL':
-        """Creates an instance from ``base_url``.
+        """Create an instance from `base_url`.
 
         Parameters
         ----------

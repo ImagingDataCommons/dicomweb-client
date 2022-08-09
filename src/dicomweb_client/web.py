@@ -331,19 +331,19 @@ class DICOMwebClient:
         """
         params: Dict[str, Union[int, str, List[str]]] = {}
         if limit is not None:
-            if not(isinstance(limit, int)):
+            if not isinstance(limit, int):
                 raise TypeError('Parameter "limit" must be an integer.')
             if limit < 0:
                 raise ValueError('Parameter "limit" must not be negative.')
             params['limit'] = limit
         if offset is not None:
-            if not(isinstance(offset, int)):
+            if not isinstance(offset, int):
                 raise TypeError('Parameter "offset" must be an integer.')
             if offset < 0:
                 raise ValueError('Parameter "offset" must not be negative.')
             params['offset'] = offset
         if fuzzymatching is not None:
-            if not(isinstance(fuzzymatching, bool)):
+            if not isinstance(fuzzymatching, bool):
                 raise TypeError('Parameter "fuzzymatching" must be boolean.')
             if fuzzymatching:
                 params['fuzzymatching'] = 'true'
@@ -352,13 +352,13 @@ class DICOMwebClient:
         if fields is not None:
             includefields = []
             for field in set(fields):
-                if not(isinstance(field, str)):
+                if not isinstance(field, str):
                     raise TypeError('Elements of "fields" must be a string.')
                 includefields.append(field)
             params['includefield'] = includefields
         if search_filters is not None:
             for field, criterion in search_filters.items():
-                if not(isinstance(field, str)):
+                if not isinstance(field, str):
                     raise TypeError(
                         'Keys of "search_filters" must be strings.'
                     )
