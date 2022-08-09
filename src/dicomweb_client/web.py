@@ -1670,8 +1670,10 @@ class DICOMwebClient:
         response = _invoke_delete_request(url)
         if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
             logger.error(
-              'Resource could not be deleted. The origin server may not support'
-              'deletion or you may not have the necessary permissions.')
+              'Resource could not be deleted. '
+              'The origin server may not support deletion '
+              'or you may not have the necessary permissions.'
+            )
         response.raise_for_status()
         return response
 
