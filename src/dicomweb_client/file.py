@@ -22,6 +22,7 @@ from typing import (
     Tuple,
     Union,
 )
+from urllib.parse import urlparse
 
 import numpy as np
 import requests
@@ -396,7 +397,6 @@ def _build_bot(
     while True:
         frame_position = fp.tell()
         tag = TupleTag(fp.read_tag())
-        print(tag)
         if int(tag) == SequenceDelimiterTag:
             break
         if int(tag) != ItemTag:
@@ -512,7 +512,7 @@ class _DatabaseManager:
 
     def __init__(
         self,
-        base_dir: Path,
+        url: str,
         db_dir: Path,
         update_db: bool = False,
         recreate_db: bool = False,
@@ -522,8 +522,8 @@ class _DatabaseManager:
 
         Parameters
         ----------
-        base_dir: pathlib.Path
-            Base path to the directory where DICOM files are stored
+        url: pathlib.Path
+            Location of the DICOM files. URL with either a ``file://`` scheme.
         db_dir: pathlib.Path
             Path to the directory where database files should be stored
         update_db: bool, optional
@@ -541,7 +541,9 @@ class _DatabaseManager:
             ``False``).
 
         """
-        self.base_dir = base_dir
+        components = urlparse(url)
+        self.base_dir = Path(components.path)
+
         if in_memory:
             filename = ':memory:'
             self._db_file_identifier = filename
@@ -794,7 +796,6 @@ class _DatabaseManager:
     @_enforce_standard_conformance
     def _update_db(self):
         """Update database."""
-
         indexed_file_paths = set(self._get_indexed_file_paths())
         found_file_paths = set()
 
@@ -807,8 +808,8 @@ class _DatabaseManager:
                 continue
 
             rel_file_path = file_path.relative_to(self.base_dir)
-            found_file_paths.add(rel_file_path)
-            if file_path in indexed_file_paths:
+            found_file_paths.add(file_path)
+            if rel_file_path in indexed_file_paths:
                 logger.debug(f'skip indexed file {file_path}')
                 continue
 
@@ -818,7 +819,12 @@ class _DatabaseManager:
             with open(file_path, 'rb') as f:
                 try:
                     ds = self._read_selected_metadata(f)
-                except (InvalidDicomError, AttributeError, ValueError):
+                except (
+                    InvalidDicomError,
+                    AttributeError,
+                    ValueError,
+                    LookupError,
+                ):
                     logger.warning(f'failed to read file "{file_path}"')
                     continue
 
@@ -2075,11 +2081,30 @@ class DICOMfileClient:
     This is **not** an implementation of the DICOM File Service and does not
     depend on the presence of ``DICOMDIR`` files.
 
+    Attributes
+    ----------
+    base_url: str
+        Unique resource locator of the DICOMweb service
+    scheme: str
+        Name of the scheme (``file``)
+    protocol: str
+        Name of the protocol (``None``)
+    url_prefix: str
+        URL path prefix for DICOMweb services (part of `base_url`)
+    qido_url_prefix: Union[str, None]
+        URL path prefix for QIDO-RS (not part of `base_url`)
+    wado_url_prefix: Union[str, None]
+        URL path prefix for WADO-RS (not part of `base_url`)
+    stow_url_prefix: Union[str, None]
+        URL path prefix for STOW-RS (not part of `base_url`)
+    delete_url_prefix: Union[str, None]
+        URL path prefix for DELETE (not part of `base_url`)
+
     """
 
     def __init__(
         self,
-        base_dir: Union[Path, str],
+        url: str,
         update_db: bool = False,
         recreate_db: bool = False,
         in_memory: bool = False,
@@ -2089,8 +2114,9 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        base_dir: Union[pathlib.Path, str]
-            Path to base directory containing DICOM files
+        url: str
+            Unique resource locator of directory where data is stored
+            (must have ``file`` scheme)
         update_db: bool, optional
             Whether the database should be updated (default: ``False``). If
             ``True``, the client will search `base_dir` recursively for new
@@ -2109,13 +2135,24 @@ class DICOMfileClient:
             to `base_dir`)
 
         """
-        self.base_dir = Path(base_dir).resolve()
+        self.base_url = url
+        components = urlparse(url)
+        self.scheme = components.scheme
+        if self.scheme != 'file':
+            raise ValueError(f'URL scheme "{self.scheme}" is not supported.')
+        self.protocol = None
+        self.url_prefix = components.path
+        self.qido_url_prefix = None
+        self.wado_url_prefix = None
+        self.stow_url_prefix = None
+        self.delete_url_prefix = None
         if db_dir is None:
-            db_dir = self.base_dir
+            base_dir = Path(components.path)
+            db_dir = base_dir
         else:
             db_dir = Path(db_dir).resolve()
         self._db_manager = _DatabaseManager(
-            base_dir=self.base_dir,
+            url=url,
             db_dir=db_dir,
             update_db=update_db,
             recreate_db=recreate_db,

@@ -88,6 +88,8 @@ class DICOMwebClient:
     ----------
     base_url: str
         Unique resource locator of the DICOMweb service
+    scheme: str
+        Name of the scheme, e.g. ``"https"``
     protocol: str
         Name of the protocol, e.g. ``"https"``
     host: str
@@ -104,11 +106,6 @@ class DICOMwebClient:
         URL path prefix for STOW-RS (not part of `base_url`)
     delete_url_prefix: Union[str, None]
         URL path prefix for DELETE (not part of `base_url`)
-    chunk_size: int
-        Maximum number of bytes that should be transferred per data chunk
-        when streaming data from the server using chunked transfer encoding
-        (used by ``iter_*()`` methods as well as the ``store_instances()``
-        method)
 
     """
 
@@ -270,8 +267,12 @@ class DICOMwebClient:
         match = re.match(pattern, self.base_url)
         if match is None:
             raise ValueError(f'Malformed URL: {self.base_url}')
+        url_components = urlparse(url)
+        self.scheme = url_components.scheme
+        self.protocol = self.scheme
+        if not self.scheme.startswith('http'):
+            raise ValueError(f'URL scheme "{self.scheme}" is not supported.')
         try:
-            self.protocol = match.group('scheme')
             self.host = match.group('host')
             port = match.group('port')
         except AttributeError:
@@ -279,15 +280,14 @@ class DICOMwebClient:
         if port:
             self.port = int(port)
         else:
-            if self.protocol == 'http':
+            if self.scheme == 'http':
                 self.port = 80
-            elif self.protocol == 'https':
+            elif self.scheme == 'https':
                 self.port = 443
             else:
                 raise ValueError(
-                    f'URL scheme "{self.protocol}" is not supported.'
+                    f'URL scheme "{self.scheme}" is not supported.'
                 )
-        url_components = urlparse(url)
         self.url_prefix = url_components.path
         if headers is not None:
             self._session.headers.update(headers)
