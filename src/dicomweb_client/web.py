@@ -88,6 +88,8 @@ class DICOMwebClient:
     ----------
     base_url: str
         Unique resource locator of the DICOMweb service
+    scheme: str
+        Name of the scheme, e.g. ``"https"``
     protocol: str
         Name of the protocol, e.g. ``"https"``
     host: str
@@ -104,11 +106,6 @@ class DICOMwebClient:
         URL path prefix for STOW-RS (not part of `base_url`)
     delete_url_prefix: Union[str, None]
         URL path prefix for DELETE (not part of `base_url`)
-    chunk_size: int
-        Maximum number of bytes that should be transferred per data chunk
-        when streaming data from the server using chunked transfer encoding
-        (used by ``iter_*()`` methods as well as the ``store_instances()``
-        method)
 
     """
 
@@ -270,8 +267,12 @@ class DICOMwebClient:
         match = re.match(pattern, self.base_url)
         if match is None:
             raise ValueError(f'Malformed URL: {self.base_url}')
+        url_components = urlparse(url)
+        self.scheme = url_components.scheme
+        self.protocol = self.scheme
+        if not self.scheme.startswith('http'):
+            raise ValueError(f'URL scheme "{self.scheme}" is not supported.')
         try:
-            self.protocol = match.group('scheme')
             self.host = match.group('host')
             port = match.group('port')
         except AttributeError:
@@ -279,15 +280,14 @@ class DICOMwebClient:
         if port:
             self.port = int(port)
         else:
-            if self.protocol == 'http':
+            if self.scheme == 'http':
                 self.port = 80
-            elif self.protocol == 'https':
+            elif self.scheme == 'https':
                 self.port = 443
             else:
                 raise ValueError(
-                    f'URL scheme "{self.protocol}" is not supported.'
+                    f'URL scheme "{self.scheme}" is not supported.'
                 )
-        url_components = urlparse(url)
         self.url_prefix = url_components.path
         if headers is not None:
             self._session.headers.update(headers)
@@ -331,19 +331,19 @@ class DICOMwebClient:
         """
         params: Dict[str, Union[int, str, List[str]]] = {}
         if limit is not None:
-            if not(isinstance(limit, int)):
+            if not isinstance(limit, int):
                 raise TypeError('Parameter "limit" must be an integer.')
             if limit < 0:
                 raise ValueError('Parameter "limit" must not be negative.')
             params['limit'] = limit
         if offset is not None:
-            if not(isinstance(offset, int)):
+            if not isinstance(offset, int):
                 raise TypeError('Parameter "offset" must be an integer.')
             if offset < 0:
                 raise ValueError('Parameter "offset" must not be negative.')
             params['offset'] = offset
         if fuzzymatching is not None:
-            if not(isinstance(fuzzymatching, bool)):
+            if not isinstance(fuzzymatching, bool):
                 raise TypeError('Parameter "fuzzymatching" must be boolean.')
             if fuzzymatching:
                 params['fuzzymatching'] = 'true'
@@ -352,13 +352,13 @@ class DICOMwebClient:
         if fields is not None:
             includefields = []
             for field in set(fields):
-                if not(isinstance(field, str)):
+                if not isinstance(field, str):
                     raise TypeError('Elements of "fields" must be a string.')
                 includefields.append(field)
             params['includefield'] = includefields
         if search_filters is not None:
             for field, criterion in search_filters.items():
-                if not(isinstance(field, str)):
+                if not isinstance(field, str):
                     raise TypeError(
                         'Keys of "search_filters" must be strings.'
                     )
@@ -1670,8 +1670,10 @@ class DICOMwebClient:
         response = _invoke_delete_request(url)
         if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
             logger.error(
-              'Resource could not be deleted. The origin server may not support'
-              'deletion or you may not have the necessary permissions.')
+              'Resource could not be deleted. '
+              'The origin server may not support deletion '
+              'or you may not have the necessary permissions.'
+            )
         response.raise_for_status()
         return response
 

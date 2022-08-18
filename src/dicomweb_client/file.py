@@ -6,10 +6,7 @@ import math
 import os
 import re
 import sqlite3
-import sys
 import time
-import traceback
-from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
 from typing import (
@@ -25,22 +22,20 @@ from typing import (
     Tuple,
     Union,
 )
+from urllib.parse import urlparse
 
 import numpy as np
+import requests
 from PIL import Image
 from PIL.ImageCms import ImageCmsProfile, createProfile
 from pydicom import config as pydicom_config
 from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
+from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.encaps import encapsulate, get_frame_offsets
 from pydicom.errors import InvalidDicomError
 from pydicom.filebase import DicomFileLike
-from pydicom.filereader import (
-    data_element_offset_to_value,
-    dcmread,
-    read_file_meta_info,
-    read_partial,
-)
+from pydicom.filereader import data_element_offset_to_value, dcmread
 from pydicom.filewriter import dcmwrite
 from pydicom.pixel_data_handlers.numpy_handler import unpack_bits
 from pydicom.tag import (
@@ -50,7 +45,7 @@ from pydicom.tag import (
     Tag,
     TupleTag,
 )
-from pydicom.uid import UID
+from pydicom.uid import UID, RLELossless
 from pydicom.valuerep import DA, DT, TM
 
 logger = logging.getLogger(__name__)
@@ -66,6 +61,30 @@ _JPEG2000_SOC_MARKER = b'\xFF\x4F'
 _JPEG2000_EOC_MARKER = b'\xFF\xD9'
 _START_MARKERS = {_JPEG_SOI_MARKER, _JPEG2000_SOC_MARKER}
 _END_MARKERS = {_JPEG_EOI_MARKER, _JPEG2000_EOC_MARKER}
+
+
+def _are_frames_encapsulated(transfer_syntax_uid: str) -> bool:
+    """Determine whether frames are compressed.
+
+    Parameters
+    ----------
+    transfer_syntax_uid: str
+        Unique identifier of the transfer syntax
+
+    Returns
+    -------
+    bool
+        Whether frames are compressed
+
+    """
+    if transfer_syntax_uid in {
+        '1.2.840.10008.1.2',
+        '1.2.840.10008.1.2.1',
+        '1.2.840.10008.1.2.2',
+        '1.2.840.10008.1.2.1.99',
+    }:
+        return False
+    return True
 
 
 def _enforce_standard_conformance(fn: Callable) -> Callable:
@@ -99,7 +118,153 @@ def _enforce_standard_conformance(fn: Callable) -> Callable:
     return wrapper
 
 
-def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
+def _read_frame(
+    fp: DicomFileLike,
+    first_frame_offset: int,
+    basic_offset_table: np.ndarray,
+    frame_index: int,
+    transfer_syntax_uid: str
+) -> bytes:
+    frame_offset = basic_offset_table[frame_index]
+    fp.seek(first_frame_offset + frame_offset, 0)
+    try:
+        stop_at = basic_offset_table[frame_index + 1] - frame_offset
+    except IndexError:
+        # For the last frame, there is no next offset available.
+        stop_at = -1
+
+    if _are_frames_encapsulated(transfer_syntax_uid):
+        n = 0
+        # A frame may consist of multiple items (fragments).
+        fragments = []
+        while True:
+            tag = TupleTag(fp.read_tag())
+            if n == stop_at or int(tag) == SequenceDelimiterTag:
+                break
+            if int(tag) != ItemTag:
+                raise ValueError(
+                    f'Failed to read frame #{frame_index + 1}. '
+                    f'Encountered unexpected tag {tag} in Pixel Data element.'
+                )
+            length = fp.read_UL()
+            fragments.append(fp.read(length))
+            n += 4 + 4 + length
+        return b''.join(fragments)
+    else:
+        return fp.read(stop_at)
+
+
+def _decode_frame(
+    frame: bytes,
+    frame_index: int,
+    transfer_syntax_uid: str,
+    rows: int,
+    columns: int,
+    samples_per_pixel: int,
+    bits_allocated: int,
+    bits_stored: int,
+    photometric_interpretation: str,
+    pixel_representation: int,
+    planar_configuration: Optional[int] = None
+) -> np.ndarray:
+    """Decode the pixel data of an individual frame item.
+
+    Parameters
+    ----------
+    index: int
+        Zero-based frame index
+    value: bytes
+        Value of a Frame item
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of decoded pixels of the frame with shape (Rows x Columns)
+        in case of a monochrome image or (Rows x Columns x SamplesPerPixel)
+        in case of a color image.
+
+    """
+    if bits_allocated == 1:
+        # Unfortunately, the type of the return value of the unpack_bits()
+        # can be changed dynamically via the as_array argument. This causes
+        # issues for mypy and requires this workaround.
+        unpacked_frame: np.ndarray = unpack_bits(  # type: ignore
+            frame,
+            as_array=True
+        )
+        num_pixels_per_frame = rows * columns * samples_per_pixel
+        # Determine the nearest whole number of bytes needed to contain
+        # 1-bit pixel data. e.g. 10 x 10 1-bit pixels is 100 bits,
+        # which are packed into 12.5 -> 13 bytes
+        start = int(((frame_index * num_pixels_per_frame / 8) % 1) * 8)
+        end = start + num_pixels_per_frame
+        pixel_array = unpacked_frame[start:end]
+        return pixel_array.reshape(rows, columns)
+    else:
+        # This hack creates a small dataset containing a Pixel Data element
+        # with only a single frame item, which can then be decoded using the
+        # existing pydicom API.
+        ds = Dataset()
+        ds.file_meta = FileMetaDataset()
+        ds.file_meta.TransferSyntaxUID = UID(transfer_syntax_uid)
+        ds.Rows = rows
+        ds.Columns = columns
+        ds.SamplesPerPixel = samples_per_pixel
+        ds.PhotometricInterpretation = photometric_interpretation
+        ds.PixelRepresentation = pixel_representation
+        if planar_configuration is not None:
+            ds.PlanarConfiguration = planar_configuration
+        ds.BitsAllocated = bits_allocated
+        ds.BitsStored = bits_stored
+        ds.HighBit = bits_stored - 1
+        if _are_frames_encapsulated(transfer_syntax_uid):
+            ds.PixelData = encapsulate(frames=[frame])
+        else:
+            ds.PixelData = frame
+        return ds.pixel_array
+
+
+def _get_frame_offsets(
+    fp: DicomFileLike,
+    number_of_frames: int,
+    number_of_pixels_per_frame: int,
+    transfer_syntax_uid: str,
+    bits_allocated: int
+) -> Tuple[int, np.ndarray]:
+    pixel_data_offset = fp.tell()
+    if _are_frames_encapsulated(transfer_syntax_uid):
+        try:
+            basic_offset_table = _get_bot(
+                fp,
+                number_of_frames=number_of_frames,
+                transfer_syntax_uid=transfer_syntax_uid
+            )
+        except Exception as error:
+            raise IOError(f'Failed to build Basic Offset Table: "{error}".')
+        first_frame_offset = fp.tell()
+    else:
+        if fp.is_implicit_VR:
+            header_offset = 4 + 4  # tag and length
+        else:
+            header_offset = 4 + 2 + 2 + 4  # tag, VR, reserved, and length
+        first_frame_offset = pixel_data_offset + header_offset
+        n_pixels = number_of_pixels_per_frame
+        bytes_per_frame_uncompressed = n_pixels * bits_allocated / 8
+        basic_offset_table = np.array(
+            [
+                int(math.floor(i * bytes_per_frame_uncompressed))
+                for i in range(number_of_frames)
+            ],
+            dtype=np.uint32
+        )
+    return (first_frame_offset, basic_offset_table)
+
+
+def _get_bot(
+    fp: DicomFileLike,
+    number_of_frames: int,
+    transfer_syntax_uid: str
+) -> np.ndarray:
     """Read or build the Basic Offset Table (BOT).
 
     Parameters
@@ -109,10 +274,12 @@ def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
         the Pixel Data element
     number_of_frames: int
         Number of frames contained in the Pixel Data element
+    transfer_syntax_uid: str
+        Unique identifier of the transfer syntax
 
     Returns
     -------
-    List[int]
+    numpy.ndarray
         Offset of each Frame item in bytes from the first byte of the Pixel
         Data element following the BOT item
 
@@ -138,13 +305,14 @@ def _get_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
         logger.debug('build Basic Offset Table item')
         basic_offset_table = _build_bot(
             fp,
-            number_of_frames=number_of_frames
+            number_of_frames=number_of_frames,
+            transfer_syntax_uid=transfer_syntax_uid
         )
 
     return basic_offset_table
 
 
-def _read_bot(fp: DicomFileLike) -> List[int]:
+def _read_bot(fp: DicomFileLike) -> np.ndarray:
     """Read the Basic Offset Table (BOT) of an encapsulated Pixel Data element.
 
     Parameters
@@ -155,7 +323,7 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
 
     Returns
     -------
-    List[int]
+    numpy.ndarray
         Offset of each Frame item in bytes from the first byte of the Pixel
         Data element following the BOT item
 
@@ -181,10 +349,14 @@ def _read_bot(fp: DicomFileLike) -> List[int]:
     )
     fp.seek(pixel_data_element_value_offset - 4, 1)
     is_empty, offsets = get_frame_offsets(fp)
-    return offsets
+    return np.array(offsets, dtype=np.uint32)
 
 
-def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
+def _build_bot(
+    fp: DicomFileLike,
+    number_of_frames: int,
+    transfer_syntax_uid: str
+) -> np.ndarray:
     """Build a Basic Offset Table (BOT) for an encapsulated Pixel Data element.
 
     Parameters
@@ -194,10 +366,12 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
         the Pixel Data element following the empty Basic Offset Table (BOT)
     number_of_frames: int
         Total number of frames in the dataset
+    transfer_syntax_uid: str
+        Unique identifier of the transfer syntax
 
     Returns
     -------
-    List[int]
+    numpy.ndarray
         Offset of each Frame item in bytes from the first byte of the Pixel
         Data element following the BOT item
 
@@ -249,463 +423,30 @@ def _build_bot(fp: DicomFileLike, number_of_frames: int) -> List[int]:
         if not fp.is_little_endian:
             first_two_bytes = first_two_bytes[::-1]
 
-        # In case of fragmentation, we only want to get the offsets to the
-        # first fragment of a given frame. We can identify those based on the
-        # JPEG and JPEG 2000 markers that should be found at the beginning and
-        # end of the compressed byte stream.
-        if first_two_bytes in _START_MARKERS:
-            current_offset = frame_position - initial_position
+        current_offset = frame_position - initial_position
+        if transfer_syntax_uid == RLELossless:
             offset_values.append(current_offset)
+        else:
+            # In case of fragmentation, we only want to get the offsets to the
+            # first fragment of a given frame. We can identify those based on
+            # the JPEG and JPEG 2000 markers that should be found at the
+            # beginning and end of the compressed byte stream.
+            if first_two_bytes in _START_MARKERS:
+                offset_values.append(current_offset)
 
         i += 1
         fp.seek(length - 2, 1)  # minus the first two bytes
 
     if len(offset_values) != number_of_frames:
         raise ValueError(
-            'Number of frame items does not match specified Number of Frames.'
+            'Number of found frame items does not match specified number '
+            f'of frames: {len(offset_values)} instead of {number_of_frames}.'
         )
     else:
         basic_offset_table = offset_values
 
     fp.seek(initial_position, 0)
-    return basic_offset_table
-
-
-class _ImageFileReader:
-
-    """Class for reading DICOM files that represent Image Information Entities.
-
-    The class provides methods for efficient access to individual Frame items
-    contained in the Pixel Data element of a Data Set stored in a Part10 file
-    on disk without loading the entire element into memory.
-
-    """
-
-    def __init__(self, fp: Union[str, Path, DicomFileLike]):
-        """
-        Parameters
-        ----------
-        fp: Union[str, pathlib.Path, pydicom.filebase.DicomfileLike]
-            DICOM Part10 file containing a dataset of an image SOP Instance
-
-        """
-        self._filepointer: Union[DicomFileLike, None]
-        self._filepath: Union[Path, None]
-        if isinstance(fp, DicomFileLike):
-            is_little_endian, is_implicit_VR = self._check_file_format(fp)
-            try:
-                if fp.is_little_endian != is_little_endian:
-                    raise ValueError(
-                        'Transfer syntax of file object has incorrect value '
-                        'for attribute "is_little_endian".'
-                    )
-            except AttributeError:
-                raise AttributeError(
-                    'Transfer syntax of file object does not have '
-                    'attribute "is_little_endian".'
-                )
-            try:
-                if fp.is_implicit_VR != is_implicit_VR:
-                    raise ValueError(
-                        'Transfer syntax of file object has incorrect value '
-                        'for attribute "is_implicit_VR".'
-                    )
-            except AttributeError:
-                raise AttributeError(
-                    'Transfer syntax of file object does not have '
-                    'attribute "is_implicit_VR".'
-                )
-            self._filepointer = fp
-            self._filepath = None
-        elif isinstance(fp, (str, Path)):
-            self._filepath = Path(fp)
-            self._filepointer = None
-        else:
-            raise TypeError(
-                'Argument "filename" must either an open DICOM file object or '
-                'the path to a DICOM file stored on disk.'
-            )
-
-        # Those attributes will be set by the "open()"
-        self._metadata: Dataset = Dataset()
-        self._is_open = False
-        self._as_float = False
-        self._bytes_per_frame_uncompressed: int = -1
-        self._basic_offset_table: List[int] = []
-        self._first_frame_offset: int = -1
-        self._pixel_data_offset: int = -1
-        self._pixels_per_frame: int = -1
-
-    def _check_file_format(self, fp: DicomFileLike) -> Tuple[bool, bool]:
-        """Check whether file object represents a DICOM Part 10 file.
-
-        Parameters
-        ----------
-        fp: pydicom.filebase.DicomFileLike
-            DICOM file object
-
-        Returns
-        -------
-        is_little_endian: bool
-            Whether the data set is encoded in little endian transfer syntax
-        is_implicit_VR: bool
-            Whether value representations of data elements in the data set
-            are implicit
-
-        Raises
-        ------
-        InvalidDicomError
-            If the file object does not represent a DICOM Part 10 file
-
-        """
-        def is_main_tag(tag: BaseTag, VR: Optional[str], length: int) -> bool:
-            return tag >= 0x00040000
-
-        pos = fp.tell()
-        ds = read_partial(fp, stop_when=is_main_tag)  # type: ignore
-        fp.seek(pos)
-        transfer_syntax_uid = UID(ds.file_meta.TransferSyntaxUID)
-        return (
-            transfer_syntax_uid.is_little_endian,
-            transfer_syntax_uid.is_implicit_VR,
-        )
-
-    def __enter__(self) -> '_ImageFileReader':
-        self.open()
-        return self
-
-    def __exit__(self, except_type, except_value, except_trace) -> None:
-        self._fp.close()
-        if except_value:
-            sys.stdout.write(
-                'Error while accessing file "{}":\n{}'.format(
-                    self._filepath, str(except_value)
-                )
-            )
-            for tb in traceback.format_tb(except_trace):
-                sys.stdout.write(tb)
-            raise
-
-    @property
-    def _fp(self) -> DicomFileLike:
-        if self._filepointer is None:
-            raise IOError('File has not been opened for reading.')
-        return self._filepointer
-
-    def open(self) -> None:
-        """Open file for reading.
-
-        Raises
-        ------
-        FileNotFoundError
-            When file cannot be found
-        OSError
-            When file cannot be opened
-        IOError
-            When DICOM metadata cannot be read from file
-        ValueError
-            When DICOM dataset contained in file does not represent an image
-
-        Note
-        ----
-        Reads the metadata of the DICOM Data Set contained in the file and
-        builds a Basic Offset Table to speed up subsequent frame-level access.
-
-        """
-        # This methods sets several attributes on the object, which cannot
-        # (or should not) be set in the constructor. Other methods assert that
-        # this method has been called first by checking the value of the
-        # "_is_open" attribute.
-        if self._is_open:
-            return
-
-        if self._filepointer is None:
-            # This should not happen is just for mypy to be happy
-            if self._filepath is None:
-                raise ValueError(f'File not found: "{self._filepath}".')
-            logger.debug('read File Meta Information')
-            try:
-                file_meta = read_file_meta_info(self._filepath)
-            except FileNotFoundError:
-                raise ValueError('No file path was set.')
-            except InvalidDicomError:
-                raise InvalidDicomError(
-                    f'File is not a valid DICOM file: "{self._filepath}".'
-                )
-            except Exception:
-                raise IOError(f'Could not read file: "{self._filepath}".')
-
-            transfer_syntax_uid = UID(file_meta.TransferSyntaxUID)
-            if transfer_syntax_uid is None:
-                raise IOError(
-                    'File is not a valid DICOM file: "{self._filepath}".'
-                    'It lacks File Meta Information.'
-                )
-            self._transfer_syntax_uid: UID = transfer_syntax_uid
-            is_little_endian = transfer_syntax_uid.is_little_endian
-            is_implicit_VR = transfer_syntax_uid.is_implicit_VR
-            self._filepointer = DicomFileLike(open(self._filepath, 'rb'))
-            self._filepointer.is_little_endian = is_little_endian
-            self._filepointer.is_implicit_VR = is_implicit_VR
-
-        logger.debug('read metadata elements')
-        try:
-            tmp = dcmread(self._fp, stop_before_pixels=True)
-        except Exception as error:
-            raise IOError(
-                f'DICOM metadata cannot be read from file: "{error}"'
-            )
-
-        # Construct a new Dataset that is fully decoupled from the file,
-        # i.e., that does not contain any File Meta Information
-        del tmp.file_meta
-        self._metadata = Dataset(tmp)
-
-        self._pixels_per_frame = int(np.product([
-            self._metadata.Rows,
-            self._metadata.Columns,
-            self._metadata.SamplesPerPixel
-        ]))
-
-        self._pixel_data_offset = self._fp.tell()
-        # Determine whether dataset contains a Pixel Data element
-        try:
-            tag = TupleTag(self._fp.read_tag())
-        except EOFError:
-            raise ValueError(
-                'Dataset does not represent an image information entity.'
-            )
-        if int(tag) not in _PIXEL_DATA_TAGS:
-            raise ValueError(
-                'Dataset does not represent an image information entity.'
-            )
-        self._as_float = False
-        if int(tag) in _FLOAT_PIXEL_DATA_TAGS:
-            self._as_float = True
-
-        # Reset the file pointer to the beginning of the Pixel Data element
-        self._fp.seek(self._pixel_data_offset, 0)
-
-        logger.debug('build Basic Offset Table')
-        try:
-            number_of_frames = int(self._metadata.NumberOfFrames)
-        except AttributeError:
-            number_of_frames = 1
-        if self._transfer_syntax_uid.is_encapsulated:
-            try:
-                self._basic_offset_table = _get_bot(
-                    self._fp,
-                    number_of_frames=number_of_frames
-                )
-            except Exception as error:
-                raise IOError(
-                    f'Failed to build Basic Offset Table: "{error}"'
-                )
-            self._first_frame_offset = self._fp.tell()
-        else:
-            if self._fp.is_implicit_VR:
-                header_offset = 4 + 4  # tag and length
-            else:
-                header_offset = 4 + 2 + 2 + 4  # tag, VR, reserved, and length
-            self._first_frame_offset = self._pixel_data_offset + header_offset
-            n_pixels = self._pixels_per_frame
-            bits_allocated = self._metadata.BitsAllocated
-            if bits_allocated == 1:
-                # Determine the nearest whole number of bytes needed to contain
-                # 1-bit pixel data. e.g. 10 x 10 1-bit pixels is 100 bits,
-                # which are packed into 12.5 -> 13 bytes
-                self._bytes_per_frame_uncompressed = (
-                    n_pixels // 8 + (n_pixels % 8 > 0)
-                )
-                self._basic_offset_table = [
-                    int(math.floor(i * n_pixels / 8))
-                    for i in range(number_of_frames)
-                ]
-            else:
-                self._bytes_per_frame_uncompressed = (
-                    n_pixels * bits_allocated // 8
-                )
-                self._basic_offset_table = [
-                    i * self._bytes_per_frame_uncompressed
-                    for i in range(number_of_frames)
-                ]
-
-        if len(self._basic_offset_table) != number_of_frames:
-            raise ValueError(
-                'Length of Basic Offset Table does not match '
-                'Number of Frames.'
-            )
-
-        self._is_open = True
-
-    def _assert_is_open(self) -> None:
-        if not self._is_open:
-            raise IOError('DICOM image file has not been opened for reading.')
-
-    @property
-    def transfer_syntax_uid(self) -> UID:
-        """pydicom.uid.UID: Transfer Syntax UID"""
-        self._assert_is_open()
-        return self._transfer_syntax_uid
-
-    @property
-    def metadata(self) -> Dataset:
-        """pydicom.dataset.Dataset: Metadata"""
-        self._assert_is_open()
-        return self._metadata
-
-    def close(self) -> None:
-        """Close file."""
-        if self._fp is not None:
-            self._fp.close()
-        self._is_open = False
-
-    def read_frame(self, index: int) -> bytes:
-        """Read the pixel data of an individual frame item.
-
-        Parameters
-        ----------
-        index: int
-            Zero-based frame index
-
-        Returns
-        -------
-        bytes
-            Pixel data of a given frame item encoded in the transfer syntax.
-
-        Raises
-        ------
-        IOError
-            When frame could not be read
-
-        """
-        self._assert_is_open()
-        if index > self.number_of_frames:
-            raise ValueError(
-                f'Frame index {index} exceeds number of frames in image: '
-                f'{self.number_of_frames}.'
-            )
-
-        logger.debug(f'read frame #{index}')
-
-        frame_offset = self._basic_offset_table[index]
-        self._fp.seek(self._first_frame_offset + frame_offset, 0)
-        if self._transfer_syntax_uid.is_encapsulated:
-            try:
-                stop_at = self._basic_offset_table[index + 1] - frame_offset
-            except IndexError:
-                # For the last frame, there is no next offset available.
-                stop_at = -1
-            n = 0
-            # A frame may consist of multiple items (fragments).
-            fragments = []
-            while True:
-                tag = TupleTag(self._fp.read_tag())
-                if n == stop_at or int(tag) == SequenceDelimiterTag:
-                    break
-                if int(tag) != ItemTag:
-                    raise ValueError(f'Failed to read frame #{index}.')
-                length = self._fp.read_UL()
-                fragments.append(self._fp.read(length))
-                n += 4 + 4 + length
-            frame_data = b''.join(fragments)
-        else:
-            frame_data = self._fp.read(self._bytes_per_frame_uncompressed)
-
-        if len(frame_data) == 0:
-            raise IOError(f'Failed to read frame #{index}.')
-
-        return frame_data
-
-    def decode_frame(self, index: int, value: bytes):
-        """Decode the pixel data of an individual frame item.
-
-        Parameters
-        ----------
-        index: int
-            Zero-based frame index
-        value: bytes
-            Value of a Frame item
-
-        Returns
-        -------
-        numpy.ndarray
-            Array of decoded pixels of the frame with shape (Rows x Columns)
-            in case of a monochrome image or (Rows x Columns x SamplesPerPixel)
-            in case of a color image.
-
-        """
-        self._assert_is_open()
-        logger.debug(f'decode frame #{index}')
-
-        metadata = self.metadata
-        if metadata.BitsAllocated == 1:
-            # Unfortunately, the type of the return value of the unpack_bits()
-            # can be changed dynamically via the as_array argument. This causes
-            # issues for mypy and requires this workaround.
-            unpacked_frame: np.ndarray = unpack_bits(  # type: ignore
-                value,
-                as_array=True
-            )
-            rows, columns = metadata.Rows, self.metadata.Columns
-            n_pixels = self._pixels_per_frame
-            pixel_offset = int(((index * n_pixels / 8) % 1) * 8)
-            pixel_array = unpacked_frame[pixel_offset:pixel_offset + n_pixels]
-            return pixel_array.reshape(rows, columns)
-        else:
-            # This hack creates a small dataset containing a Pixel Data element
-            # with only a single frame item, which can then be decoded using the
-            # existing pydicom API.
-            ds = Dataset()
-            ds.file_meta = FileMetaDataset()
-            ds.file_meta.TransferSyntaxUID = self._transfer_syntax_uid
-            ds.Rows = metadata.Rows
-            ds.Columns = metadata.Columns
-            ds.SamplesPerPixel = metadata.SamplesPerPixel
-            ds.PhotometricInterpretation = metadata.PhotometricInterpretation
-            ds.PixelRepresentation = metadata.PixelRepresentation
-            ds.PlanarConfiguration = metadata.get('PlanarConfiguration', None)
-            ds.BitsAllocated = metadata.BitsAllocated
-            ds.BitsStored = metadata.BitsStored
-            ds.HighBit = metadata.HighBit
-            if self._transfer_syntax_uid.is_encapsulated:
-                ds.PixelData = encapsulate(frames=[value])
-            else:
-                ds.PixelData = value
-            return ds.pixel_array
-
-    def read_and_decode_frame(self, index: int):
-        """Read and decode the pixel data of an individual frame item.
-
-        Parameters
-        ----------
-        index: int
-            Zero-based frame index
-
-        Returns
-        -------
-        numpy.ndarray
-            Array of decoded pixels of the frame with shape (Rows x Columns)
-            in case of a monochrome image or (Rows x Columns x SamplesPerPixel)
-            in case of a color image.
-
-        Raises
-        ------
-        IOError
-            When frame could not be read
-
-        """
-        frame = self.read_frame(index)
-        return self.decode_frame(index, frame)
-
-    @property
-    def number_of_frames(self) -> int:
-        """int: Number of frames"""
-        self._assert_is_open()
-        try:
-            return int(self.metadata.NumberOfFrames)
-        except AttributeError:
-            return 1
+    return np.array(basic_offset_table, dtype=np.uint32)
 
 
 class _QueryResourceType(Enum):
@@ -767,37 +508,12 @@ def _build_acceptable_media_type_lut(
     return acceptable_media_type_lut
 
 
-class DICOMfileClient:
-
-    """Client for managing DICOM Part10 files in a DICOMweb-like manner.
-
-    Facilitates serverless access to data stored locally on a file system as
-    DICOM Part10 files.
-
-    Note
-    ----
-    The class exposes the same :class:`dicomweb_client.api.DICOMClient`
-    interface as the :class:`dicomweb_client.api.DICOMwebClient` class.
-    While method parameters and return values have the same types, but the
-    types of exceptions may differ.
-
-    Note
-    ----
-    The class internally uses an in-memory database, which is persisted on disk
-    to facilitate faster subsequent data access. However, the implementation
-    details of the database and the structure of any database files stored on
-    the file system may change at any time and should not be relied on.
-
-    Note
-    ----
-    This is **not** an implementation of the DICOM File Service and does not
-    depend on the presence of ``DICOMDIR`` files.
-
-    """
+class _DatabaseManager:
 
     def __init__(
         self,
-        base_dir: Union[Path, str],
+        url: str,
+        db_dir: Path,
         update_db: bool = False,
         recreate_db: bool = False,
         in_memory: bool = False
@@ -806,8 +522,10 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        base_dir: Union[pathlib.Path, str]
-            Path to base directory containing DICOM files
+        url: pathlib.Path
+            Location of the DICOM files. URL with either a ``file://`` scheme.
+        db_dir: pathlib.Path
+            Path to the directory where database files should be stored
         update_db: bool, optional
             Whether the database should be updated (default: ``False``). If
             ``True``, the client will search `base_dir` recursively for new
@@ -823,14 +541,19 @@ class DICOMfileClient:
             ``False``).
 
         """
-        self.base_dir = Path(base_dir).resolve()
+        components = urlparse(url)
+        self.base_dir = Path(components.path)
+
         if in_memory:
             filename = ':memory:'
+            self._db_file_identifier = filename
+            update_db = True
         else:
             filename = '.dicom-file-client.db'
-        self._db_filepath = self.base_dir.joinpath(filename)
-        if not self._db_filepath.exists():
-            update_db = True
+            filepath = db_dir.joinpath(filename)
+            if not filepath.exists():
+                update_db = True
+            self._db_file_identifier = str(filepath)
 
         self._db_connection_handle: Union[sqlite3.Connection, None] = None
         self._db_cursor_handle: Union[sqlite3.Cursor, None] = None
@@ -860,9 +583,6 @@ class DICOMfileClient:
             elapsed = round(end - start)
             logger.info(f'updated database in {elapsed} seconds')
 
-        self._reader_cache: OrderedDict[Path, _ImageFileReader] = OrderedDict()
-        self._max_reader_cache_size = 50
-
     def __getstate__(self) -> dict:
         """Customize state for serialization via pickle module.
 
@@ -885,19 +605,29 @@ class DICOMfileClient:
             if self._db_connection_handle is not None:
                 self._db_connection_handle.commit()
                 self._db_connection_handle.close()
-            for image_file_reader in self._reader_cache.values():
-                image_file_reader.close()
         finally:
             contents['_db_connection_handle'] = None
             contents['_db_cursor_handle'] = None
-            contents['_reader_cache'] = OrderedDict()
         return contents
 
     @property
     def _connection(self) -> sqlite3.Connection:
         """sqlite3.Connection: database connection"""
+        def adapt_array(array: np.ndarray) -> sqlite3.Binary:
+            buffer = array.astype(np.uint32).tobytes()
+            return sqlite3.Binary(buffer)
+
+        def convert_array(buffer: bytes) -> np.ndarray:
+            return np.frombuffer(buffer, dtype=np.uint32)
+
+        sqlite3.register_adapter(np.ndarray, adapt_array)
+        sqlite3.register_converter('ARRAY', convert_array)
+
         if self._db_connection_handle is None:
-            self._db_connection_handle = sqlite3.connect(str(self._db_filepath))
+            self._db_connection_handle = sqlite3.connect(
+                str(self._db_file_identifier),
+                detect_types=sqlite3.PARSE_DECLTYPES
+            )
             self._db_connection_handle.row_factory = sqlite3.Row
         return self._db_connection_handle
 
@@ -966,10 +696,17 @@ class DICOMfileClient:
                     InstanceNumber INTEGER,
                     Rows INTEGER,
                     Columns INTEGER,
-                    BitsAllocated INTEGER,
                     NumberOfFrames INTEGER,
-                    TransferSyntaxUID TEXT NOT NULL,
+                    BitsAllocated INTEGER,
+                    BitsStored INTEGER,
+                    SamplesPerPixel INTEGER,
+                    PhotometricInterpretation TEXT,
+                    PixelRepresentation INTEGER,
+                    PlanarConfiguration INTEGER,
+                    _transfer_syntax_uid TEXT NOT NULL,
                     _file_path TEXT,
+                    _first_frame_offset INTEGER,
+                    _basic_offset_table ARRAY,
                     PRIMARY KEY (
                         StudyInstanceUID,
                         SeriesInstanceUID,
@@ -997,22 +734,68 @@ class DICOMfileClient:
             cursor.execute('DROP TABLE IF EXISTS studies')
             cursor.close()
 
+    def _get_file_pointer(
+        self,
+        buf: Union[io.BufferedReader, io.BytesIO],
+        transfer_syntax_uid: str
+    ) -> DicomFileLike:
+        """Get a pointer to a given image file.
+
+        Parameters
+        ----------
+        buf: Union[io.BufferedReader, io.BytesIO]
+            Buffer of a DICOM file containing a data set of an image
+        transfer_syntax_uid: str
+            Unique identifier of the transfer syntax
+
+        Returns
+        -------
+        pydicom.filebase.DicomFileLike
+            Pointer to file-like object
+
+        Note
+        ----
+        Close the file-like object when done reading from it.
+
+        """
+        uid = UID(transfer_syntax_uid)
+        fp = DicomFileLike(buf)
+        fp.is_little_endian = uid.is_little_endian
+        fp.is_implicit_VR = uid.is_implicit_VR
+        return fp
+
+    def _read_selected_metadata(self, fp: DicomFileLike) -> Dataset:
+        """Read selected instance metadata from file.
+
+        Parameters
+        ----------
+        fp: pydicom.filebase.DicomFileLike
+            Pointer to file-like object
+
+        Returns
+        -------
+        pydicom.dataset.Dataset
+            Metadata
+
+        """
+        tags: List[int] = [
+            tag_for_keyword(attr)  # type: ignore
+            for attr in (
+                self._attributes[_QueryResourceType.STUDIES] +
+                self._attributes[_QueryResourceType.SERIES] +
+                self._attributes[_QueryResourceType.INSTANCES]
+            )
+        ]
+        return dcmread(
+            fp,
+            stop_before_pixels=True,
+            specific_tags=tags,
+            force=True
+        )
+
     @_enforce_standard_conformance
     def _update_db(self):
         """Update database."""
-        all_attributes = (
-            self._attributes[_QueryResourceType.STUDIES] +
-            self._attributes[_QueryResourceType.SERIES] +
-            self._attributes[_QueryResourceType.INSTANCES]
-        )
-        tags = [
-            tag_for_keyword(attr)
-            for attr in all_attributes
-        ]
-
-        def is_stop_tag(tag: BaseTag, VR: Optional[str], length: int) -> bool:
-            return tag > max(tags)
-
         indexed_file_paths = set(self._get_indexed_file_paths())
         found_file_paths = set()
 
@@ -1025,45 +808,77 @@ class DICOMfileClient:
                 continue
 
             rel_file_path = file_path.relative_to(self.base_dir)
-            found_file_paths.add(rel_file_path)
-            if file_path in indexed_file_paths:
+            found_file_paths.add(file_path)
+            if rel_file_path in indexed_file_paths:
                 logger.debug(f'skip indexed file {file_path}')
                 continue
 
             logger.debug(f'index file {file_path}')
-            with open(file_path, 'rb') as fp:
+            # TODO: considering changing default "buffering" for improved
+            # performance with network-attached storage systems.
+            with open(file_path, 'rb') as f:
                 try:
-                    ds = read_partial(
-                        fp,
-                        stop_when=is_stop_tag,
-                        specific_tags=tags
-                    )
-                except (InvalidDicomError, AttributeError, ValueError):
-                    logger.debug(f'failed to read file "{file_path}"')
+                    ds = self._read_selected_metadata(f)
+                except (
+                    InvalidDicomError,
+                    AttributeError,
+                    ValueError,
+                    LookupError,
+                ):
+                    logger.warning(f'failed to read file "{file_path}"')
                     continue
 
-            if not hasattr(ds, 'SOPClassUID'):
-                # This is probably a DICOMDIR file or some other weird thing
-                continue
+                if not hasattr(ds, 'SOPClassUID'):
+                    # This is probably a DICOMDIR file or some other weird thing
+                    continue
 
-            try:
-                study_metadata = self._extract_study_metadata(ds)
-                study_instance_uid = ds.StudyInstanceUID
-                studies[study_instance_uid] = tuple(study_metadata)
+                try:
+                    study_instance_uid = ds.StudyInstanceUID
+                    series_instance_uid = ds.SeriesInstanceUID
+                    sop_instance_uid = ds.SOPInstanceUID
 
-                series_metadata = self._extract_series_metadata(ds)
-                series_instance_uid = ds.SeriesInstanceUID
-                series[series_instance_uid] = tuple(series_metadata)
+                    study_metadata = self._extract_study_metadata(ds)
+                    studies[study_instance_uid] = study_metadata
 
-                instance_metadata = self._extract_instance_metadata(
-                    ds,
-                    rel_file_path
-                )
-                sop_instance_uid = ds.SOPInstanceUID
-                instances[sop_instance_uid] = tuple(instance_metadata)
-            except (AttributeError, ValueError) as error:
-                logger.warning(f'failed to parse file "{file_path}": {error}')
-                continue
+                    series_metadata = self._extract_series_metadata(ds)
+                    series[series_instance_uid] = series_metadata
+
+                    instance_metadata = self._extract_instance_metadata(ds)
+                    if hasattr(ds, 'Rows') and hasattr(ds, 'Columns'):
+                        transfer_syntax_uid = ds.file_meta.TransferSyntaxUID
+                        first_frame_offset, bot = _get_frame_offsets(
+                            fp=self._get_file_pointer(
+                                f,
+                                transfer_syntax_uid=transfer_syntax_uid
+                            ),
+                            number_of_frames=int(
+                                getattr(ds, 'NumberOfFrames', '1')
+                            ),
+                            number_of_pixels_per_frame=int(
+                                np.product([
+                                    ds.Rows,
+                                    ds.Columns,
+                                    ds.SamplesPerPixel,
+                                ])
+                            ),
+                            transfer_syntax_uid=transfer_syntax_uid,
+                            bits_allocated=ds.BitsAllocated
+                        )
+                    else:
+                        first_frame_offset = -1
+                        bot = np.zeros((0, ), dtype=np.uint32)
+                    instances[sop_instance_uid] = (
+                        *instance_metadata,
+                        str(ds.file_meta.TransferSyntaxUID),
+                        str(rel_file_path),
+                        first_frame_offset,
+                        bot,
+                    )
+                except (AttributeError, ValueError) as error:
+                    logger.warning(
+                        f'failed to parse file "{file_path}": {error}'
+                    )
+                    continue
 
             if not i % n:
                 # Insert every nth iteration to avoid having to read all
@@ -1073,6 +888,9 @@ class DICOMfileClient:
                     series.values(),
                     instances.values()
                 )
+                studies = {}
+                series = {}
+                instances = {}
 
         self._insert_into_db(
             studies.values(),
@@ -1092,12 +910,21 @@ class DICOMfileClient:
         dataset: Dataset,
         keyword: str
     ) -> Union[str, int, None]:
-        # TODO: consider converting date and time to ISO format
-        value = getattr(dataset, keyword, None)
+        try:
+            value = getattr(dataset, keyword)
+        except (AttributeError, KeyError):
+            if keyword == 'NumberOfFrames':
+                value = '1'
+            else:
+                logger.debug(
+                    f'could not extract value of element "{keyword}" '
+                    'from dataset'
+                )
+                value = None
         if value is None or isinstance(value, int):
             return value
-        else:
-            return str(value)
+        # TODO: consider converting date and time to ISO format
+        return str(value)
 
     def _extract_study_metadata(
         self,
@@ -1138,26 +965,26 @@ class DICOMfileClient:
     def _extract_instance_metadata(
         self,
         dataset: Dataset,
-        file_path: Union[Path, str]
     ) -> Tuple[
-        str,
-        str,
-        str,
-        str,
-        Optional[int],
-        Optional[int],
-        Optional[int],
-        Optional[int],
-        Optional[int],
-        str,
-        str,
+            str,
+            str,
+            str,
+            str,
+            Optional[int],
+            Optional[int],
+            Optional[int],
+            Optional[int],
+            Optional[int],
+            Optional[int],
+            Optional[int],
+            Optional[str],
+            Optional[int],
+            Optional[int],
     ]:
         metadata = [
             self._get_data_element_value(dataset, attr)
             for attr in self._attributes[_QueryResourceType.INSTANCES]
         ]
-        metadata.append(str(dataset.file_meta.TransferSyntaxUID))
-        metadata.append(str(file_path))
         return tuple(metadata)  # type: ignore
 
     def _insert_into_db(
@@ -1195,8 +1022,15 @@ class DICOMfileClient:
                 Optional[int],
                 Optional[int],
                 Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[str],
+                Optional[int],
+                Optional[int],
                 str,
                 str,
+                int,
+                np.ndarray
             ]
         ]
     ):
@@ -1214,7 +1048,7 @@ class DICOMfileClient:
             )
             cursor.executemany(
                 'INSERT OR REPLACE INTO instances '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 instances
             )
             cursor.close()
@@ -1240,7 +1074,7 @@ class DICOMfileClient:
                 results += cursor.fetchall()
             cursor.close()
 
-        self._delete_instances_from_db(
+        self.delete_instances(
             uids=[
                 (
                     r['StudyInstanceUID'],
@@ -1251,7 +1085,7 @@ class DICOMfileClient:
             ]
         )
 
-    def _delete_instances_from_db(
+    def delete_instances(
         self,
         uids: Sequence[Tuple[str, str, str]]
     ) -> None:
@@ -1296,7 +1130,7 @@ class DICOMfileClient:
         self._cursor.execute(f'SELECT * FROM {table} LIMIT 1')
         attributes = [
             item[0] for item in self._cursor.description
-            if not item[0].startswith('_') and item[0] != 'TransferSyntaxUID'
+            if not item[0].startswith('_')
         ]
         return attributes
 
@@ -1337,7 +1171,7 @@ class DICOMfileClient:
                     continue
 
                 try:
-                    keyword = self.lookup_keyword(key)
+                    keyword = keyword_for_tag(key)
                     vr = dictionary_VR(key)
                 except Exception:
                     keyword = key
@@ -1446,12 +1280,12 @@ class DICOMfileClient:
         results = self._cursor.fetchall()
         return [r['Modality'] for r in results]
 
-    def _get_studies(self) -> List[str]:
+    def get_study_identifiers(self) -> List[str]:
         self._cursor.execute('SELECT StudyInstanceUID FROM studies')
         results = self._cursor.fetchall()
         return [r['StudyInstanceUID'] for r in results]
 
-    def _get_series(
+    def get_series_identifiers(
         self,
         study_instance_uid: Optional[str] = None
     ) -> List[Tuple[str, str]]:
@@ -1478,7 +1312,7 @@ class DICOMfileClient:
             for r in results
         ]
 
-    def _get_instances(
+    def get_instance_identifiers(
         self,
         study_instance_uid: Optional[str] = None,
         series_instance_uid: Optional[str] = None
@@ -1518,40 +1352,7 @@ class DICOMfileClient:
             for r in results
         ]
 
-    def _get_image_file_reader(self, file_path: Path) -> _ImageFileReader:
-        """Get the reader for a given image file.
-
-        Parameters
-        ----------
-        file_path: pathlib.Path
-            Path to the DICOM file containing a data set of an image
-
-        Returns
-        -------
-        dicomweb_client.file._ImageFileReader
-            Reader object
-
-        Note
-        ----
-        The instance of the class caches reader object to improve performance
-        for repeated frame-level file access.
-
-        """
-        try:
-            image_file_reader = self._reader_cache[file_path]
-            # Move the most recently retrieved entry to the beginning.
-            self._reader_cache.move_to_end(file_path, last=False)
-        except KeyError:
-            image_file_reader = _ImageFileReader(file_path)
-            image_file_reader.open()
-            self._reader_cache[file_path] = image_file_reader
-            if len(self._reader_cache) > self._max_reader_cache_size:
-                # Remove the last entry.
-                tmp_path, tmp_reader = self._reader_cache.popitem(last=False)
-                tmp_reader.close()
-        return image_file_reader
-
-    def _get_instance_file_path(
+    def get_instance_file_path(
         self,
         study_instance_uid: str,
         series_instance_uid: str,
@@ -1606,7 +1407,7 @@ class DICOMfileClient:
         result = self._cursor.fetchone()
         return int(result['count'])
 
-    def search_for_studies(
+    def query_studies(
         self,
         fuzzymatching: Optional[bool] = None,
         limit: Optional[int] = None,
@@ -1639,10 +1440,6 @@ class DICOMfileClient:
         List[Dict[str, dict]]
             Studies
             (see `Study Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
-
-        Note
-        ----
-        No additional `fields` are currently supported.
 
         """  # noqa: E501
         logger.info('search for studies')
@@ -1688,7 +1485,7 @@ class DICOMfileClient:
 
         return collection
 
-    def search_for_series(
+    def query_series(
         self,
         study_instance_uid: Optional[str] = None,
         fuzzymatching: Optional[bool] = None,
@@ -1835,7 +1632,44 @@ class DICOMfileClient:
 
         return collection
 
-    def search_for_instances(
+    def get_instance_info(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str
+    ) -> Tuple[Dataset, UID, int, np.ndarray]:
+        self._cursor.execute(
+            '''
+            SELECT * FROM instances
+            WHERE StudyInstanceUID = ?
+            AND SeriesInstanceUID = ?
+            AND SOPInstanceUID = ?
+            ''',
+            (
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
+            )
+        )
+        row = self._cursor.fetchone()
+
+        dataset = Dataset()
+        for key in row.keys():
+            if not key.startswith('_'):
+                value = row[key]
+                setattr(dataset, key, value)
+        transfer_syntax_uid = UID(row['_transfer_syntax_uid'])
+        first_frame_offset = row['_first_frame_offset']
+        basic_offset_table = row['_basic_offset_table']
+
+        return (
+            dataset,
+            transfer_syntax_uid,
+            first_frame_offset,
+            basic_offset_table
+        )
+
+    def query_instances(
         self,
         study_instance_uid: Optional[str] = None,
         series_instance_uid: Optional[str] = None,
@@ -1875,10 +1709,6 @@ class DICOMfileClient:
             Instances
             (see `Instance Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
 
-        Note
-        ----
-        No additional `fields` are currently supported.
-
         """  # noqa: E501
         if search_filters is None:
             search_params = {}
@@ -1915,9 +1745,16 @@ class DICOMfileClient:
         searchable_keywords.extend(
             self._attributes[_QueryResourceType.SERIES]
         )
-        searchable_keywords.extend(
-            self._attributes[_QueryResourceType.INSTANCES]
-        )
+        # Not all attributes that get stored in the database are searchable
+        searchable_keywords.extend([
+            'SOPInstanceUID',
+            'SOPClassUID',
+            'InstanceNumber',
+            'Rows',
+            'Columns',
+            'BitsAllocated',
+            'NumberOfFrames',
+        ])
         query_filter_string, query_params = self._build_query(
             searchable_keywords=searchable_keywords,
             fuzzymatching=fuzzymatching,
@@ -1956,7 +1793,6 @@ class DICOMfileClient:
                 'Columns',
                 'BitsAllocated',
                 'NumberOfFrames',
-                'TransferSyntaxUID',
             ]
             if study_instances:
                 includefields += [
@@ -2052,6 +1888,458 @@ class DICOMfileClient:
             collection.append(dataset.to_json_dict())
 
         return collection
+
+    def insert_instances(
+        self,
+        datasets: Sequence[Dataset]
+    ) -> Tuple[List[Tuple[Dataset, Path, bytes]], List[Dataset]]:
+        """Insert metadata of one or more DICOM instances.
+
+        Parameters
+        ----------
+        datasets: Sequence[pydicom.dataset.Dataset]
+            Datasets that should be stored
+
+        Returns
+        -------
+        successes: List[Tuple[pydicom.dataset.Dataset, pathlib.Path, bytes]
+            Datasets that can be stored successfully, as well as the path to
+            the file where it should be stored and the file's content
+        failures: List[pydicom.dataset.Dataset]
+            Datasets that cannot be stored
+
+        """
+        # We first encode all data sets and temporarily store them in memory
+        # before inserting the metadata into the database and writing the data
+        # sets to files on disk. This will allow us to "roll back" in case of
+        # an error. We may want to consider implementing this in a more
+        # sophisticated way in case it becomes a performance bottleneck.
+        studies: Dict[
+            str,
+            Tuple[
+                str,
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+                Optional[str],
+            ]
+        ] = {}
+        series: Dict[
+            str,
+            Tuple[
+                str,
+                str,
+                str,
+                Optional[str],
+                Optional[int],
+            ]
+        ] = {}
+        instances: Dict[
+            str,
+            Tuple[
+                str,
+                str,
+                str,
+                str,
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[int],
+                Optional[str],
+                Optional[int],
+                Optional[int],
+                str,
+                str,
+                int,
+                np.ndarray
+            ]
+        ] = {}
+        successes: List[Tuple[Dataset, Path, bytes]] = []
+        failures: List[Dataset] = []
+        for ds in datasets:
+            logger.info(
+                f'store instance "{ds.SOPInstanceUID}" '
+                f'of series "{ds.SeriesInstanceUID}" '
+                f'of study "{ds.StudyInstanceUID}" '
+            )
+
+            try:
+                study_instance_uid = ds.StudyInstanceUID
+                series_instance_uid = ds.SeriesInstanceUID
+                sop_instance_uid = ds.SOPInstanceUID
+                rel_file_path = '/'.join([
+                    'studies',
+                    study_instance_uid,
+                    'series',
+                    series_instance_uid,
+                    'instances',
+                    sop_instance_uid
+                ])
+
+                study_metadata = self._extract_study_metadata(ds)
+                studies[study_instance_uid] = study_metadata
+
+                series_metadata = self._extract_series_metadata(ds)
+                series[series_instance_uid] = series_metadata
+
+                instance_metadata = self._extract_instance_metadata(ds)
+                with io.BytesIO() as b:
+                    transfer_syntax_uid = ds.file_meta.TransferSyntaxUID
+                    fp = self._get_file_pointer(
+                        b,
+                        transfer_syntax_uid=transfer_syntax_uid
+                    )
+                    dcmwrite(b, ds, write_like_original=False)
+                    pixel_data_element: Union[DataElement, None] = None
+                    for pixel_data_tag in _PIXEL_DATA_TAGS:
+                        try:
+                            pixel_data_element = ds[pixel_data_tag]
+                        except KeyError:
+                            continue
+                    if pixel_data_element is not None:
+                        pixel_data_offset = pixel_data_element.file_tell
+                        if pixel_data_offset is None:
+                            continue
+                        fp.seek(pixel_data_offset, 0)
+                        first_frame_offset, bot = _get_frame_offsets(
+                            fp,
+                            number_of_frames=int(
+                                getattr(ds, 'NumberOfFrames', '1')
+                            ),
+                            number_of_pixels_per_frame=int(
+                                np.product([
+                                    ds.Rows,
+                                    ds.Columns,
+                                    ds.SamplesPerPixel])
+                            ),
+                            transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
+                            bits_allocated=ds.BitsAllocated
+                        )
+                    else:
+                        first_frame_offset = -1
+                        bot = np.zeros((0, ), dtype=np.uint32)
+
+                    fp.seek(0)
+                    file_content = fp.read()
+                instances[sop_instance_uid] = (
+                    *instance_metadata,
+                    str(ds.file_meta.TransferSyntaxUID),
+                    str(rel_file_path),
+                    first_frame_offset,
+                    bot,
+                )
+
+                file_path = self.base_dir.joinpath(rel_file_path)
+                successes.append((ds, file_path, file_content))
+            except Exception as error:
+                logger.error(
+                    f'failed to store instance "{ds.SOPInstanceUID}" '
+                    f'of series "{ds.SeriesInstanceUID}" '
+                    f'of study "{ds.StudyInstanceUID}": {error}'
+                )
+                failures.append(ds)
+
+        self._insert_into_db(
+            studies.values(),
+            series.values(),
+            instances.values()
+        )
+
+        return (successes, failures)
+
+
+def _raise_client_error(url: str, error_message: str) -> None:
+    http_error_message = f'400 Client Error: {error_message} for url: {url}'
+    raise requests.HTTPError(http_error_message)
+
+
+def _raise_server_error(url: str, error_message: str) -> None:
+    http_error_message = f'500 Server Error: {error_message} for url: {url}'
+    raise requests.HTTPError(http_error_message)
+
+
+class DICOMfileClient:
+
+    """Client for managing DICOM Part10 files in a DICOMweb-like manner.
+
+    Facilitates serverless access to data stored locally on a file system as
+    DICOM Part10 files.
+
+    Note
+    ----
+    The class internally uses an in-memory database, which is persisted on disk
+    to facilitate faster subsequent data access. However, the implementation
+    details of the database and the structure of any database files stored on
+    the file system may change at any time and should not be relied on.
+
+    Note
+    ----
+    This is **not** an implementation of the DICOM File Service and does not
+    depend on the presence of ``DICOMDIR`` files.
+
+    Attributes
+    ----------
+    base_url: str
+        Unique resource locator of the DICOMweb service
+    scheme: str
+        Name of the scheme (``file``)
+    protocol: str
+        Name of the protocol (``None``)
+    url_prefix: str
+        URL path prefix for DICOMweb services (part of `base_url`)
+    qido_url_prefix: Union[str, None]
+        URL path prefix for QIDO-RS (not part of `base_url`)
+    wado_url_prefix: Union[str, None]
+        URL path prefix for WADO-RS (not part of `base_url`)
+    stow_url_prefix: Union[str, None]
+        URL path prefix for STOW-RS (not part of `base_url`)
+    delete_url_prefix: Union[str, None]
+        URL path prefix for DELETE (not part of `base_url`)
+
+    """
+
+    def __init__(
+        self,
+        url: str,
+        update_db: bool = False,
+        recreate_db: bool = False,
+        in_memory: bool = False,
+        db_dir: Optional[Union[Path, str]] = None
+    ):
+        """Instantiate client.
+
+        Parameters
+        ----------
+        url: str
+            Unique resource locator of directory where data is stored
+            (must have ``file`` scheme)
+        update_db: bool, optional
+            Whether the database should be updated (default: ``False``). If
+            ``True``, the client will search `base_dir` recursively for new
+            DICOM Part10 files and create database entries for each file.
+            The client will further delete any database entries for files that
+            no longer exist on the file system.
+        recreate_db: bool, optional
+            Whether the database should be recreated (default: ``False``). If
+            ``True``, the client will search `base_dir` recursively for DICOM
+            Part10 files and create database entries for each file.
+        in_memory: bool, optional
+            Whether the database should only be stored in memory (default:
+            ``False``).
+        db_dir: Union[pathlib.Path, str, None], optional
+            Path to directory where database files should be stored (defaults
+            to `base_dir`)
+
+        """
+        self.base_url = url
+        components = urlparse(url)
+        self.scheme = components.scheme
+        if self.scheme != 'file':
+            raise ValueError(f'URL scheme "{self.scheme}" is not supported.')
+        self.protocol = None
+        self.url_prefix = components.path
+        self.qido_url_prefix = None
+        self.wado_url_prefix = None
+        self.stow_url_prefix = None
+        self.delete_url_prefix = None
+        if db_dir is None:
+            base_dir = Path(components.path)
+            db_dir = base_dir
+        else:
+            db_dir = Path(db_dir).resolve()
+        self._db_manager = _DatabaseManager(
+            url=url,
+            db_dir=db_dir,
+            update_db=update_db,
+            recreate_db=recreate_db,
+            in_memory=in_memory
+        )
+
+    def _get_image_file_pointer(
+        self,
+        file_path: Path,
+        transfer_syntax_uid: str
+    ) -> DicomFileLike:
+        """Get a pointer to a given image file.
+
+        Parameters
+        ----------
+        file_path: pathlib.Path
+            Path to a DICOM file containing a data set of an image
+        transfer_syntax_uid: str
+            Unique identifier of the transfer syntax
+
+        Returns
+        -------
+        pydicom.filebase.DicomFileLike
+            Pointer to file-like object
+
+        Note
+        ----
+        Close the file-like object when done reading from it.
+
+        """
+        uid = UID(transfer_syntax_uid)
+        fp = DicomFileLike(open(file_path, 'rb'))
+        fp.is_little_endian = uid.is_little_endian
+        fp.is_implicit_VR = uid.is_implicit_VR
+        return fp
+
+    def search_for_studies(
+        self,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
+    ) -> List[Dict[str, dict]]:
+        """Search for studies.
+
+        Parameters
+        ----------
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Sequence[str], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[dict, None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
+            or a tag of the attribute and *value* is the expected value that
+            should match
+        get_remaining: bool, optional
+            Whether remaining results should be included
+
+        Returns
+        -------
+        List[Dict[str, dict]]
+            Studies
+            (see `Study Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
+
+        Note
+        ----
+        No additional `fields` are currently supported.
+
+        """  # noqa: E501
+        return self._db_manager.query_studies(
+            fuzzymatching=fuzzymatching,
+            limit=limit,
+            offset=offset,
+            fields=fields,
+            search_filters=search_filters
+        )
+
+    def search_for_series(
+        self,
+        study_instance_uid: Optional[str] = None,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
+    ) -> List[Dict[str, dict]]:
+        """Search for series.
+
+        Parameters
+        ----------
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Sequence[str], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[dict, None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
+            or a tag of the attribute and *value* is the expected value that
+            should match
+        get_remaining: bool, optional
+            Whether remaining results should be included
+
+        Returns
+        -------
+        List[Dict[str, dict]]
+            Series
+            (see `Series Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
+
+        """  # noqa: E501
+        return self._db_manager.query_series(
+            study_instance_uid=study_instance_uid,
+            fuzzymatching=fuzzymatching,
+            limit=limit,
+            offset=offset,
+            fields=fields,
+            search_filters=search_filters
+        )
+
+    def search_for_instances(
+        self,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None,
+        fuzzymatching: Optional[bool] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+        fields: Optional[Sequence[str]] = None,
+        search_filters: Optional[Dict[str, Any]] = None,
+        get_remaining: bool = False
+    ) -> List[Dict[str, dict]]:
+        """Search for instances.
+
+        Parameters
+        ----------
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        series_instance_uid: Union[str, None], optional
+            Series Instance UID
+        fuzzymatching: Union[bool, None], optional
+            Whether fuzzy semantic matching should be performed
+        limit: Union[int, None], optional
+            Maximum number of results that should be returned
+        offset: Union[int, None], optional
+            Number of results that should be skipped
+        fields: Union[Sequence[str], None], optional
+            Names of fields (attributes) that should be included in results
+        search_filters: Union[dict, None], optional
+            Search filter criteria as key-value pairs, where *key* is a keyword
+            or a tag of the attribute and *value* is the expected value that
+            should match
+        get_remaining: bool, optional
+            Whether remaining results should be included
+
+        Returns
+        -------
+        List[Dict[str, dict]]
+            Instances
+            (see `Instance Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b>`_)
+
+        Note
+        ----
+        No additional `fields` are currently supported.
+
+        """  # noqa: E501
+        return self._db_manager.query_instances(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            fuzzymatching=fuzzymatching,
+            limit=limit,
+            offset=offset,
+            fields=fields,
+            search_filters=search_filters
+        )
 
     def retrieve_bulkdata(
         self,
@@ -2149,9 +2437,11 @@ class DICOMfileClient:
             'retrieve metadata of all instances '
             f'of study "{study_instance_uid}"'
         )
-        series_index = self._get_series(study_instance_uid)
+        series_identifiers = self._db_manager.get_series_identifiers(
+            study_instance_uid=study_instance_uid
+        )
         collection = []
-        for series_instance_uid, study_instance_uid in series_index:
+        for series_instance_uid, study_instance_uid in series_identifiers:
             collection.extend(
                 self.retrieve_series_metadata(
                     study_instance_uid=study_instance_uid,
@@ -2184,13 +2474,19 @@ class DICOMfileClient:
         logger.info(
             f'iterate over all instances of study "{study_instance_uid}"'
         )
-        series_index = self._get_series(study_instance_uid)
-        for study_instance_uid, series_instance_uid in series_index:
-            uids = self._get_instances(
+        series_identifiers = self._db_manager.get_series_identifiers(
+            study_instance_uid=study_instance_uid
+        )
+        for study_instance_uid, series_instance_uid in series_identifiers:
+            instance_identifiers = self._db_manager.get_instance_identifiers(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
             )
-            for study_instance_uid, series_instance_uid, sop_instance_uid in uids:  # noqa
+            for (
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
+            ) in instance_identifiers:
                 yield self.retrieve_instance(
                     study_instance_uid=study_instance_uid,
                     series_instance_uid=series_instance_uid,
@@ -2254,12 +2550,15 @@ class DICOMfileClient:
             f'iterate over all instances of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        instance_index = self._get_instances(
+        instance_identifiers = self._db_manager.get_instance_identifiers(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
         )
-        for i in instance_index:
-            study_instance_uid, series_instance_uid, sop_instance_uid = i
+        for (
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid,
+        ) in instance_identifiers:
             yield self.retrieve_instance(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
@@ -2358,20 +2657,22 @@ class DICOMfileClient:
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
 
-        collection = []
-        instance_index = self._get_instances(
+        instance_identifiers = self._db_manager.get_instance_identifiers(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
         )
-        for i in instance_index:
-            study_instance_uid, series_instance_uid, sop_instance_uid = i
-            metadata = self.retrieve_instance_metadata(
+        return [
+            self.retrieve_instance_metadata(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
                 sop_instance_uid=sop_instance_uid,
             )
-            collection.append(metadata)
-        return collection
+            for (
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
+            ) in instance_identifiers
+        ]
 
     def retrieve_instance_metadata(
         self,
@@ -2400,7 +2701,7 @@ class DICOMfileClient:
             f'retrieve metadata of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
@@ -2491,7 +2792,7 @@ class DICOMfileClient:
             supported_media_type_lut
         )
 
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
@@ -2571,39 +2872,63 @@ class DICOMfileClient:
         Only rendering of single-frame image instances is currently supported.
 
         """  # noqa: E501
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
         )
-        image_file_reader = self._get_image_file_reader(file_path)
-        metadata = image_file_reader.metadata
+        metadata, transfer_syntax_uid, \
+            first_frame_offset, bot = self._db_manager.get_instance_info(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid
+            )
+        image_file_pointer = self._get_image_file_pointer(
+            file_path,
+            transfer_syntax_uid=transfer_syntax_uid
+        )
         if int(getattr(metadata, 'NumberOfFrames', '1')) > 1:
             raise ValueError(
                 'Rendering of multi-frame image instance is not supported.'
             )
         frame_index = 0
-        frame = image_file_reader.read_frame(frame_index)
-        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
+        frame = _read_frame(
+            image_file_pointer,
+            first_frame_offset=first_frame_offset,
+            basic_offset_table=bot,
+            frame_index=frame_index,
+            transfer_syntax_uid=transfer_syntax_uid
+        )
 
+        # TODO: ICC Profile
         codec_name, codec_kwargs = self._get_image_codec_parameters(
-            metadata=metadata,
             transfer_syntax_uid=transfer_syntax_uid,
             media_types=media_types,
             params=params
         )
 
         if codec_name is None:
-            pixels = frame
-        else:
-            array = image_file_reader.decode_frame(frame_index, frame)
-            image = Image.fromarray(array)
-            with io.BytesIO() as fp:
-                image.save(fp, codec_name, **codec_kwargs)  # type: ignore
-                fp.seek(0)
-                pixels = fp.read()
+            return frame
 
-        return pixels
+        array = _decode_frame(
+            frame=frame,
+            frame_index=frame_index,
+            transfer_syntax_uid=transfer_syntax_uid,
+            rows=metadata.Rows,
+            columns=metadata.Columns,
+            samples_per_pixel=metadata.SamplesPerPixel,
+            bits_allocated=metadata.BitsAllocated,
+            bits_stored=metadata.BitsStored,
+            photometric_interpretation=metadata.PhotometricInterpretation,
+            pixel_representation=metadata.PixelRepresentation,
+            planar_configuration=getattr(metadata, 'PlanarConfiguration', None)
+        )
+        image = Image.fromarray(array)
+        with io.BytesIO() as fp:
+            image.save(fp, codec_name, **codec_kwargs)  # type: ignore
+            fp.seek(0)
+            reencoded_frame = fp.read()
+        return reencoded_frame
 
     def _check_media_types_for_instance_frames(
         self,
@@ -2691,7 +3016,7 @@ class DICOMfileClient:
         # acceptable media types.
         expected_media_type = transfer_syntax_uid_lut[transfer_syntax_uid]
         found_matching_media_type = False
-        if transfer_syntax_uid.is_encapsulated:
+        if _are_frames_encapsulated(transfer_syntax_uid):
             wildcards = {'*/*', '*/', 'image/*', 'image/'}
             if any([w in acceptable_media_type_lut for w in wildcards]):
                 found_matching_media_type = True
@@ -2776,7 +3101,7 @@ class DICOMfileClient:
             f'iterate over frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
@@ -2785,34 +3110,66 @@ class DICOMfileClient:
         if len(frame_numbers) == 0:
             raise ValueError('At least one frame number must be provided.')
 
-        image_file_reader = self._get_image_file_reader(file_path)
-        metadata = image_file_reader.metadata
-        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
-
+        metadata, transfer_syntax_uid, \
+            first_frame_offset, bot = self._db_manager.get_instance_info(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid
+            )
         reencoding_media_type = self._check_media_types_for_instance_frames(
             transfer_syntax_uid,
             media_types
         )
+        requires_reencoding = False
+        if (
+            reencoding_media_type is not None and
+            reencoding_media_type != 'application/octet-stream'
+           ):
+            requires_reencoding = True
+
+        image_file_pointer = self._get_image_file_pointer(
+            file_path,
+            transfer_syntax_uid=transfer_syntax_uid
+        )
 
         for frame_number in frame_numbers:
-            frame_index = frame_number - 1
-            frame = image_file_reader.read_frame(frame_index)
-
             if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
                 raise ValueError(
                     f'Provided frame number {frame_number} exceeds number '
                     'of available frames.'
                 )
-
-            if not transfer_syntax_uid.is_encapsulated:
-                pixels = frame
-            else:
-                if reencoding_media_type is None:
-                    pixels = frame
-                elif reencoding_media_type == 'image/jp2':
+            frame_index = frame_number - 1
+            frame = _read_frame(
+                image_file_pointer,
+                first_frame_offset=first_frame_offset,
+                basic_offset_table=bot,
+                frame_index=frame_index,
+                transfer_syntax_uid=transfer_syntax_uid
+            )
+            if requires_reencoding:
+                array = _decode_frame(
+                    frame=frame,
+                    frame_index=frame_index,
+                    transfer_syntax_uid=transfer_syntax_uid,
+                    rows=metadata.Rows,
+                    columns=metadata.Columns,
+                    samples_per_pixel=metadata.SamplesPerPixel,
+                    bits_allocated=metadata.BitsAllocated,
+                    bits_stored=metadata.BitsStored,
+                    photometric_interpretation=getattr(
+                        metadata,
+                        'PhotometricInterpretation'
+                    ),
+                    pixel_representation=metadata.PixelRepresentation,
+                    planar_configuration=getattr(
+                        metadata,
+                        'PlanarConfiguration',
+                        None
+                    )
+                )
+                if reencoding_media_type == 'image/jp2':
                     image_type = 'jpeg2000'
                     image_kwargs = {'irreversible': False}
-                    array = image_file_reader.decode_frame(frame_index, frame)
                     image = Image.fromarray(array)
                     with io.BytesIO() as fp:
                         image.save(
@@ -2820,14 +3177,15 @@ class DICOMfileClient:
                             image_type,
                             **image_kwargs   # type: ignore
                         )
-                        pixels = fp.getvalue()
+                        reencoded_frame = fp.getvalue()
+                    yield reencoded_frame
                 else:
                     raise ValueError(
-                        'Cannot re-encode frames using media type '
+                        'Cannot retrieve frames using media type '
                         f'"{reencoding_media_type}".'
                     )
-
-            yield pixels
+            else:
+                yield frame
 
     def retrieve_instance_frames(
         self,
@@ -2863,7 +3221,7 @@ class DICOMfileClient:
             f'retrieve frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
@@ -2872,15 +3230,29 @@ class DICOMfileClient:
         if len(frame_numbers) == 0:
             raise ValueError('At least one frame number must be provided.')
 
-        image_file_reader = self._get_image_file_reader(file_path)
-        metadata = image_file_reader.metadata
-        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
-
+        metadata, transfer_syntax_uid, \
+            first_frame_offset, bot = self._db_manager.get_instance_info(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid
+            )
         reencoding_media_type = self._check_media_types_for_instance_frames(
             transfer_syntax_uid,
             media_types
         )
+        requires_reencoding = False
+        if (
+            reencoding_media_type is not None and
+            reencoding_media_type != 'application/octet-stream'
+           ):
+            requires_reencoding = True
 
+        image_file_pointer = self._get_image_file_pointer(
+            file_path,
+            transfer_syntax_uid=transfer_syntax_uid
+        )
+
+        # Check all indices first before attempting to read the first frame.
         frame_indices = []
         for frame_number in frame_numbers:
             if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
@@ -2891,18 +3263,39 @@ class DICOMfileClient:
             frame_index = frame_number - 1
             frame_indices.append(frame_index)
 
-        reencoded_frames = []
+        retrieved_frames = []
         for frame_index in frame_indices:
-            frame = image_file_reader.read_frame(frame_index)
-            if not transfer_syntax_uid.is_encapsulated:
-                reencoded_frame = frame
-            else:
-                if reencoding_media_type is None:
-                    reencoded_frame = frame
-                elif reencoding_media_type == 'image/jp2':
+            frame = _read_frame(
+                image_file_pointer,
+                first_frame_offset=first_frame_offset,
+                basic_offset_table=bot,
+                frame_index=frame_index,
+                transfer_syntax_uid=transfer_syntax_uid
+            )
+            if requires_reencoding:
+                array = _decode_frame(
+                    frame=frame,
+                    frame_index=frame_index,
+                    transfer_syntax_uid=transfer_syntax_uid,
+                    rows=metadata.Rows,
+                    columns=metadata.Columns,
+                    samples_per_pixel=metadata.SamplesPerPixel,
+                    bits_allocated=metadata.BitsAllocated,
+                    bits_stored=metadata.BitsStored,
+                    photometric_interpretation=getattr(
+                        metadata,
+                        'PhotometricInterpretation'
+                    ),
+                    pixel_representation=metadata.PixelRepresentation,
+                    planar_configuration=getattr(
+                        metadata,
+                        'PlanarConfiguration',
+                        None
+                    )
+                )
+                if reencoding_media_type == 'image/jp2':
                     image_type = 'jpeg2000'
                     image_kwargs = {'irreversible': False}
-                    array = image_file_reader.decode_frame(frame_index, frame)
                     image = Image.fromarray(array)
                     with io.BytesIO() as fp:
                         image.save(
@@ -2913,13 +3306,14 @@ class DICOMfileClient:
                         reencoded_frame = fp.getvalue()
                 else:
                     raise ValueError(
-                        'Cannot re-encode frames using media type '
+                        'Cannot retrieve frames using media type '
                         f'"{reencoding_media_type}".'
                     )
+                retrieved_frames.append(reencoded_frame)
+            else:
+                retrieved_frames.append(frame)
 
-            reencoded_frames.append(reencoded_frame)
-
-        return reencoded_frames
+        return retrieved_frames
 
     def retrieve_instance_frames_rendered(
         self,
@@ -2965,48 +3359,67 @@ class DICOMfileClient:
                 'Only rendering of a single frame is supported for now.'
             )
         frame_number = frame_numbers[0]
+        frame_index = frame_number - 1
 
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid,
             series_instance_uid,
             sop_instance_uid,
         )
-        image_file_reader = self._get_image_file_reader(file_path)
-        frame_index = frame_number - 1
-        frame = image_file_reader.read_frame(frame_index)
-        metadata = image_file_reader.metadata
-        transfer_syntax_uid = image_file_reader.transfer_syntax_uid
-
-        if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
-            raise ValueError(
-                'Provided frame number exceeds number of frames.'
+        metadata, transfer_syntax_uid, \
+            first_frame_offset, bot = self._db_manager.get_instance_info(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid
             )
+        image_file_pointer = self._get_image_file_pointer(
+            file_path,
+            transfer_syntax_uid=transfer_syntax_uid
+        )
+        frame = _read_frame(
+            image_file_pointer,
+            first_frame_offset=first_frame_offset,
+            basic_offset_table=bot,
+            frame_index=frame_index,
+            transfer_syntax_uid=transfer_syntax_uid
+        )
 
+        # TODO: ICC Profile
         codec_name, codec_kwargs = self._get_image_codec_parameters(
-            metadata=metadata,
             transfer_syntax_uid=transfer_syntax_uid,
             media_types=media_types,
             params=params
         )
 
         if codec_name is None:
-            pixels = frame
-        else:
-            array = image_file_reader.decode_frame(frame_index, frame)
-            image = Image.fromarray(array)
-            with io.BytesIO() as fp:
-                image.save(fp, codec_name, **codec_kwargs)
-                fp.seek(0)
-                pixels = fp.read()
+            return frame
 
-        return pixels
+        array = _decode_frame(
+            frame=frame,
+            frame_index=frame_index,
+            transfer_syntax_uid=transfer_syntax_uid,
+            rows=metadata.Rows,
+            columns=metadata.Columns,
+            samples_per_pixel=metadata.SamplesPerPixel,
+            bits_allocated=metadata.BitsAllocated,
+            bits_stored=metadata.BitsStored,
+            photometric_interpretation=metadata.PhotometricInterpretation,
+            pixel_representation=metadata.PixelRepresentation,
+            planar_configuration=getattr(metadata, 'PlanarConfiguration', None)
+        )
+        image = Image.fromarray(array)
+        with io.BytesIO() as fp:
+            image.save(fp, codec_name, **codec_kwargs)  # type: ignore
+            fp.seek(0)
+            reencoded_frame = fp.read()
+        return reencoded_frame
 
     def _get_image_codec_parameters(
         self,
-        metadata: Dataset,
         transfer_syntax_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         params: Optional[Dict[str, str]] = None,
+        icc_profile: Optional[bytes] = None
     ) -> Tuple[Optional[str], Dict[str, Any]]:
         if media_types is not None:
             acceptable_media_types = list(set([
@@ -3065,7 +3478,8 @@ class DICOMfileClient:
         if params is not None and image_type is not None:
             include_icc_profile = params.get('icc_profile', 'no')
             if include_icc_profile == 'yes':
-                icc_profile = metadata.OpticalPathSequence[0].ICCProfile
+                if icc_profile is None:
+                    icc_profile = createProfile('sRGB')
                 image_kwargs[image_type]['icc_profile'] = ImageCmsProfile(
                     icc_profile
                 )
@@ -3154,107 +3568,7 @@ class DICOMfileClient:
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
 
-        # We first encode all data sets and temporarily store them in memory
-        # before inserting the metadata into the database and writing the data
-        # sets to files on disk. This will allow us to "roll back" in case of
-        # an error. We may want to consider implementing this in a more
-        # sophisticated way in case it becomes a performance bottleneck.
-        studies: Dict[
-            str,
-            Tuple[
-                str,
-                Optional[str],
-                Optional[str],
-                Optional[str],
-                Optional[str],
-                Optional[str],
-                Optional[str],
-                Optional[str],
-                Optional[str],
-            ]
-        ] = {}
-        series: Dict[
-            str,
-            Tuple[
-                str,
-                str,
-                str,
-                Optional[str],
-                Optional[int],
-            ]
-        ] = {}
-        instances: Dict[
-            str,
-            Tuple[
-                str,
-                str,
-                str,
-                str,
-                Optional[int],
-                Optional[int],
-                Optional[int],
-                Optional[int],
-                Optional[int],
-                str,
-                str,
-            ]
-        ] = {}
-        successes = []
-        failures = []
-        for ds in datasets:
-            logger.info(
-                f'store instance "{ds.SOPInstanceUID}" '
-                f'of series "{ds.SeriesInstanceUID}" '
-                f'of study "{ds.StudyInstanceUID}" '
-            )
-
-            try:
-                if study_instance_uid is not None:
-                    if ds.StudyInstanceUID != study_instance_uid:
-                        continue
-                else:
-                    study_instance_uid = ds.StudyInstanceUID
-                study_metadata = self._extract_study_metadata(ds)
-                studies[study_instance_uid] = study_metadata
-
-                series_metadata = self._extract_series_metadata(ds)
-                series_instance_uid = ds.SeriesInstanceUID
-                series[series_instance_uid] = series_metadata
-
-                sop_instance_uid = ds.SOPInstanceUID
-                rel_file_path = '/'.join([
-                    'studies',
-                    study_instance_uid,
-                    'series',
-                    series_instance_uid,
-                    'instances',
-                    sop_instance_uid
-                ])
-                instance_metadata = self._extract_instance_metadata(
-                    ds,
-                    rel_file_path
-                )
-                instances[sop_instance_uid] = instance_metadata
-
-                with io.BytesIO() as b:
-                    dcmwrite(b, ds, write_like_original=False)
-                    file_content = b.getvalue()
-
-                file_path = self.base_dir.joinpath(rel_file_path)
-                successes.append((ds, file_path, file_content))
-            except Exception as error:
-                logger.error(
-                    f'failed to store instance "{ds.SOPInstanceUID}" '
-                    f'of series "{ds.SeriesInstanceUID}" '
-                    f'of study "{ds.StudyInstanceUID}": {error}'
-                )
-                failures.append(ds)
-
-        self._insert_into_db(
-            studies.values(),
-            series.values(),
-            instances.values()
-        )
+        successes, failures = self._db_manager.insert_instances(datasets)
 
         response = Dataset()
         response.RetrieveURL = None
@@ -3297,7 +3611,7 @@ class DICOMfileClient:
             raise ValueError(
               'Study Instance UID is required for deletion of a study.'
             )
-        uids = self._get_instances(study_instance_uid)
+        uids = self._db_manager.get_instance_identifiers(study_instance_uid)
         for study_instance_uid, series_instance_uid, sop_instance_uid in uids:
             self.delete_instance(
                 study_instance_uid=study_instance_uid,
@@ -3328,11 +3642,15 @@ class DICOMfileClient:
             raise ValueError(
                 'Series Instance UID is required for deletion of a series.'
             )
-        uids = self._get_instances(
+        instance_identifiers = self._db_manager.get_instance_identifiers(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
         )
-        for study_instance_uid, series_instance_uid, sop_instance_uid in uids:
+        for (
+            study_instance_uid,
+            series_instance_uid,
+            sop_instance_uid,
+        ) in instance_identifiers:
             self.delete_instance(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
@@ -3369,12 +3687,12 @@ class DICOMfileClient:
             raise ValueError(
                 'SOP Instance UID is required for deletion of an instance.'
             )
-        file_path = self._get_instance_file_path(
+        file_path = self._db_manager.get_instance_file_path(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
             sop_instance_uid=sop_instance_uid,
         )
-        self._delete_instances_from_db(
+        self._db_manager.delete_instances(
             uids=[
                 (study_instance_uid, series_instance_uid, sop_instance_uid)
             ]
