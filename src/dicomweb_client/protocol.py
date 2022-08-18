@@ -19,8 +19,16 @@ from pydicom.dataset import Dataset
 
 @runtime_checkable
 class DICOMClient(Protocol):
-
     """Protocol for DICOM clients based on DICOMweb interface."""
+
+    base_url: str
+    scheme: str
+    protocol: Optional[str]
+    url_prefix: str
+    qido_url_prefix: Optional[str] = None
+    wado_url_prefix: Optional[str] = None
+    stow_url_prefix: Optional[str] = None
+    delete_url_prefix: Optional[str] = None
 
     def search_for_studies(
         self,
