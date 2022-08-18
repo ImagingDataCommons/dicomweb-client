@@ -888,6 +888,9 @@ class _DatabaseManager:
                     series.values(),
                     instances.values()
                 )
+                studies = {}
+                series = {}
+                instances = {}
 
         self._insert_into_db(
             studies.values(),
