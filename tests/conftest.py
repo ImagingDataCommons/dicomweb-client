@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import pytest
@@ -32,7 +33,9 @@ def client(httpserver):
 
 
 @pytest.fixture
-def file_client():
+def file_client(tmp_path):
     '''Instance of `dicomweb_client.api.DICOMwebClient`.'''
-    url = f'file://{DATA_ROOT}'
+    src_dir = Path(DATA_ROOT).resolve().joinpath('test_files')
+    shutil.copytree(src_dir, tmp_path, dirs_exist_ok=True)
+    url = f'file://{tmp_path}'
     return DICOMfileClient(url, recreate_db=True, in_memory=True)
