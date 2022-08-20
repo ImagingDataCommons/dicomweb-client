@@ -1997,6 +1997,20 @@ class _DatabaseManager:
                         transfer_syntax_uid=transfer_syntax_uid
                     )
                     dcmwrite(b, ds, write_like_original=False)
+                    # The data set needs to be read back (at least partially)
+                    # to determine the offset of the Pixel Data element. This
+                    # is required to either read or build the Basic Offset Table
+                    # for image instances to allow for fast retrieval of frames.
+                    fp.seek(0)
+                    # One needs to specify at least one tag to satisfy mypy.
+                    tag = tag_for_keyword('PatientID')
+                    dcmread(
+                        fp,
+                        specific_tags=[tag],  # type: ignore
+                        stop_before_pixels=True
+                    )
+                    pixel_data_offset = fp.tell()
+
                     pixel_data_element: Union[DataElement, None] = None
                     for pixel_data_tag in _PIXEL_DATA_TAGS:
                         try:
@@ -2004,9 +2018,6 @@ class _DatabaseManager:
                         except KeyError:
                             continue
                     if pixel_data_element is not None:
-                        pixel_data_offset = pixel_data_element.file_tell
-                        if pixel_data_offset is None:
-                            continue
                         fp.seek(pixel_data_offset, 0)
                         first_frame_offset, bot = _get_frame_offsets(
                             fp,
@@ -2017,7 +2028,8 @@ class _DatabaseManager:
                                 np.product([
                                     ds.Rows,
                                     ds.Columns,
-                                    ds.SamplesPerPixel])
+                                    ds.SamplesPerPixel
+                                ])
                             ),
                             transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
                             bits_allocated=ds.BitsAllocated
@@ -2028,6 +2040,7 @@ class _DatabaseManager:
 
                     fp.seek(0)
                     file_content = fp.read()
+
                 instances[sop_instance_uid] = (
                     *instance_metadata,
                     str(ds.file_meta.TransferSyntaxUID),
@@ -2035,7 +2048,6 @@ class _DatabaseManager:
                     first_frame_offset,
                     bot,
                 )
-
                 file_path = self.base_dir.joinpath(rel_file_path)
                 successes.append((ds, file_path, file_content))
             except Exception as error:
@@ -2899,6 +2911,7 @@ class DICOMfileClient:
             frame_index=frame_index,
             transfer_syntax_uid=transfer_syntax_uid
         )
+        image_file_pointer.close()
 
         # TODO: ICC Profile
         codec_name, codec_kwargs = self._get_image_codec_parameters(
@@ -3187,6 +3200,8 @@ class DICOMfileClient:
             else:
                 yield frame
 
+        image_file_pointer.close()
+
     def retrieve_instance_frames(
         self,
         study_instance_uid: str,
@@ -3313,6 +3328,7 @@ class DICOMfileClient:
             else:
                 retrieved_frames.append(frame)
 
+        image_file_pointer.close()
         return retrieved_frames
 
     def retrieve_instance_frames_rendered(
@@ -3383,6 +3399,7 @@ class DICOMfileClient:
             frame_index=frame_index,
             transfer_syntax_uid=transfer_syntax_uid
         )
+        image_file_pointer.close()
 
         # TODO: ICC Profile
         codec_name, codec_kwargs = self._get_image_codec_parameters(
@@ -3572,6 +3589,9 @@ class DICOMfileClient:
 
         response = Dataset()
         response.RetrieveURL = None
+
+        if len(successes) == 0 and len(failures) == 0:
+            raise RuntimeError('Failed to store instances.')
 
         if len(successes) > 0:
             response.ReferencedSOPSequence = []

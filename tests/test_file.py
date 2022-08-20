@@ -1,5 +1,11 @@
-from pydicom.dataset import Dataset
+import numpy as np
 import pytest
+from pydicom.dataset import Dataset, FileMetaDataset
+from pydicom.uid import (
+    ExplicitVRLittleEndian,
+    generate_uid,
+    VLWholeSlideMicroscopyImageStorage,
+)
 
 
 STUDY_ATTRIBUTES = {
@@ -274,6 +280,7 @@ def test_retrieve_instance_frames(file_client):
 
     for test_frame in frames:
         assert isinstance(test_frame, bytes)
+        assert len(test_frame) > 0
 
 
 def test_retrieve_instance_frames_rendered(file_client):
@@ -285,3 +292,43 @@ def test_retrieve_instance_frames_rendered(file_client):
         media_types=('image/png', )
     )
     assert isinstance(frame, bytes)
+    assert len(frame) > 0
+
+
+def test_store_instances(file_client):
+    dataset = Dataset()
+    dataset.PatientID = None
+    dataset.PatientSex = None
+    dataset.PatientBirthDate = None
+    dataset.StudyInstanceUID = generate_uid()
+    dataset.StudyID = None
+    dataset.StudyDate = None
+    dataset.StudyTime = None
+    dataset.ReferringPhysicianName = ''
+    dataset.SeriesInstanceUID = generate_uid()
+    dataset.SeriesNumber = 1
+    dataset.Modality = 'SM'
+    dataset.AccessionNumber = None
+    dataset.SOPInstanceUID = generate_uid()
+    dataset.SOPClassUID = VLWholeSlideMicroscopyImageStorage
+    dataset.InstanceNumber = 1
+    dataset.Rows = 10
+    dataset.Columns = 10
+    dataset.SamplesPerPixel = 3
+    dataset.BitsAllocated = 8
+    dataset.BitsStored = 8
+    dataset.HighBit = 7
+    dataset.PixelData = np.zeros(
+        (dataset.Rows, dataset.Columns, dataset.SamplesPerPixel),
+        dtype=np.dtype(f'uint{dataset.BitsAllocated}')
+    ).tobytes()
+    dataset.file_meta = FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+
+    response = file_client.store_instances([dataset])
+    assert hasattr(response, 'ReferencedSOPSequence')
+    assert not hasattr(response, 'FailedSOPSequence')
+    assert len(response.ReferencedSOPSequence) == 1
+    ref_item = response.ReferencedSOPSequence[0]
+    assert ref_item.ReferencedSOPInstanceUID == dataset.SOPInstanceUID
+    assert ref_item.ReferencedSOPClassUID == dataset.SOPClassUID
