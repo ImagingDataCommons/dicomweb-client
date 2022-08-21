@@ -6,7 +6,6 @@ Facilitates access to data stored remotely on a server.
 import re
 import logging
 from enum import Enum
-from collections import OrderedDict
 from http import HTTPStatus
 from io import BytesIO
 from typing import (
@@ -21,7 +20,7 @@ from typing import (
     Union,
     Tuple,
 )
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import urlparse
 from warnings import warn
 from xml.etree.ElementTree import (
     Element,
@@ -31,6 +30,8 @@ from xml.etree.ElementTree import (
 import pydicom
 import requests
 import retrying
+
+from dicomweb_client.uri import build_query_string, parse_query_parameters
 
 
 logger = logging.getLogger(__name__)
@@ -298,75 +299,6 @@ class DICOMwebClient:
         self._chunk_size = chunk_size
         self.set_http_retry_params()
 
-    def _parse_qido_query_parameters(
-        self,
-        fuzzymatching: Optional[bool] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        fields: Optional[Sequence[str]] = None,
-        search_filters: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Parse query parameters for inclusion into a query string.
-
-        Parameters
-        ----------
-        fuzzymatching: Union[bool, None], optional
-            Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
-            Maximum number of results that should be returned
-        offset: Union[int, None], optional
-            Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
-            Names of fields (attributes) that should be included in results
-        search_filters: Union[Dict[str, Any], None], optional
-            Search filter criteria as key-value pairs, where *key* is a keyword
-            or a tag of the attribute and *value* is the expected value that
-            should match
-
-        Returns
-        -------
-        collections.OrderedDict
-            Sanitized and sorted query parameters
-
-        """
-        params: Dict[str, Union[int, str, List[str]]] = {}
-        if limit is not None:
-            if not isinstance(limit, int):
-                raise TypeError('Parameter "limit" must be an integer.')
-            if limit < 0:
-                raise ValueError('Parameter "limit" must not be negative.')
-            params['limit'] = limit
-        if offset is not None:
-            if not isinstance(offset, int):
-                raise TypeError('Parameter "offset" must be an integer.')
-            if offset < 0:
-                raise ValueError('Parameter "offset" must not be negative.')
-            params['offset'] = offset
-        if fuzzymatching is not None:
-            if not isinstance(fuzzymatching, bool):
-                raise TypeError('Parameter "fuzzymatching" must be boolean.')
-            if fuzzymatching:
-                params['fuzzymatching'] = 'true'
-            else:
-                params['fuzzymatching'] = 'false'
-        if fields is not None:
-            includefields = []
-            for field in set(fields):
-                if not isinstance(field, str):
-                    raise TypeError('Elements of "fields" must be a string.')
-                includefields.append(field)
-            params['includefield'] = includefields
-        if search_filters is not None:
-            for field, criterion in search_filters.items():
-                if not isinstance(field, str):
-                    raise TypeError(
-                        'Keys of "search_filters" must be strings.'
-                    )
-                # TODO: datetime?
-                params[field] = criterion
-        # Sort query parameters to facilitate unit testing
-        return OrderedDict(sorted(params.items()))
-
     def _get_transaction_url(self, transaction: _Transaction) -> str:
         """Construct URL of a DICOMweb service transaction.
 
@@ -381,7 +313,7 @@ class DICOMwebClient:
             Full URL for the given transaction
 
         """
-        transaction_url = self.base_url
+        transaction_url = str(self.base_url)
         if transaction == _Transaction.SEARCH:
             if self.qido_url_prefix is not None:
                 transaction_url += f'/{self.qido_url_prefix}'
@@ -421,11 +353,11 @@ class DICOMwebClient:
 
         """
         if study_instance_uid is not None:
-            url = '{transaction_url}/studies/{study_instance_uid}'
+            url_template = '{transaction_url}/studies/{study_instance_uid}'
         else:
-            url = '{transaction_url}/studies'
+            url_template = '{transaction_url}/studies'
         transaction_url = self._get_transaction_url(transaction)
-        return url.format(
+        return url_template.format(
             transaction_url=transaction_url,
             study_instance_uid=study_instance_uid
         )
@@ -454,19 +386,22 @@ class DICOMwebClient:
 
         """
         if study_instance_uid is not None:
-            url = self._get_studies_url(transaction, study_instance_uid)
+            url_template = self._get_studies_url(
+                transaction,
+                study_instance_uid
+            )
             if series_instance_uid is not None:
-                url += '/series/{series_instance_uid}'
+                url_template += '/series/{series_instance_uid}'
             else:
-                url += '/series'
+                url_template += '/series'
         else:
             if series_instance_uid is not None:
                 logger.warning(
                     'series UID is ignored because study UID is undefined'
                 )
-            url = '{transaction_url}/series'
+            url_template = '{transaction_url}/series'
         transaction_url = self._get_transaction_url(transaction)
-        return url.format(
+        return url_template.format(
             transaction_url=transaction_url,
             series_instance_uid=series_instance_uid
         )
@@ -498,69 +433,37 @@ class DICOMwebClient:
 
         """
         if study_instance_uid is not None and series_instance_uid is not None:
-            url = self._get_series_url(
+            url_template = self._get_series_url(
                 transaction,
                 study_instance_uid,
                 series_instance_uid
             )
-            url += '/instances'
+            url_template += '/instances'
             if sop_instance_uid is not None:
-                url += '/{sop_instance_uid}'
+                url_template += '/{sop_instance_uid}'
         elif study_instance_uid is not None:
             if sop_instance_uid is not None:
                 logger.warning(
                     'SOP Instance UID is ignored because Series Instance UID '
                     'is undefined'
                 )
-            url = self._get_studies_url(
+            url_template = self._get_studies_url(
                 transaction,
                 study_instance_uid
             )
-            url += '/instances'
+            url_template += '/instances'
         else:
             if sop_instance_uid is not None:
                 logger.warning(
                     'SOP Instance UID is ignored because Study/Series '
                     'Instance UID are undefined'
                 )
-            url = '{transaction_url}/instances'
+            url_template = '{transaction_url}/instances'
         transaction_url = self._get_transaction_url(transaction)
-        return url.format(
+        return url_template.format(
             transaction_url=transaction_url,
             sop_instance_uid=sop_instance_uid
         )
-
-    def _build_query_string(self, params: Dict[str, Any]) -> str:
-        """Build query string for a request message.
-
-        Parameters
-        ----------
-        params: dict
-            Query parameters as mapping of key-value pairs;
-            in case a key should be included more than once with different
-            values, values need to be provided in form of an iterable (e.g.,
-            ``{"key": ["value1", "value2"]}`` will result in
-            ``"?key=value1&key=value2"``)
-
-        Returns
-        -------
-        str
-            Query string
-
-        """
-        components = []
-        for key, value in params.items():
-            if isinstance(value, (list, tuple, set)):
-                for v in value:
-                    c = '='.join([key, quote_plus(str(v))])
-                    components.append(c)
-            else:
-                c = '='.join([key, quote_plus(str(value))])
-                components.append(c)
-        if components:
-            return '?{}'.format('&'.join(components))
-        else:
-            return ''
 
     def _http_get(
         self,
@@ -609,9 +512,7 @@ class DICOMwebClient:
             headers = {}
         if not stream:
             headers['Host'] = self.host
-        if params is None:
-            params = {}
-        url += self._build_query_string(params)
+        url += build_query_string(params)
         if stream:
             logger.debug('use chunked transfer encoding')
         response = _invoke_get_request(url, headers)
@@ -1722,8 +1623,12 @@ class DICOMwebClient:
         """  # noqa: E501: E501
         logger.info('search for studies')
         url = self._get_studies_url(_Transaction.SEARCH)
-        params = self._parse_qido_query_parameters(
-            fuzzymatching, limit, offset, fields, search_filters
+        params = parse_query_parameters(
+            fuzzymatching=fuzzymatching,
+            limit=limit,
+            offset=offset,
+            fields=fields,
+            search_filters=search_filters
         )
         return self._http_get_application_json(
             url,
@@ -2204,8 +2109,12 @@ class DICOMwebClient:
         else:
             logger.info('search for series')
         url = self._get_series_url(_Transaction.SEARCH, study_instance_uid)
-        params = self._parse_qido_query_parameters(
-            fuzzymatching, limit, offset, fields, search_filters
+        params = parse_query_parameters(
+            fuzzymatching=fuzzymatching,
+            limit=limit,
+            offset=offset,
+            fields=fields,
+            search_filters=search_filters
         )
         return self._http_get_application_json(
             url,
@@ -2593,8 +2502,12 @@ class DICOMwebClient:
             study_instance_uid,
             series_instance_uid
         )
-        params = self._parse_qido_query_parameters(
-            fuzzymatching, limit, offset, fields, search_filters
+        params = parse_query_parameters(
+            fuzzymatching=fuzzymatching,
+            limit=limit,
+            offset=offset,
+            fields=fields,
+            search_filters=search_filters
         )
         return self._http_get_application_json(
             url,

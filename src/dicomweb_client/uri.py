@@ -1,8 +1,9 @@
 """Utilities for DICOMweb URI manipulation."""
 import enum
 import re
-from typing import Optional, Sequence, Tuple
-import urllib.parse as urlparse
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from urllib.parse import quote_plus, urlparse
 
 
 class URIType(enum.Enum):
@@ -25,6 +26,109 @@ class URISuffix(enum.Enum):
 _MAX_UID_LENGTH = 64
 _REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
 _REGEX_PERMISSIVE_UID = re.compile(r'[^/@]+')
+
+
+def build_query_string(params: Optional[Dict[str, Any]] = None) -> str:
+    """Build query string for a request message.
+
+    Parameters
+    ----------
+    params: Union[Dict[str, Any], None], optional
+        Query parameters as mapping of key-value pairs;
+        in case a key should be included more than once with different
+        values, values need to be provided in form of an iterable (e.g.,
+        ``{"key": ["value1", "value2"]}`` will result in
+        ``"?key=value1&key=value2"``)
+
+    Returns
+    -------
+    str
+        Query string
+
+    """
+    if params is None:
+        return ''
+    components = []
+    for key, value in params.items():
+        if isinstance(value, Sequence):
+            for v in value:
+                c = '='.join([key, quote_plus(str(v))])
+                components.append(c)
+        else:
+            c = '='.join([key, quote_plus(str(value))])
+            components.append(c)
+    if len(components) > 0:
+        return '?{}'.format('&'.join(components))
+    return ''
+
+
+def parse_query_parameters(
+    fuzzymatching: Optional[bool] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    fields: Optional[Sequence[str]] = None,
+    search_filters: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Parse query parameters for inclusion into a query string.
+
+    Parameters
+    ----------
+    fuzzymatching: Union[bool, None], optional
+        Whether fuzzy semantic matching should be performed
+    limit: Union[int, None], optional
+        Maximum number of results that should be returned
+    offset: Union[int, None], optional
+        Number of results that should be skipped
+    fields: Union[Sequence[str], None], optional
+        Names of fields (attributes) that should be included in results
+    search_filters: Union[Dict[str, Any], None], optional
+        Search filter criteria as key-value pairs, where *key* is a keyword
+        or a tag of the attribute and *value* is the expected value that
+        should match
+
+    Returns
+    -------
+    collections.OrderedDict
+        Sanitized and sorted query parameters
+
+    """
+    params: Dict[str, Union[int, str, List[str]]] = {}
+    if limit is not None:
+        if not isinstance(limit, int):
+            raise TypeError('Parameter "limit" must be an integer.')
+        if limit < 0:
+            raise ValueError('Parameter "limit" must not be negative.')
+        params['limit'] = limit
+    if offset is not None:
+        if not isinstance(offset, int):
+            raise TypeError('Parameter "offset" must be an integer.')
+        if offset < 0:
+            raise ValueError('Parameter "offset" must not be negative.')
+        params['offset'] = offset
+    if fuzzymatching is not None:
+        if not isinstance(fuzzymatching, bool):
+            raise TypeError('Parameter "fuzzymatching" must be boolean.')
+        if fuzzymatching:
+            params['fuzzymatching'] = 'true'
+        else:
+            params['fuzzymatching'] = 'false'
+    if fields is not None:
+        includefields = []
+        for field in set(fields):
+            if not isinstance(field, str):
+                raise TypeError('Elements of "fields" must be a string.')
+            includefields.append(field)
+        params['includefield'] = includefields
+    if search_filters is not None:
+        for field, criterion in search_filters.items():
+            if not isinstance(field, str):
+                raise TypeError(
+                    'Keys of "search_filters" must be strings.'
+                )
+            # TODO: datetime?
+            params[field] = criterion
+    # Sort query parameters to facilitate unit testing
+    return OrderedDict(sorted(params.items()))
 
 
 class URI:
@@ -55,14 +159,16 @@ class URI:
     - ``<base_url>/studies/<study_instance_uid>/series/<series_instance_uid>/instances/<sop_instance_uid>/frames/<frames>/thumbnail``
     """  # noqa
 
-    def __init__(self,
-                 base_url: str,
-                 study_instance_uid: Optional[str] = None,
-                 series_instance_uid: Optional[str] = None,
-                 sop_instance_uid: Optional[str] = None,
-                 frames: Optional[Sequence[int]] = None,
-                 suffix: Optional[URISuffix] = None,
-                 permissive: bool = False):
+    def __init__(
+        self,
+        base_url: str,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None,
+        sop_instance_uid: Optional[str] = None,
+        frames: Optional[Sequence[int]] = None,
+        suffix: Optional[URISuffix] = None,
+        permissive: bool = False
+    ):
         """Instantiates an object.
 
         As per the DICOM Standard, the Study, Series, and Instance UIDs must be
@@ -121,6 +227,7 @@ class URI:
             - Any one of `study_instance_uid`, `series_instance_uid`, or
               `sop_instance_uid` does not meet the DICOM Standard UID spec in
               the docstring.
+
         """
         _validate_base_url(base_url)
         _validate_resource_identifiers_and_suffix(
@@ -261,14 +368,16 @@ class URI:
         return URI(self.base_url, self.study_instance_uid,
                    self.series_instance_uid, self.sop_instance_uid, self.frames)
 
-    def update(self,
-               base_url: Optional[str] = None,
-               study_instance_uid: Optional[str] = None,
-               series_instance_uid: Optional[str] = None,
-               sop_instance_uid: Optional[str] = None,
-               frames: Optional[Sequence[int]] = None,
-               suffix: Optional[URISuffix] = None,
-               permissive: Optional[bool] = False) -> 'URI':
+    def update(
+        self,
+        base_url: Optional[str] = None,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None,
+        sop_instance_uid: Optional[str] = None,
+        frames: Optional[Sequence[int]] = None,
+        suffix: Optional[URISuffix] = None,
+        permissive: Optional[bool] = False
+    ) -> 'URI':
         """Creates a new `URI` object based on the current one.
 
         Replaces the specified `URI` components in the current `URI` to create
@@ -375,10 +484,12 @@ class URI:
             return self.instance_uri()
 
     @classmethod
-    def from_string(cls,
-                    dicomweb_uri: str,
-                    uri_type: Optional[URIType] = None,
-                    permissive: bool = False) -> 'URI':
+    def from_string(
+        cls,
+        dicomweb_uri: str,
+        uri_type: Optional[URIType] = None,
+        permissive: bool = False
+    ) -> 'URI':
         """Parses the string to return the URI.
 
         Any valid DICOMweb compatible HTTP[S] URI is permitted, e.g.,
@@ -468,7 +579,7 @@ class URI:
 
 def _validate_base_url(url: str) -> None:
     """Validates the Base (DICOMweb service) URL supplied to `URI`."""
-    parse_result = urlparse.urlparse(url)
+    parse_result = urlparse(url)
     if parse_result.scheme not in ('http', 'https'):
         raise ValueError(
             f'Only HTTP[S] URLs are permitted. Actual URL: {url!r}')
