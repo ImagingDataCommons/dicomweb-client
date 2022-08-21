@@ -36,6 +36,7 @@ def client(httpserver):
 def file_client(tmp_path):
     '''Instance of `dicomweb_client.api.DICOMwebClient`.'''
     src_dir = Path(DATA_ROOT).resolve().joinpath('test_files')
-    shutil.copytree(src_dir, tmp_path, dirs_exist_ok=True)
+    dst_dir = tmp_path.joinpath('test_files')
+    shutil.copytree(src_dir, dst_dir)
     url = f'file://{tmp_path}'
     return DICOMfileClient(url, recreate_db=True, in_memory=True)
