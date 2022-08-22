@@ -2069,13 +2069,13 @@ class _DatabaseManager:
         return (successes, failures)
 
 
-def _raise_client_error(
+def _create_client_error(
     method: str,
     url: str,
     reason: str,
     headers: Optional[Dict[str, Any]] = None,
-    status_code: Optional[int] = 400
-) -> None:
+    status_code: int = 400
+) -> requests.HTTPError:
     """Raise an IOError for a client error.
 
     Parameters
@@ -2091,8 +2091,8 @@ def _raise_client_error(
     status_code: int, optional
         Status code of the HTTP response message
 
-    Raises
-    ------
+    Returns
+    -------
     requests.HTTPError
         Error with a message that includes `url`, `reason`, and `status_code`
 
@@ -2107,16 +2107,27 @@ def _raise_client_error(
         'for url: ',
         url
     ])
-    raise requests.HTTPError(error_message)
+    request = requests.PreparedRequest()
+    request.prepare(
+        method=method.upper(),
+        url=url,
+        headers=headers
+    )
+    response = requests.Response()
+    response.status_code = status_code
+    response.request = request
+    response.url = url
+    response.reason = reason
+    return requests.HTTPError(error_message, request=request, response=response)
 
 
-def _raise_server_error(
+def _create_server_error(
     method: str,
     url: str,
     reason: str,
     headers: Optional[Dict[str, Any]] = None,
-    status_code: Optional[int] = 500
-) -> None:
+    status_code: int = 500
+) -> requests.HTTPError:
     """Raise an IOError for a server error.
 
     Parameters
@@ -2132,8 +2143,8 @@ def _raise_server_error(
     status_code: int, optional
         Status code of the HTTP response message
 
-    Raises
-    ------
+    Returns
+    -------
     requests.HTTPError
         Error with a message that includes `url`, `reason`, and `status_code`
 
@@ -2148,15 +2159,18 @@ def _raise_server_error(
         'for url: ',
         url
     ])
-    request = requests.Request(
+    request = requests.PreparedRequest()
+    request.prepare(
         method=method.upper(),
         url=url,
         headers=headers
     )
-    response = requests.Response(
-        status_code=status_code
-    )
-    raise requests.HTTPError(error_message, request=request, response=response)
+    response = requests.Response()
+    response.status_code = status_code
+    response.request = request
+    response.url = url
+    response.reason = reason
+    return requests.HTTPError(error_message, request=request, response=response)
 
 
 class DICOMfileClient:
@@ -2444,7 +2458,11 @@ class DICOMfileClient:
                 search_filters=search_filters
             )
             url += build_query_string(params)
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def search_for_series(
         self,
@@ -2503,7 +2521,11 @@ class DICOMfileClient:
                 search_filters=search_filters
             )
             url += build_query_string(params)
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def search_for_instances(
         self,
@@ -2573,7 +2595,11 @@ class DICOMfileClient:
                 search_filters=search_filters
             )
             url += build_query_string(params)
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_bulkdata(
         self,
@@ -2614,7 +2640,11 @@ class DICOMfileClient:
         except requests.HTTPError:
             raise
         except Exception as error:
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def iter_bulkdata(
         self,
@@ -2653,9 +2683,10 @@ class DICOMfileClient:
         # If that behavior gets changed, i.e., if bulkdata gets included into
         # metadata using "BulkdataURI", then the implementation of this method
         # will need to change as well.
-        _raise_client_error(
-            url,
-            'Resource does not exist.',
+        raise _create_client_error(
+            method='GET',
+            url=url,
+            reason='Resource does not exist.',
             status_code=404
         )
 
@@ -2696,7 +2727,11 @@ class DICOMfileClient:
         except Exception as error:
             url = self._get_studies_url(study_instance_uid)
             url += '/metadata'
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def iter_study(
         self,
@@ -2747,7 +2782,11 @@ class DICOMfileClient:
             raise
         except Exception as error:
             url = self._get_studies_url(study_instance_uid)
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_study(
         self,
@@ -2781,7 +2820,11 @@ class DICOMfileClient:
             raise
         except Exception as error:
             url = self._get_studies_url(study_instance_uid)
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def iter_series(
         self,
@@ -2833,7 +2876,11 @@ class DICOMfileClient:
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
             )
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_series(
         self,
@@ -2877,7 +2924,11 @@ class DICOMfileClient:
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
             )
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_series_rendered(
         self, study_instance_uid,
@@ -2913,7 +2964,7 @@ class DICOMfileClient:
             series_instance_uid=series_instance_uid,
         )
         url += '/rendered'
-        _raise_server_error(
+        raise _create_server_error(
             method='GET',
             url=url,
             reason='Retrieval of rendered series is not supported.',
@@ -2968,7 +3019,11 @@ class DICOMfileClient:
                 series_instance_uid=series_instance_uid,
             )
             url += '/metadata'
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_metadata(
         self,
@@ -3012,7 +3067,11 @@ class DICOMfileClient:
                 sop_instance_uid=sop_instance_uid
             )
             url += '/metadata'
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance(
         self,
@@ -3130,9 +3189,10 @@ class DICOMfileClient:
                     transfer_syntax_uid not in expected_transfer_syntaxes and
                     '*' not in expected_transfer_syntaxes
                 ):
-                    _raise_client_error(
-                        url,
-                        (
+                    raise _create_client_error(
+                        method='GET',
+                        url=url,
+                        reason=(
                             'Instance cannot be retrieved using media type '
                             f'"{expected_media_type}" '
                             'with any of the specified transfer syntaxes: '
@@ -3144,11 +3204,12 @@ class DICOMfileClient:
                     )
 
             if not found_matching_media_type:
-                _raise_client_error(
-                    url,
-                    (
+                raise _create_client_error(
+                    method='GET',
+                    url=url,
+                    reason=(
                         'Instance cannot be retrieved using any of the '
-                        f'acceptable media types: {media_types}.',
+                        f'acceptable media types: {media_types}.'
                     ),
                     status_code=406
                 )
@@ -3157,7 +3218,11 @@ class DICOMfileClient:
         except requests.HTTPError:
             raise
         except Exception as error:
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_rendered(
         self,
@@ -3267,7 +3332,11 @@ class DICOMfileClient:
             return reencoded_frame
 
         except Exception as error:
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def _check_media_types_for_instance_frames(
         self,
@@ -3377,9 +3446,10 @@ class DICOMfileClient:
                 transfer_syntax_uid not in expected_transfer_syntaxes and
                 '*' not in expected_transfer_syntaxes
             ):
-                _raise_client_error(
-                    url,
-                    (
+                raise _create_client_error(
+                    method='GET',
+                    url=url,
+                    reason=(
                         'Instance frames cannot be retrieved using media type '
                         f'"{expected_media_type}" '
                         'with any of the specified transfer syntaxes: '
@@ -3405,8 +3475,10 @@ class DICOMfileClient:
             ):
                 image_type = 'image/jp2'
             else:
-                _raise_client_error(
-                    (
+                raise _create_client_error(
+                    method='GET',
+                    url=url,
+                    reason=(
                         'Instance frames cannot be retrieved using any of the '
                         f'acceptable media types: {media_types}.'
                     ),
@@ -3536,9 +3608,10 @@ class DICOMfileClient:
                             reencoded_frame = fp.getvalue()
                         yield reencoded_frame
                     else:
-                        _raise_client_error(
-                            url,
-                            (
+                        raise _create_client_error(
+                            method='GET',
+                            url=url,
+                            reason=(
                                 'Cannot retrieve frames using media type '
                                 f'"{reencoding_media_type}".'
                             ),
@@ -3552,7 +3625,11 @@ class DICOMfileClient:
         except requests.HTTPError:
             raise
         except Exception as error:
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_frames(
         self,
@@ -3693,7 +3770,11 @@ class DICOMfileClient:
         except requests.HTTPError:
             raise
         except Exception as error:
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_frames_rendered(
         self,
@@ -3811,7 +3892,11 @@ class DICOMfileClient:
         except requests.HTTPError:
             raise
         except Exception as error:
-            _raise_server_error(method='GET', url=url, reason=str(error))
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def _get_image_codec_parameters(
         self,
@@ -4016,7 +4101,11 @@ class DICOMfileClient:
             raise
         except Exception as error:
             url = self._get_studies_url(study_instance_uid)
-            _raise_server_error(method='POST', url=url, reason=str(error))
+            raise _create_server_error(
+                method='POST',
+                url=url,
+                reason=str(error)
+            )
 
     def delete_study(self, study_instance_uid: str) -> None:
         """Delete all instances of a study.
@@ -4038,7 +4127,11 @@ class DICOMfileClient:
                 self.delete_instance(*uids)
         except Exception as error:
             url = self._get_studies_url(study_instance_uid)
-            _raise_server_error(method='DELETE', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def delete_series(
         self,
@@ -4076,7 +4169,11 @@ class DICOMfileClient:
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
             )
-            _raise_server_error(method='DELETE', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def delete_instance(
         self,
@@ -4126,4 +4223,8 @@ class DICOMfileClient:
                 series_instance_uid=series_instance_uid,
                 sop_instance_uid=sop_instance_uid
             )
-            _raise_server_error(method='DELETE', url=url, reason=str(error))
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
