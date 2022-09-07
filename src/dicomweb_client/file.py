@@ -2097,9 +2097,9 @@ def _create_client_error(
         Error with a message that includes `url`, `reason`, and `status_code`
 
     """
-    if not status_code < 400 or status_code >= 500:
+    if status_code < 400 or status_code >= 500:
         raise ValueError(
-            'Status code for client error must be in range [400, 500)'
+            'Status code for client error must be in range [400, 500).'
         )
     error_message = ' '.join([
         f'{status_code} Client Error: ',
@@ -2149,9 +2149,9 @@ def _create_server_error(
         Error with a message that includes `url`, `reason`, and `status_code`
 
     """
-    if not status_code < 500 or status_code >= 600:
+    if status_code < 500 or status_code >= 600:
         raise ValueError(
-            'Status code for client error must be in range [500, 600)'
+            'Status code for client error must be in range [500, 600).'
         )
     error_message = ' '.join([
         f'{status_code} Server Error: ',

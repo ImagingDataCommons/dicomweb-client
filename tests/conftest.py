@@ -40,3 +40,13 @@ def file_client(tmp_path):
     shutil.copytree(src_dir, dst_dir)
     url = f'file://{tmp_path}'
     return DICOMfileClient(url, recreate_db=True, in_memory=True)
+
+
+@pytest.fixture
+def file_client_ro(tmp_path):
+    '''Read-only instance of `dicomweb_client.api.DICOMwebClient`.'''
+    src_dir = Path(DATA_ROOT).resolve().joinpath('test_files')
+    dst_dir = tmp_path.joinpath('test_files')
+    shutil.copytree(src_dir, dst_dir)
+    url = f'file://{tmp_path}'
+    return DICOMfileClient(url, recreate_db=True, in_memory=True, readonly=True)

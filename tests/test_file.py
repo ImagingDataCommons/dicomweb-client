@@ -259,7 +259,7 @@ def test_retrieve_instance_with_any_transfer_syntax(file_client):
 
 
 def test_retrieve_instance_with_wrong_transfer_syntax(file_client):
-    with pytest.raises(ValueError):
+    with pytest.raises(IOError):
         file_client.retrieve_instance(
             '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
             '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.2',
@@ -332,3 +332,37 @@ def test_store_instances(file_client):
     ref_item = response.ReferencedSOPSequence[0]
     assert ref_item.ReferencedSOPInstanceUID == dataset.SOPInstanceUID
     assert ref_item.ReferencedSOPClassUID == dataset.SOPClassUID
+
+
+def test_store_instances_readonly(file_client_ro):
+    dataset = Dataset()
+    dataset.PatientID = None
+    dataset.PatientSex = None
+    dataset.PatientBirthDate = None
+    dataset.StudyInstanceUID = generate_uid()
+    dataset.StudyID = None
+    dataset.StudyDate = None
+    dataset.StudyTime = None
+    dataset.ReferringPhysicianName = ''
+    dataset.SeriesInstanceUID = generate_uid()
+    dataset.SeriesNumber = 1
+    dataset.Modality = 'SM'
+    dataset.AccessionNumber = None
+    dataset.SOPInstanceUID = generate_uid()
+    dataset.SOPClassUID = VLWholeSlideMicroscopyImageStorage
+    dataset.InstanceNumber = 1
+    dataset.Rows = 10
+    dataset.Columns = 10
+    dataset.SamplesPerPixel = 3
+    dataset.BitsAllocated = 8
+    dataset.BitsStored = 8
+    dataset.HighBit = 7
+    dataset.PixelData = np.zeros(
+        (dataset.Rows, dataset.Columns, dataset.SamplesPerPixel),
+        dtype=np.dtype(f'uint{dataset.BitsAllocated}')
+    ).tobytes()
+    dataset.file_meta = FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+
+    with pytest.raises(IOError):
+        file_client_ro.store_instances([dataset])
