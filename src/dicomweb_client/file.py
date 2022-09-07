@@ -48,6 +48,8 @@ from pydicom.tag import (
 from pydicom.uid import UID, RLELossless
 from pydicom.valuerep import DA, DT, TM
 
+from dicomweb_client.uri import build_query_string, parse_query_parameters
+
 logger = logging.getLogger(__name__)
 
 
@@ -2067,14 +2069,108 @@ class _DatabaseManager:
         return (successes, failures)
 
 
-def _raise_client_error(url: str, error_message: str) -> None:
-    http_error_message = f'400 Client Error: {error_message} for url: {url}'
-    raise requests.HTTPError(http_error_message)
+def _create_client_error(
+    method: str,
+    url: str,
+    reason: str,
+    headers: Optional[Dict[str, Any]] = None,
+    status_code: int = 400
+) -> requests.HTTPError:
+    """Raise an IOError for a client error.
+
+    Parameters
+    ----------
+    method: str
+        HTTP method
+    url: str
+        URL of the HTTP request message
+    reason: str
+        Reason that should be included in the HTTP response message
+    headers: Union[Dict[str, Any], None], optional
+        Headers of the HTTP request message
+    status_code: int, optional
+        Status code of the HTTP response message
+
+    Returns
+    -------
+    requests.HTTPError
+        Error with a message that includes `url`, `reason`, and `status_code`
+
+    """
+    if status_code < 400 or status_code >= 500:
+        raise ValueError(
+            'Status code for client error must be in range [400, 500).'
+        )
+    error_message = ' '.join([
+        f'{status_code} Client Error: ',
+        reason,
+        'for url: ',
+        url
+    ])
+    request = requests.PreparedRequest()
+    request.prepare(
+        method=method.upper(),
+        url=url,
+        headers=headers
+    )
+    response = requests.Response()
+    response.status_code = status_code
+    response.request = request
+    response.url = url
+    response.reason = reason
+    return requests.HTTPError(error_message, request=request, response=response)
 
 
-def _raise_server_error(url: str, error_message: str) -> None:
-    http_error_message = f'500 Server Error: {error_message} for url: {url}'
-    raise requests.HTTPError(http_error_message)
+def _create_server_error(
+    method: str,
+    url: str,
+    reason: str,
+    headers: Optional[Dict[str, Any]] = None,
+    status_code: int = 500
+) -> requests.HTTPError:
+    """Raise an IOError for a server error.
+
+    Parameters
+    ----------
+    method: str
+        HTTP method
+    url: str
+        URL of the HTTP request message
+    reason: str
+        Reason that should be included in the HTTP response message
+    headers: Union[Dict[str, Any], None], optional
+        Headers of the HTTP request message
+    status_code: int, optional
+        Status code of the HTTP response message
+
+    Returns
+    -------
+    requests.HTTPError
+        Error with a message that includes `url`, `reason`, and `status_code`
+
+    """
+    if status_code < 500 or status_code >= 600:
+        raise ValueError(
+            'Status code for client error must be in range [500, 600).'
+        )
+    error_message = ' '.join([
+        f'{status_code} Server Error: ',
+        reason,
+        'for url: ',
+        url
+    ])
+    request = requests.PreparedRequest()
+    request.prepare(
+        method=method.upper(),
+        url=url,
+        headers=headers
+    )
+    response = requests.Response()
+    response.status_code = status_code
+    response.request = request
+    response.url = url
+    response.reason = reason
+    return requests.HTTPError(error_message, request=request, response=response)
 
 
 class DICOMfileClient:
@@ -2123,7 +2219,8 @@ class DICOMfileClient:
         update_db: bool = False,
         recreate_db: bool = False,
         in_memory: bool = False,
-        db_dir: Optional[Union[Path, str]] = None
+        db_dir: Optional[Union[Path, str]] = None,
+        readonly: bool = False
     ):
         """Instantiate client.
 
@@ -2148,6 +2245,9 @@ class DICOMfileClient:
         db_dir: Union[pathlib.Path, str, None], optional
             Path to directory where database files should be stored (defaults
             to `base_dir`)
+        readonly: bool, optional
+            Whether data should be considered read-only. Attempts to store or
+            delete data will be denied.
 
         """
         self.base_url = url
@@ -2173,6 +2273,7 @@ class DICOMfileClient:
             recreate_db=recreate_db,
             in_memory=in_memory
         )
+        self._readonly = readonly
 
     def _get_image_file_pointer(
         self,
@@ -2203,6 +2304,107 @@ class DICOMfileClient:
         fp.is_little_endian = uid.is_little_endian
         fp.is_implicit_VR = uid.is_implicit_VR
         return fp
+
+    def _get_studies_url(
+        self,
+        study_instance_uid: Optional[str] = None
+    ) -> str:
+        """Construct URL for study-level requests.
+
+        Parameters
+        ----------
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+
+        Returns
+        -------
+        str
+            URL
+
+        """
+        if study_instance_uid is not None:
+            return f'{self.base_url}/studies/{study_instance_uid}'
+        return f'{self.base_url}/studies'
+
+    def _get_series_url(
+        self,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None
+    ) -> str:
+        """Construct URL for series-level requests.
+
+        Parameters
+        ----------
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        series_instance_uid: Union[str, None], optional
+            Series Instance UID
+
+        Returns
+        -------
+        str
+            URL
+
+        """
+        if study_instance_uid is not None:
+            url = self._get_studies_url(study_instance_uid)
+            if series_instance_uid is not None:
+                url += f'/series/{series_instance_uid}'
+            else:
+                url += '/series'
+            return url
+        else:
+            if series_instance_uid is not None:
+                logger.warning(
+                    'series UID is ignored because study UID is undefined'
+                )
+            return f'{self.base_url}/series'
+
+    def _get_instances_url(
+        self,
+        study_instance_uid: Optional[str] = None,
+        series_instance_uid: Optional[str] = None,
+        sop_instance_uid: Optional[str] = None
+    ) -> str:
+        """Construct URL for instance-level requests.
+
+        Parameters
+        ----------
+        study_instance_uid: Union[str, None], optional
+            Study Instance UID
+        series_instance_uid: Union[str, None], optional
+            Series Instance UID
+        sop_instance_uid: Union[str, None], optional
+            SOP Instance UID
+
+        Returns
+        -------
+        str
+            URL
+
+        """
+        if study_instance_uid is not None and series_instance_uid is not None:
+            url = self._get_series_url(study_instance_uid, series_instance_uid)
+            url += '/instances'
+            if sop_instance_uid is not None:
+                url += f'/{sop_instance_uid}'
+            return url
+        elif study_instance_uid is not None:
+            if sop_instance_uid is not None:
+                logger.warning(
+                    'SOP Instance UID is ignored because Series Instance UID '
+                    'is undefined'
+                )
+            url = self._get_studies_url(study_instance_uid)
+            url += '/instances'
+            return url
+        else:
+            if sop_instance_uid is not None:
+                logger.warning(
+                    'SOP Instance UID is ignored because Study/Series '
+                    'Instance UID are undefined'
+                )
+            return f'{self.base_url}/instances'
 
     def search_for_studies(
         self,
@@ -2243,13 +2445,29 @@ class DICOMfileClient:
         No additional `fields` are currently supported.
 
         """  # noqa: E501
-        return self._db_manager.query_studies(
-            fuzzymatching=fuzzymatching,
-            limit=limit,
-            offset=offset,
-            fields=fields,
-            search_filters=search_filters
-        )
+        try:
+            return self._db_manager.query_studies(
+                fuzzymatching=fuzzymatching,
+                limit=limit,
+                offset=offset,
+                fields=fields,
+                search_filters=search_filters
+            )
+        except Exception as error:
+            url = self._get_studies_url()
+            params = parse_query_parameters(
+                fuzzymatching=fuzzymatching,
+                limit=limit,
+                offset=offset,
+                fields=fields,
+                search_filters=search_filters
+            )
+            url += build_query_string(params)
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def search_for_series(
         self,
@@ -2289,14 +2507,30 @@ class DICOMfileClient:
             (see `Series Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
         """  # noqa: E501
-        return self._db_manager.query_series(
-            study_instance_uid=study_instance_uid,
-            fuzzymatching=fuzzymatching,
-            limit=limit,
-            offset=offset,
-            fields=fields,
-            search_filters=search_filters
-        )
+        try:
+            return self._db_manager.query_series(
+                study_instance_uid=study_instance_uid,
+                fuzzymatching=fuzzymatching,
+                limit=limit,
+                offset=offset,
+                fields=fields,
+                search_filters=search_filters
+            )
+        except Exception as error:
+            url = self._get_series_url(study_instance_uid)
+            params = parse_query_parameters(
+                fuzzymatching=fuzzymatching,
+                limit=limit,
+                offset=offset,
+                fields=fields,
+                search_filters=search_filters
+            )
+            url += build_query_string(params)
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def search_for_instances(
         self,
@@ -2343,15 +2577,34 @@ class DICOMfileClient:
         No additional `fields` are currently supported.
 
         """  # noqa: E501
-        return self._db_manager.query_instances(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            fuzzymatching=fuzzymatching,
-            limit=limit,
-            offset=offset,
-            fields=fields,
-            search_filters=search_filters
-        )
+        try:
+            return self._db_manager.query_instances(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                fuzzymatching=fuzzymatching,
+                limit=limit,
+                offset=offset,
+                fields=fields,
+                search_filters=search_filters
+            )
+        except Exception as error:
+            url = self._get_instances_url(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid
+            )
+            params = parse_query_parameters(
+                fuzzymatching=fuzzymatching,
+                limit=limit,
+                offset=offset,
+                fields=fields,
+                search_filters=search_filters
+            )
+            url += build_query_string(params)
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_bulkdata(
         self,
@@ -2382,12 +2635,21 @@ class DICOMfileClient:
             When requested resource is not found at `url`
 
         """  # noqa: E501
-        iterator = self.iter_bulkdata(
-            url=url,
-            media_types=media_types,
-            byte_range=byte_range
-        )
-        return list(iterator)
+        try:
+            iterator = self.iter_bulkdata(
+                url=url,
+                media_types=media_types,
+                byte_range=byte_range
+            )
+            return list(iterator)
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def iter_bulkdata(
         self,
@@ -2426,7 +2688,12 @@ class DICOMfileClient:
         # If that behavior gets changed, i.e., if bulkdata gets included into
         # metadata using "BulkdataURI", then the implementation of this method
         # will need to change as well.
-        raise IOError(f'Resource does not exist: "{url}".')
+        raise _create_client_error(
+            method='GET',
+            url=url,
+            reason='Resource does not exist.',
+            status_code=404
+        )
 
     def retrieve_study_metadata(
         self,
@@ -2445,22 +2712,31 @@ class DICOMfileClient:
             Metadata of each instance in study
 
         """
-        logger.info(
-            'retrieve metadata of all instances '
-            f'of study "{study_instance_uid}"'
-        )
-        series_identifiers = self._db_manager.get_series_identifiers(
-            study_instance_uid=study_instance_uid
-        )
-        collection = []
-        for series_instance_uid, study_instance_uid in series_identifiers:
-            collection.extend(
-                self.retrieve_series_metadata(
-                    study_instance_uid=study_instance_uid,
-                    series_instance_uid=series_instance_uid,
-                )
+        try:
+            logger.info(
+                'retrieve metadata of all instances '
+                f'of study "{study_instance_uid}"'
             )
-        return collection
+            series_identifiers = self._db_manager.get_series_identifiers(
+                study_instance_uid=study_instance_uid
+            )
+            collection = []
+            for series_instance_uid, study_instance_uid in series_identifiers:
+                collection.extend(
+                    self.retrieve_series_metadata(
+                        study_instance_uid=study_instance_uid,
+                        series_instance_uid=series_instance_uid,
+                    )
+                )
+            return collection
+        except Exception as error:
+            url = self._get_studies_url(study_instance_uid)
+            url += '/metadata'
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def iter_study(
         self,
@@ -2486,25 +2762,36 @@ class DICOMfileClient:
         logger.info(
             f'iterate over all instances of study "{study_instance_uid}"'
         )
-        series_identifiers = self._db_manager.get_series_identifiers(
-            study_instance_uid=study_instance_uid
-        )
-        for study_instance_uid, series_instance_uid in series_identifiers:
-            instance_identifiers = self._db_manager.get_instance_identifiers(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-            )
+        try:
             for (
                 study_instance_uid,
                 series_instance_uid,
-                sop_instance_uid,
-            ) in instance_identifiers:
-                yield self.retrieve_instance(
+            ) in self._db_manager.get_series_identifiers(
+                study_instance_uid=study_instance_uid
+            ):
+                for (
+                    study_instance_uid,
+                    series_instance_uid,
+                    sop_instance_uid,
+                ) in self._db_manager.get_instance_identifiers(
                     study_instance_uid=study_instance_uid,
                     series_instance_uid=series_instance_uid,
-                    sop_instance_uid=sop_instance_uid,
-                    media_types=media_types
-                )
+                ):
+                    yield self.retrieve_instance(
+                        study_instance_uid=study_instance_uid,
+                        series_instance_uid=series_instance_uid,
+                        sop_instance_uid=sop_instance_uid,
+                        media_types=media_types
+                    )
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            url = self._get_studies_url(study_instance_uid)
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_study(
         self,
@@ -2528,11 +2815,21 @@ class DICOMfileClient:
 
         """  # noqa: E501
         logger.info(f'retrieve all instances of study "{study_instance_uid}"')
-        iterator = self.iter_study(
-            study_instance_uid=study_instance_uid,
-            media_types=media_types,
-        )
-        return list(iterator)
+        try:
+            iterator = self.iter_study(
+                study_instance_uid=study_instance_uid,
+                media_types=media_types,
+            )
+            return list(iterator)
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            url = self._get_studies_url(study_instance_uid)
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def iter_series(
         self,
@@ -2562,20 +2859,32 @@ class DICOMfileClient:
             f'iterate over all instances of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        instance_identifiers = self._db_manager.get_instance_identifiers(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-        )
-        for (
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
-        ) in instance_identifiers:
-            yield self.retrieve_instance(
+        try:
+            for (
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
+            ) in self._db_manager.get_instance_identifiers(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid,
-                media_types=media_types
+            ):
+                yield self.retrieve_instance(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                    sop_instance_uid=sop_instance_uid,
+                    media_types=media_types
+                )
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            url = self._get_series_url(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+            )
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
             )
 
     def retrieve_series(
@@ -2606,12 +2915,25 @@ class DICOMfileClient:
             f'retrieve all instances of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        iterator = self.iter_series(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-            media_types=media_types,
-        )
-        return list(iterator)
+        try:
+            iterator = self.iter_series(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                media_types=media_types,
+            )
+            return list(iterator)
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            url = self._get_series_url(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+            )
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_series_rendered(
         self, study_instance_uid,
@@ -2642,7 +2964,17 @@ class DICOMfileClient:
             Rendered representation of series
 
         """  # noqa: E501
-        raise ValueError('Retrieval of rendered series is not supported.')
+        url = self._get_series_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+        )
+        url += '/rendered'
+        raise _create_server_error(
+            method='GET',
+            url=url,
+            reason='Retrieval of rendered series is not supported.',
+            status_code=501
+        )
 
     def retrieve_series_metadata(
         self,
@@ -2668,23 +3000,35 @@ class DICOMfileClient:
             'retrieve metadata of all instances of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-
-        instance_identifiers = self._db_manager.get_instance_identifiers(
-            study_instance_uid=study_instance_uid,
-            series_instance_uid=series_instance_uid,
-        )
-        return [
-            self.retrieve_instance_metadata(
+        try:
+            return [
+                self.retrieve_instance_metadata(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                    sop_instance_uid=sop_instance_uid,
+                )
+                for (
+                    study_instance_uid,
+                    series_instance_uid,
+                    sop_instance_uid,
+                ) in self._db_manager.get_instance_identifiers(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                )
+            ]
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            url = self._get_series_url(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid,
             )
-            for (
-                study_instance_uid,
-                series_instance_uid,
-                sop_instance_uid,
-            ) in instance_identifiers
-        ]
+            url += '/metadata'
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_metadata(
         self,
@@ -2713,13 +3057,26 @@ class DICOMfileClient:
             f'retrieve metadata of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        file_path = self._db_manager.get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
-        )
-        metadata = dcmread(file_path, stop_before_pixels=True)
-        return metadata.to_json_dict()
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
+            )
+            metadata = dcmread(file_path, stop_before_pixels=True)
+            return metadata.to_json_dict()
+        except Exception as error:
+            url = self._get_instances_url(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid
+            )
+            url += '/metadata'
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance(
         self,
@@ -2803,49 +3160,74 @@ class DICOMfileClient:
             media_types,
             supported_media_type_lut
         )
-
-        file_path = self._db_manager.get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
+        url = self._get_instances_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid
         )
-        dataset = dcmread(file_path)
-        transfer_syntax_uid = dataset.file_meta.TransferSyntaxUID
 
-        # Check whether the expected media is specified as one of the
-        # acceptable media types.
-        expected_media_type = transfer_syntax_uid_lut[transfer_syntax_uid]
-        found_matching_media_type = False
-        wildcards = {'*/*', '*/', 'application/*', 'application/'}
-        if any([w in acceptable_media_type_lut for w in wildcards]):
-            found_matching_media_type = True
-        elif expected_media_type in acceptable_media_type_lut:
-            found_matching_media_type = True
-            # If expected media type is specified as one of the acceptable
-            # media types, check whether the corresponding transfer syntax is
-            # appropriate.
-            expected_transfer_syntaxes = acceptable_media_type_lut[
-                expected_media_type
-            ]
-            if (
-                transfer_syntax_uid not in expected_transfer_syntaxes and
-                '*' not in expected_transfer_syntaxes
-            ):
-                raise ValueError(
-                    'Instance cannot be retrieved using media type "{}" '
-                    'with any of the specified transfer syntaxes: "{}".'.format(
-                        expected_media_type,
-                        '", "'.join(expected_transfer_syntaxes)
-                    )
-                )
-
-        if not found_matching_media_type:
-            raise ValueError(
-                'Instance cannot be retrieved using any of the '
-                f'acceptable media types: {media_types}.'
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
             )
+            dataset = dcmread(file_path)
+            transfer_syntax_uid = dataset.file_meta.TransferSyntaxUID
 
-        return dataset
+            # Check whether the expected media is specified as one of the
+            # acceptable media types.
+            expected_media_type = transfer_syntax_uid_lut[transfer_syntax_uid]
+            found_matching_media_type = False
+            wildcards = {'*/*', '*/', 'application/*', 'application/'}
+            if any([w in acceptable_media_type_lut for w in wildcards]):
+                found_matching_media_type = True
+            elif expected_media_type in acceptable_media_type_lut:
+                found_matching_media_type = True
+                # If expected media type is specified as one of the acceptable
+                # media types, check whether the corresponding transfer syntax
+                # is appropriate.
+                expected_transfer_syntaxes = acceptable_media_type_lut[
+                    expected_media_type
+                ]
+                if (
+                    transfer_syntax_uid not in expected_transfer_syntaxes and
+                    '*' not in expected_transfer_syntaxes
+                ):
+                    raise _create_client_error(
+                        method='GET',
+                        url=url,
+                        reason=(
+                            'Instance cannot be retrieved using media type '
+                            f'"{expected_media_type}" '
+                            'with any of the specified transfer syntaxes: '
+                            '"{}".'.format(
+                                '", "'.join(expected_transfer_syntaxes)
+                            )
+                        ),
+                        status_code=406
+                    )
+
+            if not found_matching_media_type:
+                raise _create_client_error(
+                    method='GET',
+                    url=url,
+                    reason=(
+                        'Instance cannot be retrieved using any of the '
+                        f'acceptable media types: {media_types}.'
+                    ),
+                    status_code=406
+                )
+            return dataset
+
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_rendered(
         self,
@@ -2884,67 +3266,86 @@ class DICOMfileClient:
         Only rendering of single-frame image instances is currently supported.
 
         """  # noqa: E501
-        file_path = self._db_manager.get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
+        url = self._get_instances_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid
         )
-        metadata, transfer_syntax_uid, \
-            first_frame_offset, bot = self._db_manager.get_instance_info(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid
+        url += '/metadata'
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
             )
-        image_file_pointer = self._get_image_file_pointer(
-            file_path,
-            transfer_syntax_uid=transfer_syntax_uid
-        )
-        if int(getattr(metadata, 'NumberOfFrames', '1')) > 1:
-            raise ValueError(
-                'Rendering of multi-frame image instance is not supported.'
+            metadata, transfer_syntax_uid, \
+                first_frame_offset, bot = self._db_manager.get_instance_info(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                    sop_instance_uid=sop_instance_uid
+                )
+            image_file_pointer = self._get_image_file_pointer(
+                file_path,
+                transfer_syntax_uid=transfer_syntax_uid
             )
-        frame_index = 0
-        frame = _read_frame(
-            image_file_pointer,
-            first_frame_offset=first_frame_offset,
-            basic_offset_table=bot,
-            frame_index=frame_index,
-            transfer_syntax_uid=transfer_syntax_uid
-        )
-        image_file_pointer.close()
+            if int(getattr(metadata, 'NumberOfFrames', '1')) > 1:
+                raise ValueError(
+                    'Rendering of multi-frame image instance is not supported.'
+                )
+            frame_index = 0
+            frame = _read_frame(
+                image_file_pointer,
+                first_frame_offset=first_frame_offset,
+                basic_offset_table=bot,
+                frame_index=frame_index,
+                transfer_syntax_uid=transfer_syntax_uid
+            )
+            image_file_pointer.close()
 
-        # TODO: ICC Profile
-        codec_name, codec_kwargs = self._get_image_codec_parameters(
-            transfer_syntax_uid=transfer_syntax_uid,
-            media_types=media_types,
-            params=params
-        )
+            # TODO: ICC Profile
+            codec_name, codec_kwargs = self._get_image_codec_parameters(
+                transfer_syntax_uid=transfer_syntax_uid,
+                media_types=media_types,
+                params=params
+            )
 
-        if codec_name is None:
-            return frame
+            if codec_name is None:
+                return frame
 
-        array = _decode_frame(
-            frame=frame,
-            frame_index=frame_index,
-            transfer_syntax_uid=transfer_syntax_uid,
-            rows=metadata.Rows,
-            columns=metadata.Columns,
-            samples_per_pixel=metadata.SamplesPerPixel,
-            bits_allocated=metadata.BitsAllocated,
-            bits_stored=metadata.BitsStored,
-            photometric_interpretation=metadata.PhotometricInterpretation,
-            pixel_representation=metadata.PixelRepresentation,
-            planar_configuration=getattr(metadata, 'PlanarConfiguration', None)
-        )
-        image = Image.fromarray(array)
-        with io.BytesIO() as fp:
-            image.save(fp, codec_name, **codec_kwargs)  # type: ignore
-            fp.seek(0)
-            reencoded_frame = fp.read()
-        return reencoded_frame
+            array = _decode_frame(
+                frame=frame,
+                frame_index=frame_index,
+                transfer_syntax_uid=transfer_syntax_uid,
+                rows=metadata.Rows,
+                columns=metadata.Columns,
+                samples_per_pixel=metadata.SamplesPerPixel,
+                bits_allocated=metadata.BitsAllocated,
+                bits_stored=metadata.BitsStored,
+                photometric_interpretation=metadata.PhotometricInterpretation,
+                pixel_representation=metadata.PixelRepresentation,
+                planar_configuration=getattr(
+                    metadata,
+                    'PlanarConfiguration',
+                    None
+                )
+            )
+            image = Image.fromarray(array)
+            with io.BytesIO() as fp:
+                image.save(fp, codec_name, **codec_kwargs)  # type: ignore
+                fp.seek(0)
+                reencoded_frame = fp.read()
+            return reencoded_frame
+
+        except Exception as error:
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def _check_media_types_for_instance_frames(
         self,
+        url: str,
         transfer_syntax_uid: UID,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
     ) -> Union[str, None]:
@@ -3050,12 +3451,18 @@ class DICOMfileClient:
                 transfer_syntax_uid not in expected_transfer_syntaxes and
                 '*' not in expected_transfer_syntaxes
             ):
-                raise ValueError(
-                    'Instance frames cannot be retrieved using media type "{}" '
-                    'with any of the specified transfer syntaxes: "{}".'.format(
-                        expected_media_type,
-                        '", "'.join(expected_transfer_syntaxes)
-                    )
+                raise _create_client_error(
+                    method='GET',
+                    url=url,
+                    reason=(
+                        'Instance frames cannot be retrieved using media type '
+                        f'"{expected_media_type}" '
+                        'with any of the specified transfer syntaxes: '
+                        '"{}".'.format(
+                            '", "'.join(expected_transfer_syntaxes)
+                        )
+                    ),
+                    status_code=406
                 )
 
         if found_matching_media_type:
@@ -3073,9 +3480,14 @@ class DICOMfileClient:
             ):
                 image_type = 'image/jp2'
             else:
-                raise ValueError(
-                    'Instance frames cannot be retrieved using any of the '
-                    f'acceptable media types: {media_types}.'
+                raise _create_client_error(
+                    method='GET',
+                    url=url,
+                    reason=(
+                        'Instance frames cannot be retrieved using any of the '
+                        f'acceptable media types: {media_types}.'
+                    ),
+                    status_code=406
                 )
 
         return image_type
@@ -3114,93 +3526,115 @@ class DICOMfileClient:
             f'iterate over frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        file_path = self._db_manager.get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
-        )
-
         if len(frame_numbers) == 0:
             raise ValueError('At least one frame number must be provided.')
 
-        metadata, transfer_syntax_uid, \
-            first_frame_offset, bot = self._db_manager.get_instance_info(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid
+        url = self._get_instances_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid
+        )
+        url += '/frames'
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
             )
-        reencoding_media_type = self._check_media_types_for_instance_frames(
-            transfer_syntax_uid,
-            media_types
-        )
-        requires_reencoding = False
-        if (
-            reencoding_media_type is not None and
-            reencoding_media_type != 'application/octet-stream'
-           ):
-            requires_reencoding = True
 
-        image_file_pointer = self._get_image_file_pointer(
-            file_path,
-            transfer_syntax_uid=transfer_syntax_uid
-        )
-
-        for frame_number in frame_numbers:
-            if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
-                raise ValueError(
-                    f'Provided frame number {frame_number} exceeds number '
-                    'of available frames.'
+            metadata, transfer_syntax_uid, \
+                first_frame_offset, bot = self._db_manager.get_instance_info(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                    sop_instance_uid=sop_instance_uid
                 )
-            frame_index = frame_number - 1
-            frame = _read_frame(
-                image_file_pointer,
-                first_frame_offset=first_frame_offset,
-                basic_offset_table=bot,
-                frame_index=frame_index,
+            reencoding_media_type = self._check_media_types_for_instance_frames(
+                url,
+                transfer_syntax_uid,
+                media_types
+            )
+            requires_reencoding = False
+            if (
+                reencoding_media_type is not None and
+                reencoding_media_type != 'application/octet-stream'
+               ):
+                requires_reencoding = True
+
+            image_file_pointer = self._get_image_file_pointer(
+                file_path,
                 transfer_syntax_uid=transfer_syntax_uid
             )
-            if requires_reencoding:
-                array = _decode_frame(
-                    frame=frame,
-                    frame_index=frame_index,
-                    transfer_syntax_uid=transfer_syntax_uid,
-                    rows=metadata.Rows,
-                    columns=metadata.Columns,
-                    samples_per_pixel=metadata.SamplesPerPixel,
-                    bits_allocated=metadata.BitsAllocated,
-                    bits_stored=metadata.BitsStored,
-                    photometric_interpretation=getattr(
-                        metadata,
-                        'PhotometricInterpretation'
-                    ),
-                    pixel_representation=metadata.PixelRepresentation,
-                    planar_configuration=getattr(
-                        metadata,
-                        'PlanarConfiguration',
-                        None
-                    )
-                )
-                if reencoding_media_type == 'image/jp2':
-                    image_type = 'jpeg2000'
-                    image_kwargs = {'irreversible': False}
-                    image = Image.fromarray(array)
-                    with io.BytesIO() as fp:
-                        image.save(
-                            fp,
-                            image_type,
-                            **image_kwargs   # type: ignore
-                        )
-                        reencoded_frame = fp.getvalue()
-                    yield reencoded_frame
-                else:
-                    raise ValueError(
-                        'Cannot retrieve frames using media type '
-                        f'"{reencoding_media_type}".'
-                    )
-            else:
-                yield frame
 
-        image_file_pointer.close()
+            for frame_number in frame_numbers:
+                if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
+                    raise ValueError(
+                        f'Provided frame number {frame_number} exceeds number '
+                        'of available frames.'
+                    )
+                frame_index = frame_number - 1
+                frame = _read_frame(
+                    image_file_pointer,
+                    first_frame_offset=first_frame_offset,
+                    basic_offset_table=bot,
+                    frame_index=frame_index,
+                    transfer_syntax_uid=transfer_syntax_uid
+                )
+                if requires_reencoding:
+                    array = _decode_frame(
+                        frame=frame,
+                        frame_index=frame_index,
+                        transfer_syntax_uid=transfer_syntax_uid,
+                        rows=metadata.Rows,
+                        columns=metadata.Columns,
+                        samples_per_pixel=metadata.SamplesPerPixel,
+                        bits_allocated=metadata.BitsAllocated,
+                        bits_stored=metadata.BitsStored,
+                        photometric_interpretation=getattr(
+                            metadata,
+                            'PhotometricInterpretation'
+                        ),
+                        pixel_representation=metadata.PixelRepresentation,
+                        planar_configuration=getattr(
+                            metadata,
+                            'PlanarConfiguration',
+                            None
+                        )
+                    )
+                    if reencoding_media_type == 'image/jp2':
+                        image_type = 'jpeg2000'
+                        image_kwargs = {'irreversible': False}
+                        image = Image.fromarray(array)
+                        with io.BytesIO() as fp:
+                            image.save(
+                                fp,
+                                image_type,
+                                **image_kwargs   # type: ignore
+                            )
+                            reencoded_frame = fp.getvalue()
+                        yield reencoded_frame
+                    else:
+                        raise _create_client_error(
+                            method='GET',
+                            url=url,
+                            reason=(
+                                'Cannot retrieve frames using media type '
+                                f'"{reencoding_media_type}".'
+                            ),
+                            status_code=406
+                        )
+                else:
+                    yield frame
+
+            image_file_pointer.close()
+
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_frames(
         self,
@@ -3236,100 +3670,116 @@ class DICOMfileClient:
             f'retrieve frames of instance "{sop_instance_uid}" of '
             f'series "{series_instance_uid}" of study "{study_instance_uid}"'
         )
-        file_path = self._db_manager.get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
-        )
-
         if len(frame_numbers) == 0:
             raise ValueError('At least one frame number must be provided.')
 
-        metadata, transfer_syntax_uid, \
-            first_frame_offset, bot = self._db_manager.get_instance_info(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid
+        url = self._get_instances_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid
+        )
+        url += '/frames/{}'.format(','.join([str(n) for n in frame_numbers]))
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
             )
-        reencoding_media_type = self._check_media_types_for_instance_frames(
-            transfer_syntax_uid,
-            media_types
-        )
-        requires_reencoding = False
-        if (
-            reencoding_media_type is not None and
-            reencoding_media_type != 'application/octet-stream'
-           ):
-            requires_reencoding = True
-
-        image_file_pointer = self._get_image_file_pointer(
-            file_path,
-            transfer_syntax_uid=transfer_syntax_uid
-        )
-
-        # Check all indices first before attempting to read the first frame.
-        frame_indices = []
-        for frame_number in frame_numbers:
-            if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
-                raise ValueError(
-                    f'Provided frame number {frame_number} exceeds number '
-                    'of available frames.'
+            metadata, transfer_syntax_uid, \
+                first_frame_offset, bot = self._db_manager.get_instance_info(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                    sop_instance_uid=sop_instance_uid
                 )
-            frame_index = frame_number - 1
-            frame_indices.append(frame_index)
+            reencoding_media_type = self._check_media_types_for_instance_frames(
+                url,
+                transfer_syntax_uid,
+                media_types
+            )
+            requires_reencoding = False
+            if (
+                reencoding_media_type is not None and
+                reencoding_media_type != 'application/octet-stream'
+               ):
+                requires_reencoding = True
 
-        retrieved_frames = []
-        for frame_index in frame_indices:
-            frame = _read_frame(
-                image_file_pointer,
-                first_frame_offset=first_frame_offset,
-                basic_offset_table=bot,
-                frame_index=frame_index,
+            image_file_pointer = self._get_image_file_pointer(
+                file_path,
                 transfer_syntax_uid=transfer_syntax_uid
             )
-            if requires_reencoding:
-                array = _decode_frame(
-                    frame=frame,
-                    frame_index=frame_index,
-                    transfer_syntax_uid=transfer_syntax_uid,
-                    rows=metadata.Rows,
-                    columns=metadata.Columns,
-                    samples_per_pixel=metadata.SamplesPerPixel,
-                    bits_allocated=metadata.BitsAllocated,
-                    bits_stored=metadata.BitsStored,
-                    photometric_interpretation=getattr(
-                        metadata,
-                        'PhotometricInterpretation'
-                    ),
-                    pixel_representation=metadata.PixelRepresentation,
-                    planar_configuration=getattr(
-                        metadata,
-                        'PlanarConfiguration',
-                        None
-                    )
-                )
-                if reencoding_media_type == 'image/jp2':
-                    image_type = 'jpeg2000'
-                    image_kwargs = {'irreversible': False}
-                    image = Image.fromarray(array)
-                    with io.BytesIO() as fp:
-                        image.save(
-                            fp,
-                            image_type,
-                            **image_kwargs   # type: ignore
-                        )
-                        reencoded_frame = fp.getvalue()
-                else:
-                    raise ValueError(
-                        'Cannot retrieve frames using media type '
-                        f'"{reencoding_media_type}".'
-                    )
-                retrieved_frames.append(reencoded_frame)
-            else:
-                retrieved_frames.append(frame)
 
-        image_file_pointer.close()
-        return retrieved_frames
+            # Check all indices first before attempting to read the first frame.
+            frame_indices = []
+            for frame_number in frame_numbers:
+                if frame_number > int(getattr(metadata, 'NumberOfFrames', '1')):
+                    raise ValueError(
+                        f'Provided frame number {frame_number} exceeds number '
+                        'of available frames.'
+                    )
+                frame_index = frame_number - 1
+                frame_indices.append(frame_index)
+
+            retrieved_frames = []
+            for frame_index in frame_indices:
+                frame = _read_frame(
+                    image_file_pointer,
+                    first_frame_offset=first_frame_offset,
+                    basic_offset_table=bot,
+                    frame_index=frame_index,
+                    transfer_syntax_uid=transfer_syntax_uid
+                )
+                if requires_reencoding:
+                    array = _decode_frame(
+                        frame=frame,
+                        frame_index=frame_index,
+                        transfer_syntax_uid=transfer_syntax_uid,
+                        rows=metadata.Rows,
+                        columns=metadata.Columns,
+                        samples_per_pixel=metadata.SamplesPerPixel,
+                        bits_allocated=metadata.BitsAllocated,
+                        bits_stored=metadata.BitsStored,
+                        photometric_interpretation=getattr(
+                            metadata,
+                            'PhotometricInterpretation'
+                        ),
+                        pixel_representation=metadata.PixelRepresentation,
+                        planar_configuration=getattr(
+                            metadata,
+                            'PlanarConfiguration',
+                            None
+                        )
+                    )
+                    if reencoding_media_type == 'image/jp2':
+                        image_type = 'jpeg2000'
+                        image_kwargs = {'irreversible': False}
+                        image = Image.fromarray(array)
+                        with io.BytesIO() as fp:
+                            image.save(
+                                fp,
+                                image_type,
+                                **image_kwargs   # type: ignore
+                            )
+                            reencoded_frame = fp.getvalue()
+                    else:
+                        raise ValueError(
+                            'Cannot retrieve frames using media type '
+                            f'"{reencoding_media_type}".'
+                        )
+                    retrieved_frames.append(reencoded_frame)
+                else:
+                    retrieved_frames.append(frame)
+
+            image_file_pointer.close()
+            return retrieved_frames
+
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def retrieve_instance_frames_rendered(
         self,
@@ -3377,59 +3827,81 @@ class DICOMfileClient:
         frame_number = frame_numbers[0]
         frame_index = frame_number - 1
 
-        file_path = self._db_manager.get_instance_file_path(
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
+        url = self._get_instances_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid
         )
-        metadata, transfer_syntax_uid, \
-            first_frame_offset, bot = self._db_manager.get_instance_info(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid
+        url += f'/frames/{frame_number}/rendered'
+        if params is not None:
+            url += build_query_string(params)
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid,
+                series_instance_uid,
+                sop_instance_uid,
             )
-        image_file_pointer = self._get_image_file_pointer(
-            file_path,
-            transfer_syntax_uid=transfer_syntax_uid
-        )
-        frame = _read_frame(
-            image_file_pointer,
-            first_frame_offset=first_frame_offset,
-            basic_offset_table=bot,
-            frame_index=frame_index,
-            transfer_syntax_uid=transfer_syntax_uid
-        )
-        image_file_pointer.close()
+            metadata, transfer_syntax_uid, \
+                first_frame_offset, bot = self._db_manager.get_instance_info(
+                    study_instance_uid=study_instance_uid,
+                    series_instance_uid=series_instance_uid,
+                    sop_instance_uid=sop_instance_uid
+                )
+            image_file_pointer = self._get_image_file_pointer(
+                file_path,
+                transfer_syntax_uid=transfer_syntax_uid
+            )
+            frame = _read_frame(
+                image_file_pointer,
+                first_frame_offset=first_frame_offset,
+                basic_offset_table=bot,
+                frame_index=frame_index,
+                transfer_syntax_uid=transfer_syntax_uid
+            )
+            image_file_pointer.close()
 
-        # TODO: ICC Profile
-        codec_name, codec_kwargs = self._get_image_codec_parameters(
-            transfer_syntax_uid=transfer_syntax_uid,
-            media_types=media_types,
-            params=params
-        )
+            # TODO: ICC Profile
+            codec_name, codec_kwargs = self._get_image_codec_parameters(
+                transfer_syntax_uid=transfer_syntax_uid,
+                media_types=media_types,
+                params=params
+            )
 
-        if codec_name is None:
-            return frame
+            if codec_name is None:
+                return frame
 
-        array = _decode_frame(
-            frame=frame,
-            frame_index=frame_index,
-            transfer_syntax_uid=transfer_syntax_uid,
-            rows=metadata.Rows,
-            columns=metadata.Columns,
-            samples_per_pixel=metadata.SamplesPerPixel,
-            bits_allocated=metadata.BitsAllocated,
-            bits_stored=metadata.BitsStored,
-            photometric_interpretation=metadata.PhotometricInterpretation,
-            pixel_representation=metadata.PixelRepresentation,
-            planar_configuration=getattr(metadata, 'PlanarConfiguration', None)
-        )
-        image = Image.fromarray(array)
-        with io.BytesIO() as fp:
-            image.save(fp, codec_name, **codec_kwargs)  # type: ignore
-            fp.seek(0)
-            reencoded_frame = fp.read()
-        return reencoded_frame
+            array = _decode_frame(
+                frame=frame,
+                frame_index=frame_index,
+                transfer_syntax_uid=transfer_syntax_uid,
+                rows=metadata.Rows,
+                columns=metadata.Columns,
+                samples_per_pixel=metadata.SamplesPerPixel,
+                bits_allocated=metadata.BitsAllocated,
+                bits_stored=metadata.BitsStored,
+                photometric_interpretation=metadata.PhotometricInterpretation,
+                pixel_representation=metadata.PixelRepresentation,
+                planar_configuration=getattr(
+                    metadata,
+                    'PlanarConfiguration',
+                    None
+                )
+            )
+            image = Image.fromarray(array)
+            with io.BytesIO() as fp:
+                image.save(fp, codec_name, **codec_kwargs)  # type: ignore
+                fp.seek(0)
+                reencoded_frame = fp.read()
+            return reencoded_frame
+
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            raise _create_server_error(
+                method='GET',
+                url=url,
+                reason=str(error)
+            )
 
     def _get_image_codec_parameters(
         self,
@@ -3585,38 +4057,68 @@ class DICOMfileClient:
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
 
-        successes, failures = self._db_manager.insert_instances(datasets)
+        for ds in datasets:
+            if not isinstance(ds, Dataset):
+                raise TypeError(
+                    'Items of argument "datasets" must have type '
+                    'pydicom.dataset.Dataset.'
+                )
+            if not hasattr(ds, 'file_meta'):
+                raise ValueError(
+                    'Datasets must contain File Meta Information.'
+                )
 
-        response = Dataset()
-        response.RetrieveURL = None
+        url = self._get_instances_url(study_instance_uid)
+        if self._readonly:
+            raise _create_client_error(
+                method='POST',
+                url=url,
+                reason='Storage of instances is not allowed.',
+                status_code=403
+            )
+        try:
+            successes, failures = self._db_manager.insert_instances(datasets)
 
-        if len(successes) == 0 and len(failures) == 0:
-            raise RuntimeError('Failed to store instances.')
+            response = Dataset()
+            response.RetrieveURL = None  # type 2
 
-        if len(successes) > 0:
-            response.ReferencedSOPSequence = []
-            for ds, file_path, file_content in successes:
-                directory = file_path.parent
-                directory.mkdir(exist_ok=True, parents=True)
-                with open(file_path, 'wb') as fp:
-                    fp.write(file_content)
+            if len(successes) == 0 and len(failures) == 0:
+                raise RuntimeError('Failed to store instances.')
 
-                success_item = Dataset()
-                success_item.ReferencedSOPClassUID = ds.SOPClassUID
-                success_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
-                success_item.RetrieveURL = None  # TODO
-                response.ReferencedSOPSequence.append(success_item)
+            if len(successes) > 0:
+                response.ReferencedSOPSequence = []
+                for ds, file_path, file_content in successes:
+                    directory = file_path.parent
+                    directory.mkdir(exist_ok=True, parents=True)
+                    with open(file_path, 'wb') as fp:
+                        fp.write(file_content)
 
-        if len(failures) > 0:
-            response.FailedSOPSequence = []
-            for ds in failures:
-                failure_item = Dataset()
-                failure_item.FailureReason = 272
-                failure_item.ReferencedSOPClassUID = ds.SOPClassUID
-                failure_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
-                response.FailedSOPSequence.append(failure_item)
+                    success_item = Dataset()
+                    success_item.ReferencedSOPClassUID = ds.SOPClassUID
+                    success_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
+                    success_item.RetrieveURL = None  # type 2
+                    response.ReferencedSOPSequence.append(success_item)
 
-        return response
+            if len(failures) > 0:
+                response.FailedSOPSequence = []
+                for ds in failures:
+                    failure_item = Dataset()
+                    failure_item.FailureReason = 272
+                    failure_item.ReferencedSOPClassUID = ds.SOPClassUID
+                    failure_item.ReferencedSOPInstanceUID = ds.SOPInstanceUID
+                    response.FailedSOPSequence.append(failure_item)
+
+            return response
+
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            url = self._get_studies_url(study_instance_uid)
+            raise _create_server_error(
+                method='POST',
+                url=url,
+                reason=str(error)
+            )
 
     def delete_study(self, study_instance_uid: str) -> None:
         """Delete all instances of a study.
@@ -3631,12 +4133,24 @@ class DICOMfileClient:
             raise ValueError(
               'Study Instance UID is required for deletion of a study.'
             )
-        uids = self._db_manager.get_instance_identifiers(study_instance_uid)
-        for study_instance_uid, series_instance_uid, sop_instance_uid in uids:
-            self.delete_instance(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid,
+        url = self._get_studies_url(study_instance_uid)
+        if self._readonly:
+            raise _create_client_error(
+                method='DELETE',
+                url=url,
+                reason='Deletion of study is not allowed.',
+                status_code=403
+            )
+        try:
+            for uids in self._db_manager.get_instance_identifiers(
+                study_instance_uid=study_instance_uid
+            ):
+                self.delete_instance(*uids)
+        except Exception as error:
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
             )
 
     def delete_series(
@@ -3662,19 +4176,30 @@ class DICOMfileClient:
             raise ValueError(
                 'Series Instance UID is required for deletion of a series.'
             )
-        instance_identifiers = self._db_manager.get_instance_identifiers(
+        url = self._get_series_url(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
         )
-        for (
-            study_instance_uid,
-            series_instance_uid,
-            sop_instance_uid,
-        ) in instance_identifiers:
-            self.delete_instance(
+        if self._readonly:
+            raise _create_client_error(
+                method='DELETE',
+                url=url,
+                reason='Deletion of series is not allowed.',
+                status_code=403
+            )
+        try:
+            for uids in self._db_manager.get_instance_identifiers(
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid,
+            ):
+                self.delete_instance(*uids)
+        except requests.HTTPError:
+            raise
+        except Exception as error:
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
             )
 
     def delete_instance(
@@ -3707,14 +4232,33 @@ class DICOMfileClient:
             raise ValueError(
                 'SOP Instance UID is required for deletion of an instance.'
             )
-        file_path = self._db_manager.get_instance_file_path(
+        url = self._get_instances_url(
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
-            sop_instance_uid=sop_instance_uid,
+            sop_instance_uid=sop_instance_uid
         )
-        self._db_manager.delete_instances(
-            uids=[
-                (study_instance_uid, series_instance_uid, sop_instance_uid)
-            ]
-        )
-        os.remove(file_path)
+        if self._readonly:
+            raise _create_client_error(
+                method='DELETE',
+                url=url,
+                reason='Deletion of instance is not allowed.',
+                status_code=403
+            )
+        try:
+            file_path = self._db_manager.get_instance_file_path(
+                study_instance_uid=study_instance_uid,
+                series_instance_uid=series_instance_uid,
+                sop_instance_uid=sop_instance_uid,
+            )
+            self._db_manager.delete_instances(
+                uids=[
+                    (study_instance_uid, series_instance_uid, sop_instance_uid)
+                ]
+            )
+            os.remove(file_path)
+        except Exception as error:
+            raise _create_server_error(
+                method='DELETE',
+                url=url,
+                reason=str(error)
+            )
