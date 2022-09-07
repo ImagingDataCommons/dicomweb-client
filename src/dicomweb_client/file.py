@@ -2219,7 +2219,8 @@ class DICOMfileClient:
         update_db: bool = False,
         recreate_db: bool = False,
         in_memory: bool = False,
-        db_dir: Optional[Union[Path, str]] = None
+        db_dir: Optional[Union[Path, str]] = None,
+        readonly: bool = False
     ):
         """Instantiate client.
 
@@ -2244,6 +2245,9 @@ class DICOMfileClient:
         db_dir: Union[pathlib.Path, str, None], optional
             Path to directory where database files should be stored (defaults
             to `base_dir`)
+        readonly: bool, optional
+            Whether data should be considered read-only. Attempts to store or
+            delete data will be denied.
 
         """
         self.base_url = url
@@ -2269,6 +2273,7 @@ class DICOMfileClient:
             recreate_db=recreate_db,
             in_memory=in_memory
         )
+        self._readonly = readonly
 
     def _get_image_file_pointer(
         self,
@@ -4063,6 +4068,14 @@ class DICOMfileClient:
                     'Datasets must contain File Meta Information.'
                 )
 
+        url = self._get_instances_url(study_instance_uid)
+        if self._readonly:
+            raise _create_client_error(
+                method='POST',
+                url=url,
+                reason='Storage of instances is not allowed.',
+                status_code=403
+            )
         try:
             successes, failures = self._db_manager.insert_instances(datasets)
 
@@ -4120,13 +4133,20 @@ class DICOMfileClient:
             raise ValueError(
               'Study Instance UID is required for deletion of a study.'
             )
+        url = self._get_studies_url(study_instance_uid)
+        if self._readonly:
+            raise _create_client_error(
+                method='DELETE',
+                url=url,
+                reason='Deletion of study is not allowed.',
+                status_code=403
+            )
         try:
             for uids in self._db_manager.get_instance_identifiers(
                 study_instance_uid=study_instance_uid
             ):
                 self.delete_instance(*uids)
         except Exception as error:
-            url = self._get_studies_url(study_instance_uid)
             raise _create_server_error(
                 method='DELETE',
                 url=url,
@@ -4156,6 +4176,17 @@ class DICOMfileClient:
             raise ValueError(
                 'Series Instance UID is required for deletion of a series.'
             )
+        url = self._get_series_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+        )
+        if self._readonly:
+            raise _create_client_error(
+                method='DELETE',
+                url=url,
+                reason='Deletion of series is not allowed.',
+                status_code=403
+            )
         try:
             for uids in self._db_manager.get_instance_identifiers(
                 study_instance_uid=study_instance_uid,
@@ -4165,10 +4196,6 @@ class DICOMfileClient:
         except requests.HTTPError:
             raise
         except Exception as error:
-            url = self._get_series_url(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-            )
             raise _create_server_error(
                 method='DELETE',
                 url=url,
@@ -4205,6 +4232,18 @@ class DICOMfileClient:
             raise ValueError(
                 'SOP Instance UID is required for deletion of an instance.'
             )
+        url = self._get_instances_url(
+            study_instance_uid=study_instance_uid,
+            series_instance_uid=series_instance_uid,
+            sop_instance_uid=sop_instance_uid
+        )
+        if self._readonly:
+            raise _create_client_error(
+                method='DELETE',
+                url=url,
+                reason='Deletion of instance is not allowed.',
+                status_code=403
+            )
         try:
             file_path = self._db_manager.get_instance_file_path(
                 study_instance_uid=study_instance_uid,
@@ -4218,11 +4257,6 @@ class DICOMfileClient:
             )
             os.remove(file_path)
         except Exception as error:
-            url = self._get_instances_url(
-                study_instance_uid=study_instance_uid,
-                series_instance_uid=series_instance_uid,
-                sop_instance_uid=sop_instance_uid
-            )
             raise _create_server_error(
                 method='DELETE',
                 url=url,
