@@ -251,9 +251,25 @@ class DICOMwebClient:
             session = requests.session()
         self._session = session
         self.base_url = url
+        if qido_url_prefix == '':
+            raise ValueError(
+                'Argument "qido_url_prefix" must not be a zero length string.'
+            )
         self.qido_url_prefix = qido_url_prefix
+        if wado_url_prefix == '':
+            raise ValueError(
+                'Argument "wado_url_prefix" must not be a zero length string.'
+            )
         self.wado_url_prefix = wado_url_prefix
+        if stow_url_prefix == '':
+            raise ValueError(
+                'Argument "stow_url_prefix" must not be a zero length string.'
+            )
         self.stow_url_prefix = stow_url_prefix
+        if delete_url_prefix == '':
+            raise ValueError(
+                'Argument "delete_url_prefix" must not be a zero length string.'
+            )
         self.delete_url_prefix = delete_url_prefix
 
         # This regular expression extracts the scheme and host name from the URL

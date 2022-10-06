@@ -65,6 +65,13 @@ def test_url_prefixes(httpserver):
     assert client.stow_url_prefix == stow_url_prefix
 
 
+def test_url_prefixes_zero_length(httpserver):
+    for name in ('wado', 'qido', 'stow'):
+        kwargs = {f'{name}_url_prefix': ''}
+        with pytest.raises(ValueError):
+            DICOMwebClient(httpserver.url, **kwargs)
+
+
 def test_proxies(httpserver):
     protocol = 'http'
     address = 'foo.com'
