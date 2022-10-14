@@ -557,10 +557,14 @@ A common use for this is translating metadata received from a ``RetrieveMetadata
 
 .. code-block:: python
 
-    from dicomweb_client.api import load_json_dataset
+    from pydicom.dataset import Dataset
 
     metadata = client.retrieve_study_metadata('1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639')
-    metadata_datasets = [load_json_dataset(ds) for ds in metadata]
+    metadata_datasets = [Dataset.from_json(ds) for ds in metadata]
+
+Note that the metadata may include references to BulkData elements.
+By default, BulkData elements will not be handled and the values not be automatically retrieved.
+To handle BulkData elements and retrieve their values, one has to provide a ``bulk_data_uri_handler`` callable to the `pydicom.dataset.Dataset.from_json() <https://pydicom.github.io/pydicom/dev/reference/generated/pydicom.dataset.Dataset.html#pydicom.dataset.Dataset.from_json>`_ method.
 
 
 Command Line Interface (CLI)
