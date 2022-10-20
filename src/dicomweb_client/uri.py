@@ -50,7 +50,7 @@ def build_query_string(params: Optional[Dict[str, Any]] = None) -> str:
         return ''
     components = []
     for key, value in params.items():
-        if isinstance(value, Sequence):
+        if isinstance(value, (list, tuple, set)):
             for v in value:
                 c = '='.join([key, quote_plus(str(v))])
                 components.append(c)
@@ -95,19 +95,19 @@ def parse_query_parameters(
     params: Dict[str, Union[int, str, List[str]]] = {}
     if limit is not None:
         if not isinstance(limit, int):
-            raise TypeError('Parameter "limit" must be an integer.')
+            raise TypeError('Argument "limit" must be an integer.')
         if limit < 0:
-            raise ValueError('Parameter "limit" must not be negative.')
+            raise ValueError('Argument "limit" must not be negative.')
         params['limit'] = limit
     if offset is not None:
         if not isinstance(offset, int):
-            raise TypeError('Parameter "offset" must be an integer.')
+            raise TypeError('Argument "offset" must be an integer.')
         if offset < 0:
-            raise ValueError('Parameter "offset" must not be negative.')
+            raise ValueError('Argument "offset" must not be negative.')
         params['offset'] = offset
     if fuzzymatching is not None:
         if not isinstance(fuzzymatching, bool):
-            raise TypeError('Parameter "fuzzymatching" must be boolean.')
+            raise TypeError('Argument "fuzzymatching" must be boolean.')
         if fuzzymatching:
             params['fuzzymatching'] = 'true'
         else:
@@ -116,14 +116,14 @@ def parse_query_parameters(
         includefields = []
         for field in set(fields):
             if not isinstance(field, str):
-                raise TypeError('Elements of "fields" must be a string.')
+                raise TypeError('Items of argument "fields" must be strings.')
             includefields.append(field)
         params['includefield'] = includefields
     if search_filters is not None:
         for field, criterion in search_filters.items():
             if not isinstance(field, str):
                 raise TypeError(
-                    'Keys of "search_filters" must be strings.'
+                    'Keys of argument "search_filters" must be strings.'
                 )
             # TODO: datetime?
             params[field] = criterion
