@@ -199,7 +199,8 @@ class DICOMwebClient:
         proxies: Optional[Dict[str, str]] = None,
         headers: Optional[Dict[str, str]] = None,
         callback: Optional[Callable] = None,
-        chunk_size: int = 10**6
+        chunk_size: int = 10**6,
+        quote_accept_parameter_values: bool = False
     ) -> None:
         """Instatiate client.
 
@@ -234,6 +235,12 @@ class DICOMwebClient:
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
             method); defaults to ``10**6`` bytes (10MB)
+        quote_accept_parameter_values: bool, optional
+            Whether parameter values in the accept header field of in
+            multipart/related request messages should be quoted. Quoting should
+            generally not be necessary and may not even be compliant with the
+            HTTP standard. However, according to DICOM Part 3.18, the quotes
+            are required and some origin servers fail if they are not provided.
 
         Warning
         -------
@@ -314,6 +321,8 @@ class DICOMwebClient:
             self._session.hooks = {'response': [callback, ]}
         self._chunk_size = chunk_size
         self.set_http_retry_params()
+
+        self._quote_accept_parameter_values = quote_accept_parameter_values
 
     def _get_transaction_url(self, transaction: _Transaction) -> str:
         """Construct URL of a DICOMweb service transaction.
@@ -852,9 +861,8 @@ class DICOMwebClient:
             field_value_parts.append(media_type)
         return ', '.join(field_value_parts)
 
-    @classmethod
     def _build_multipart_accept_header_field_value(
-        cls,
+        self,
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None],
         supported_media_types: Union[Dict[str, str], Set[str]]
     ) -> str:
@@ -890,8 +898,11 @@ class DICOMwebClient:
                     transfer_syntax_uid = item[1]
                 except IndexError:
                     transfer_syntax_uid = None
-            cls._assert_media_type_is_valid(media_type)
-            field_value = f'multipart/related; type={media_type}'
+            self._assert_media_type_is_valid(media_type)
+            if self._quote_accept_parameter_values:
+                field_value = f'multipart/related; type="{media_type}"'
+            else:
+                field_value = f'multipart/related; type={media_type}'
             if isinstance(supported_media_types, dict):
                 if media_type not in supported_media_types.values():
                     if not (media_type.endswith('/*') or
@@ -912,8 +923,8 @@ class DICOMwebClient:
                         ]
                         if expected_media_type != media_type:
                             have_same_type = (
-                                cls._parse_media_type(media_type)[0] ==
-                                cls._parse_media_type(expected_media_type)[0]
+                                self._parse_media_type(media_type)[0] ==
+                                self._parse_media_type(expected_media_type)[0]
                             )
                             if (have_same_type and
                                     (media_type.endswith('/*') or
@@ -924,7 +935,14 @@ class DICOMwebClient:
                                 'is not supported for media '
                                 f'type "{media_type}".'
                             )
-                    field_value += f'; transfer-syntax={transfer_syntax_uid}'
+                    if self._quote_accept_parameter_values:
+                        field_value += (
+                            f'; transfer-syntax="{transfer_syntax_uid}"'
+                        )
+                    else:
+                        field_value += (
+                            f'; transfer-syntax={transfer_syntax_uid}'
+                        )
             else:
                 if media_type not in supported_media_types:
                     raise ValueError(
@@ -1542,11 +1560,20 @@ class DICOMwebClient:
             Information about stored instances
 
         """
-        content_type = (
-            'multipart/related; '
-            'type=application/dicom; '
-            'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
-        )
+        media_type = 'application/dicom'
+        boundary = '0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
+        if self._quote_accept_parameter_values:
+            content_type = (
+                'multipart/related; '
+                f'type="{media_type}"; '
+                'boundary="{boundary}"'
+            )
+        else:
+            content_type = (
+                'multipart/related; '
+                f'type={media_type}; '
+                f'boundary={boundary}'
+            )
         content = self._encode_multipart_message(data, content_type)
         response = self._http_post(
             url,
