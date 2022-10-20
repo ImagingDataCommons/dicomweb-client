@@ -226,9 +226,9 @@ class DICOMwebClient:
         headers: Union[Dict[str, str], None], optional
             Custom headers that should be included in request messages,
             e.g., authentication tokens
-        callback: Union[Callable[[requests.Response, ...], requests.Response], None], optional
+        callback: Union[Callable[[requests.models.Response, ...], requests.models.Response], None], optional
             Callback function to manipulate responses generated from requests
-            (see `requests event hooks <http://docs.python-requests.org/en/master/user/advanced/#event-hooks>`_)
+            (see `requests event hooks <https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks>`_)
         chunk_size: int, optional
             Maximum number of bytes that should be transferred per data chunk
             when streaming data from the server using chunked transfer encoding
@@ -891,7 +891,7 @@ class DICOMwebClient:
                 except IndexError:
                     transfer_syntax_uid = None
             cls._assert_media_type_is_valid(media_type)
-            field_value = f'multipart/related; type="{media_type}"'
+            field_value = f'multipart/related; type={media_type}'
             if isinstance(supported_media_types, dict):
                 if media_type not in supported_media_types.values():
                     if not (media_type.endswith('/*') or
@@ -1011,7 +1011,7 @@ class DICOMwebClient:
                 'message sent by origin server in response to GET request '
                 'of Retrieve Instance transaction was not compliant with the '
                 'DICOM standard, message body shall have Content-Type '
-                '\'multipart/related; type="application/dicom"\' rather than '
+                '"multipart/related; type=application/dicom" rather than '
                 '"application/dicom"'
             )
             warn(warning_message, category=UserWarning)
@@ -1544,8 +1544,8 @@ class DICOMwebClient:
         """
         content_type = (
             'multipart/related; '
-            'type="application/dicom"; '
-            'boundary="0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1"'
+            'type=application/dicom; '
+            'boundary=0f3cf5c0-70e0-41ef-baef-c6f9f65ec3e1'
         )
         content = self._encode_multipart_message(data, content_type)
         response = self._http_post(
@@ -2643,6 +2643,16 @@ class DICOMwebClient:
         url = self._get_studies_url(_Transaction.STORE, study_instance_uid)
         encoded_datasets = list()
         for ds in datasets:
+            try:
+                logger.debug(
+                    f'include instance "{ds.SOPInstanceUID}" '
+                    f'of series "{ds.SeriesInstanceUID}" '
+                    f'of study "{ds.StudyInstanceUID}"'
+                )
+            except AttributeError:
+                # Each data set should contain the Study/Series/SOP Instance UID
+                # attributes, but let's not fail in case they are not included.
+                pass
             with BytesIO() as b:
                 pydicom.dcmwrite(b, ds)
                 encoded_ds = b.getvalue()

@@ -401,8 +401,8 @@ def test_iter_series(client, httpserver, cache_dir):
     headers = {
         'content-type': (
             'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
+            f'type={media_type}; '
+            f'boundary={boundary}'
         ),
         'transfer-encoding': 'chunked'
     }
@@ -426,7 +426,7 @@ def test_iter_series(client, httpserver, cache_dir):
         assert raw_result == data
     request = httpserver.requests[0]
     assert request.path == f'/studies/{study_uid}/series/{series_uid}'
-    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert request.accept_mimetypes[0][0][:41] == headers['content-type'][:41]
     assert len(response) == n_resources
 
 
@@ -441,8 +441,8 @@ def test_retrieve_series(client, httpserver, cache_dir):
     headers = {
         'content-type': (
             'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
+            f'type={media_type}; '
+            f'boundary={boundary}'
         ),
     }
     message = DICOMwebClient._encode_multipart_message(
@@ -466,7 +466,7 @@ def test_retrieve_series(client, httpserver, cache_dir):
         f'/series/{series_instance_uid}'
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert request.accept_mimetypes[0][0][:41] == headers['content-type'][:41]
     assert len(response) == n_resources
 
 
@@ -479,8 +479,8 @@ def test_retrieve_instance(httpserver, client, cache_dir):
     headers = {
         'content-type': (
             'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
+            f'type={media_type}; '
+            f'boundary={boundary}'
         ),
     }
     message = DICOMwebClient._encode_multipart_message(
@@ -539,8 +539,8 @@ def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
     headers = {
         'content-type': (
             'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
+            f'type={media_type}; '
+            f'boundary={boundary}'
         ),
     }
     message = DICOMwebClient._encode_multipart_message(
@@ -571,8 +571,8 @@ def test_retrieve_instance_default_transfer_syntax(httpserver, client,
     headers = {
         'content-type': (
             'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
+            f'type={media_type}; '
+            f'boundary={boundary}'
         ),
     }
     message = DICOMwebClient._encode_multipart_message(
@@ -643,8 +643,8 @@ def test_iter_instance_frames_jpeg(httpserver, client, cache_dir):
     headers = {
         'content-type': (
             'multipart/related; '
-            f'type="{media_type}"; '
-            f'boundary="{boundary}"'
+            f'type={media_type}; '
+            f'boundary={boundary}'
         ),
         'transfer-encoding': 'chunked'
     }
@@ -676,7 +676,7 @@ def test_iter_instance_frames_jpeg(httpserver, client, cache_dir):
     )
     assert isinstance(iterator, Generator)
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
+    assert request.accept_mimetypes[0][0][:34] == headers['content-type'][:34]
     assert len(response) == n_resources
 
 
@@ -685,7 +685,7 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jpeg"',
+        'content-type': 'multipart/related; type=image/jpeg',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -709,7 +709,7 @@ def test_retrieve_instance_frames_jpeg(httpserver, client, cache_dir):
         f'/frames/{frame_list}'
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
+    assert request.accept_mimetypes[0][0][:34] == headers['content-type'][:34]
 
 
 def test_retrieve_instance_frames_jpeg_default_transfer_syntax(
@@ -719,7 +719,7 @@ def test_retrieve_instance_frames_jpeg_default_transfer_syntax(
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jpeg"',
+        'content-type': 'multipart/related; type=image/jpeg',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     client.retrieve_instance_frames(
@@ -732,7 +732,7 @@ def test_retrieve_instance_frames_jpeg_default_transfer_syntax(
         )
     )
     request = httpserver.requests[0]
-    assert request.accept_mimetypes[0][0][:36] == headers['content-type'][:36]
+    assert request.accept_mimetypes[0][0][:34] == headers['content-type'][:34]
 
 
 def test_retrieve_instance_frames_no_media_type(
@@ -742,7 +742,7 @@ def test_retrieve_instance_frames_no_media_type(
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jpeg"',
+        'content-type': 'multipart/related; type=image/jpeg',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     client.retrieve_instance_frames(
@@ -764,7 +764,7 @@ def test_retrieve_instance_frames_any_media_type(
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jpeg"',
+        'content-type': 'multipart/related; type=image/jpeg',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     client.retrieve_instance_frames(
@@ -786,7 +786,7 @@ def test_retrieve_instance_frames_multiple_media_types(
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jpeg"',
+        'content-type': 'multipart/related; type=image/jpeg',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     client.retrieve_instance_frames(
@@ -844,7 +844,7 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jp2"',
+        'content-type': 'multipart/related; type=image/jp2',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -865,7 +865,7 @@ def test_retrieve_instance_frames_jp2(httpserver, client, cache_dir):
         f'/frames/{frame_list}'
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
+    assert request.accept_mimetypes[0][0][:33] == headers['content-type'][:33]
 
 
 def test_retrieve_instance_frames_jls(httpserver, client, cache_dir):
@@ -873,7 +873,7 @@ def test_retrieve_instance_frames_jls(httpserver, client, cache_dir):
     with open(cache_filename, 'rb') as f:
         content = f.read()
     headers = {
-        'content-type': 'multipart/related; type="image/jls"',
+        'content-type': 'multipart/related; type=image/jls',
     }
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
@@ -894,7 +894,7 @@ def test_retrieve_instance_frames_jls(httpserver, client, cache_dir):
         f'/frames/{frame_list}'
     )
     assert request.path == expected_path
-    assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
+    assert request.accept_mimetypes[0][0][:33] == headers['content-type'][:33]
 
 
 def test_retrieve_instance_frames_rendered_jpeg(httpserver, client, cache_dir):
@@ -992,7 +992,7 @@ def test_store_instance_error_with_retries(httpserver, client, cache_dir):
     assert len(httpserver.requests) == max_attempts
     request = httpserver.requests[0]
     assert request.headers['Content-Type'].startswith(
-        'multipart/related; type="application/dicom"'
+        'multipart/related; type=application/dicom'
     )
 
 
@@ -1011,7 +1011,7 @@ def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     assert len(httpserver.requests) == 1
     request = httpserver.requests[0]
     assert request.headers['Content-Type'].startswith(
-        'multipart/related; type="application/dicom"'
+        'multipart/related; type=application/dicom'
     )
 
 
