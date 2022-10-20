@@ -217,6 +217,18 @@ def test_search_for_series(httpserver, client, cache_dir):
     )
 
 
+def test_search_for_series_filter_modality(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('search_for_series.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    client.search_for_series(search_filters={'Modality': 'SM'})
+    request = httpserver.requests[0]
+    assert request.path == '/series'
+    assert request.query_string.decode() == 'Modality=SM'
+
+
 def test_search_for_series_of_study(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('search_for_series.json'))
     with open(cache_filename, 'r') as f:
