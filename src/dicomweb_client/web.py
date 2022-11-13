@@ -743,13 +743,15 @@ class DICOMwebClient:
             raise ValueError(
                 'No "boundary" parameter in found in content-type field'
             )
-        body = b''
-        for part in content:
-            body += f'\r\n--{boundary}'.encode('utf-8')
-            body += f'\r\nContent-Type: {content_type}\r\n\r\n'.encode('utf-8')
-            body += part
-        body += f'\r\n--{boundary}--'.encode('utf-8')
-        return body
+        with BytesIO() as b:
+            for part in content:
+                b.write(f'\r\n--{boundary}'.encode('utf-8'))
+                b.write(
+                    f'\r\nContent-Type: {content_type}\r\n\r\n'.encode('utf-8')
+                )
+                b.write(part)
+            b.write(f'\r\n--{boundary}--'.encode('utf-8'))
+            return b.getvalue()
 
     @classmethod
     def _assert_media_type_is_valid(cls, media_type: str):
