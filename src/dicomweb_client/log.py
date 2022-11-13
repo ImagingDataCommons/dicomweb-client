@@ -74,8 +74,7 @@ def configure_logging(verbosity: int) -> logging.Logger:
         )
     else:
         fmt = '%(asctime)s | %(levelname)-8s | %(name)-40s | %(message)s'
-    datefmt = '%Y-%m-%d %H:%M:%S'
-    formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
+    formatter = logging.Formatter(fmt=fmt)
 
     stderr_handler = logging.StreamHandler(stream=sys.stderr)
     stderr_handler.name = 'stderr'
