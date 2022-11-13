@@ -233,7 +233,7 @@ class DICOMwebClient:
             Maximum number of bytes that should be transferred per data chunk
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
-            method); defaults to ``10**6`` bytes (10MB)
+            method); defaults to ``10**6`` bytes (1MB)
 
         Warning
         -------
