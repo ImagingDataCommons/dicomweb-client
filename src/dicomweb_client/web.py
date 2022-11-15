@@ -237,10 +237,9 @@ class DICOMwebClient:
             method); defaults to ``10**6`` bytes (10MB)
         quote_accept_parameter_values: bool, optional
             Whether parameter values in the accept header field of in
-            multipart/related request messages should be quoted. Quoting should
-            generally not be necessary and may not even be compliant with the
-            HTTP standard. However, according to DICOM Part 3.18, the quotes
-            are required and some origin servers fail if they are not provided.
+            multipart/related request messages should be quoted. According to
+            DICOM Part 3.18, the quotes are required and some origin servers
+            fail if they are not provided.
 
         Warning
         -------
