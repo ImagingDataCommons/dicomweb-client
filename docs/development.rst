@@ -7,7 +7,7 @@ Source code is available at Github and can be cloned via git:
 
 .. code-block:: none
 
-    git clone https://github.com/mghcomputationalpathology/dicomweb-client ~/dicomweb-client
+    git clone https://github.com/ImagingDataCommons/dicomweb-client ~/dicomweb-client
 
 The :mod:`dicomweb_client` package can be installed in *develop* mode for local development:
 
