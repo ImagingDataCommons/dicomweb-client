@@ -22,7 +22,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     author='Markus D. Herrmann',
     maintainer='Markus D. Herrmann',
-    url='https://github.com/herrmannlab/dicomweb-client',
+    url='https://github.com/ImagingDataCommons/dicomweb-client',
     license='MIT',
     platforms=['Linux', 'MacOS', 'Windows'],
     classifiers=[
