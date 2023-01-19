@@ -140,11 +140,14 @@ Accessing local DICOM Part10 files
 The package provides the :class:`dicomweb_client.api.DICOMfileClient` class for accessing data stored as DICOM Part10 files on a file system.
 The class exposes the same :class:`dicomweb_client.api.DICOMClient` interface as the :class:`dicomweb_client.api.DICOMwebClient` and can be used as a drop-in replacement.
 
+To create a :class:`dicomweb_client.api.DICOMfileClient` instance, you should pass the location of the desired data store on the file system. Note that the `file://` scheme
+designator is *required*.
+
 .. code-block:: python
 
     from dicomweb_client.api import DICOMfileClient
 
-    client = DICOMfileClient("/path/to/directory")
+    client = DICOMfileClient("file:///path/to/directory")
 
 
 .. _storeinstances:
