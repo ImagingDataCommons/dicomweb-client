@@ -2638,17 +2638,19 @@ class DICOMwebClient:
             Information about status of stored instances
 
         """
+        def _iter_encoded_datasets(datasets):
+            for ds in datasets:
+                with BytesIO() as b:
+                    pydicom.dcmwrite(b, ds)
+                    encoded_ds = b.getvalue()
+                yield encoded_ds
+
         message = 'store instances'
         if study_instance_uid is not None:
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
         url = self._get_studies_url(_Transaction.STORE, study_instance_uid)
-        encoded_datasets = list()
-        for ds in datasets:
-            with BytesIO() as b:
-                pydicom.dcmwrite(b, ds)
-                encoded_ds = b.getvalue()
-            encoded_datasets.append(encoded_ds)
+        encoded_datasets = _iter_encoded_datasets(datasets)
         return self._http_post_multipart_application_dicom(
             url,
             encoded_datasets
