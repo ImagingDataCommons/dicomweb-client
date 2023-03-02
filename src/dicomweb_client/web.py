@@ -987,8 +987,8 @@ class DICOMwebClient:
             '1.2.840.10008.1.2.4.105': default_media_type,
             '1.2.840.10008.1.2.4.106': default_media_type,
         }
-        if media_types is None:
-            media_types = (default_media_type, )
+        # if media_types is None:
+        #     media_types = (default_media_type, )
         headers = {
             'Accept': self._build_multipart_accept_header_field_value(
                 media_types, supported_media_types
@@ -2611,12 +2611,96 @@ class DICOMwebClient:
                 f'Media type "{common_media_type}" is not supported for '
                 'retrieval of an instance. It must be "application/dicom".'
             )
+        print(url)
         iterator = self._http_get_multipart_application_dicom(url, media_types)
         instances = list(iterator)
         if len(instances) > 1:
             # This should not occur, but safety first.
             raise ValueError('More than one instance returned by origin server')
         return instances[0]
+
+    def retrieve_instance_legacy(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str,
+    ) -> pydicom.dataset.Dataset:
+        """Retrieve an individual instance using legacy WADO-URI.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+        sop_instance_uid: str
+            SOP Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+            Acceptable media types and optionally the UIDs of the
+            acceptable transfer syntaxes
+
+        Returns
+        -------
+        pydicom.dataset.Dataset
+            Instance
+
+        Note
+        ----
+        Instances are by default retrieved using Implicit VR Little Endian
+        transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
+        means that Pixel Data of Image instances will be retrieved
+        uncompressed. To retrieve instances in any available transfer syntax
+        (typically the one in which instances were originally stored), specify
+        acceptable transfer syntaxes using the wildcard
+        ``("application/dicom", "*")``.
+
+        """  # noqa: E501
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(study_instance_uid)
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of instance.'
+            )
+        self._assert_uid_format(series_instance_uid)
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for retrieval of instance.'
+            )
+        logger.info(
+            f'retrieve instance "{sop_instance_uid}" '
+            f'of series "{series_instance_uid}" '
+            f'of study "{study_instance_uid}"'
+        )
+        self._assert_uid_format(sop_instance_uid)
+
+        parts = (
+            ('requestType', 'WADO'),
+            ('contentType', 'application/dicom'),
+            ('studyUID', study_instance_uid),
+            ('seriesUID', series_instance_uid),
+            ('objectUID', sop_instance_uid),
+        )
+
+        dicomweb_suffix = '&'.join(
+            f'{part}={part_value}'
+            for part, part_value in parts
+            if part_value is not None
+        )
+        url = self.base_url
+        if self.wado_url_prefix is not None:
+            url = f"{url}/{self.wado_url_prefix}"
+        url = url.rstrip('/')
+
+        url = f'{url}?{dicomweb_suffix}'
+
+        # TODO deal with headers
+        response = self._http_get(
+            url,
+        )
+        return pydicom.dcmread(BytesIO(response.content))
 
     def store_instances(
         self,
@@ -2830,6 +2914,83 @@ class DICOMwebClient:
                 f'Media type "{common_media_type}" is not supported for '
                 'retrieval of rendered instance.'
             )
+
+    def retrieve_instance_rendered_legacy(
+        self,
+        study_instance_uid: str,
+        series_instance_uid: str,
+        sop_instance_uid: str,
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        params: Optional[Dict[str, Any]] = None
+    ) -> bytes:
+        """Retrieve an individual, server-side rendered instance.
+
+        Parameters
+        ----------
+        study_instance_uid: str
+            Study Instance UID
+        series_instance_uid: str
+            Series Instance UID
+        sop_instance_uid: str
+            SOP Instance UID
+        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+            Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
+            ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
+            ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
+            ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
+        params: Union[Dict[str, Any], None], optional
+            Additional parameters relevant for given `media_type`,
+            e.g., ``{"quality": 95}`` for ``"image/jpeg"``
+
+        Returns
+        -------
+        bytes
+            Rendered representation of instance
+
+        """  # noqa: E501
+        if study_instance_uid is None:
+            raise ValueError(
+                'Study Instance UID is required for retrieval of '
+                'rendered instance.'
+            )
+        if series_instance_uid is None:
+            raise ValueError(
+                'Series Instance UID is required for retrieval of '
+                'rendered instance.'
+            )
+        if sop_instance_uid is None:
+            raise ValueError(
+                'SOP Instance UID is required for retrieval of '
+                'rendered instance.'
+            )
+
+        parts = [
+            ('requestType', 'WADO'),
+            ('contentType', 'image/jpeg'),
+            ('studyUID', study_instance_uid),
+            ('seriesUID', series_instance_uid),
+            ('objectUID', sop_instance_uid),
+        ]
+        if params is not None:
+            parts += list(params.items())
+
+        dicomweb_suffix = '&'.join(
+            f'{part}={part_value}'
+            for part, part_value in parts
+            if part_value is not None
+        )
+        url = self.base_url
+        if self.wado_url_prefix is not None:
+            url = f"{url}/{self.wado_url_prefix}"
+        url = url.rstrip('/')
+
+        url = f'{url}?{dicomweb_suffix}'
+
+        # TODO deal with headers
+        response = self._http_get(
+            url,
+        )
+        return response.content
 
     def _get_instance_frames(
         self,
