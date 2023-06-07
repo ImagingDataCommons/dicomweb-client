@@ -54,7 +54,6 @@ setuptools.setup(
         'gcp': [
             'dataclasses>=0.8; python_version=="3.6"',
             'google-auth>=1.6',
-            'google-oauth>=1.0',
         ],
     },
     python_requires='>=3.6',
