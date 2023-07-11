@@ -534,8 +534,6 @@ class DICOMwebClient:
         response = _invoke_get_request(url, headers)
         logger.debug(f'request status code: {response.status_code}')
         response.raise_for_status()
-        if response.status_code == 204:
-            logger.warning('empty response')
         # The server may not return all results, but rather include a warning
         # header to notify that client that there are remaining results.
         # (see DICOM Part 3.18 Section 6.7.1.2)
