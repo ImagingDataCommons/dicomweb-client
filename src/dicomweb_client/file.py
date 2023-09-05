@@ -857,7 +857,7 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                np.product([
+                                np.prod([
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel,
@@ -2027,7 +2027,7 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                np.product([
+                                np.prod([
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel
