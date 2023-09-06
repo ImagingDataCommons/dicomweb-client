@@ -577,6 +577,7 @@ class DICOMwebClient:
                 stream=stream
             )
             if response.content:
+                response.encoding = 'UTF-8'
                 decoded_response = response.json()
                 # All metadata resources are expected to be sent as a JSON
                 # array of DICOM data sets. However, some origin servers may
@@ -1587,9 +1588,9 @@ class DICOMwebClient:
         response = _invoke_delete_request(url)
         if response.status_code == HTTPStatus.METHOD_NOT_ALLOWED:
             logger.error(
-              'Resource could not be deleted. '
-              'The origin server may not support deletion '
-              'or you may not have the necessary permissions.'
+                'Resource could not be deleted. '
+                'The origin server may not support deletion '
+                'or you may not have the necessary permissions.'
             )
         response.raise_for_status()
         return response
@@ -2045,7 +2046,7 @@ class DICOMwebClient:
         """
         if study_instance_uid is None:
             raise ValueError(
-              'Study Instance UID is required for deletion of a study.'
+                'Study Instance UID is required for deletion of a study.'
             )
         url = self._get_studies_url(_Transaction.DELETE, study_instance_uid)
         self._http_delete(url)
@@ -2440,7 +2441,7 @@ class DICOMwebClient:
         """
         if study_instance_uid is None:
             raise ValueError(
-              'Study Instance UID is required for deletion of a series.'
+                'Study Instance UID is required for deletion of a series.'
             )
         if series_instance_uid is None:
             raise ValueError(
@@ -2683,7 +2684,7 @@ class DICOMwebClient:
         """
         if study_instance_uid is None:
             raise ValueError(
-              'Study Instance UID is required for deletion of an instance.'
+                'Study Instance UID is required for deletion of an instance.'
             )
         if series_instance_uid is None:
             raise ValueError(
