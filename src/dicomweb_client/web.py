@@ -1077,13 +1077,13 @@ class DICOMwebClient:
         default_media_type = '*/*'
         supported_media_types = {
             '1.2.840.10008.1.2.1': 'application/octet-stream',
-            '1.2.840.10008.1.2.5': ('image/x-dicom-rle', 'image/dicom-rle'),
+            '1.2.840.10008.1.2.5': ('image/dicom-rle', 'image/x-dicom-rle'),
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
             '1.2.840.10008.1.2.4.51': 'image/jpeg',
             '1.2.840.10008.1.2.4.57': 'image/jpeg',
             '1.2.840.10008.1.2.4.70': 'image/jpeg',
-            '1.2.840.10008.1.2.4.80': 'image/jls',
-            '1.2.840.10008.1.2.4.81': 'image/jls',
+            '1.2.840.10008.1.2.4.80': ('image/jls', 'image/x-jls'),
+            '1.2.840.10008.1.2.4.81': ('image/jls', 'image/x-jls'),
             '1.2.840.10008.1.2.4.90': 'image/jp2',
             '1.2.840.10008.1.2.4.91': 'image/jp2',
             '1.2.840.10008.1.2.4.92': 'image/jpx',
@@ -1201,13 +1201,13 @@ class DICOMwebClient:
         """  # noqa: E501
         headers = {}
         supported_media_types = {
-            '1.2.840.10008.1.2.5': ('image/x-dicom-rle', 'image/dicom-rle'),
+            '1.2.840.10008.1.2.5': ('image/dicom-rle', 'image/x-dicom-rle'),
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
             '1.2.840.10008.1.2.4.51': 'image/jpeg',
             '1.2.840.10008.1.2.4.57': 'image/jpeg',
             '1.2.840.10008.1.2.4.70': 'image/jpeg',
-            '1.2.840.10008.1.2.4.80': 'image/jls',
-            '1.2.840.10008.1.2.4.81': 'image/jls',
+            '1.2.840.10008.1.2.4.80': ('image/jls', 'image/x-jls'),
+            '1.2.840.10008.1.2.4.81': ('image/jls', 'image/x-jls'),
             '1.2.840.10008.1.2.4.90': 'image/jp2',
             '1.2.840.10008.1.2.4.91': 'image/jp2',
             '1.2.840.10008.1.2.4.92': 'image/jpx',
