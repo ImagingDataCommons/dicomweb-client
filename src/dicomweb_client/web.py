@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Iterator,
     List,
+    Mapping,
     Optional,
     Set,
     Sequence,
@@ -857,7 +858,9 @@ class DICOMwebClient:
     def _build_multipart_accept_header_field_value(
         cls,
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None],
-        supported_media_types: Union[Dict[str, str], Set[str]]
+        supported_media_types: Union[
+            Mapping[str, Union[str, Tuple[str, ...]]], Set[str]
+        ]
     ) -> str:
         """Build an accept header field value for a multipart request message.
 
@@ -866,7 +869,9 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None]
             Acceptable media types and optionally the UIDs of the corresponding
             transfer syntaxes
-        supported_media_types: Union[Dict[str, str], Set[str]]
+        supported_media_types: Union[
+            Mapping[str, Union[str, Tuple[str, ...]]], Set[str]
+        ]
             Set of supported media types or mapping of transfer syntaxes
             to their corresponding media types
 
@@ -894,7 +899,13 @@ class DICOMwebClient:
             cls._assert_media_type_is_valid(media_type)
             field_value = f'multipart/related; type="{media_type}"'
             if isinstance(supported_media_types, dict):
-                if media_type not in supported_media_types.values():
+                media_type_in_supported_media_types = any(
+                    media_type == supported_media_types
+                    if isinstance(supported_media_types, str)
+                    else media_type in supported_media_types
+                    for supported_media_types in supported_media_types.values()
+                )
+                if not media_type_in_supported_media_types:
                     if not (media_type.endswith('/*') or
                             media_type.endswith('/')):
                         raise ValueError(
@@ -908,14 +919,23 @@ class DICOMwebClient:
                                 f'Transfer syntax "{transfer_syntax_uid}" '
                                 'is not supported for requested resource.'
                             )
-                        expected_media_type = supported_media_types[
+                        expected_media_types = supported_media_types[
                             transfer_syntax_uid
                         ]
-                        if expected_media_type != media_type:
-                            have_same_type = (
-                                cls._parse_media_type(media_type)[0] ==
-                                cls._parse_media_type(expected_media_type)[0]
+                        if not isinstance(expected_media_types, tuple):
+                            expected_media_types = (expected_media_types, )
+                        if media_type not in expected_media_types:
+                            have_same_type = next(
+                                (
+                                    cls._same_media_type(
+                                        media_type, expected_media_type
+                                    )
+                                    for expected_media_type
+                                    in expected_media_types
+                                ),
+                                False
                             )
+
                             if (have_same_type and
                                     (media_type.endswith('/*') or
                                         media_type.endswith('/'))):
@@ -1057,7 +1077,7 @@ class DICOMwebClient:
         default_media_type = '*/*'
         supported_media_types = {
             '1.2.840.10008.1.2.1': 'application/octet-stream',
-            '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
+            '1.2.840.10008.1.2.5': ('image/x-dicom-rle', 'image/dicom-rle'),
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
             '1.2.840.10008.1.2.4.51': 'image/jpeg',
             '1.2.840.10008.1.2.4.57': 'image/jpeg',
@@ -1181,7 +1201,7 @@ class DICOMwebClient:
         """  # noqa: E501
         headers = {}
         supported_media_types = {
-            '1.2.840.10008.1.2.5': 'image/x-dicom-rle',
+            '1.2.840.10008.1.2.5': ('image/x-dicom-rle', 'image/dicom-rle'),
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
             '1.2.840.10008.1.2.4.51': 'image/jpeg',
             '1.2.840.10008.1.2.4.57': 'image/jpeg',
@@ -1651,6 +1671,27 @@ class DICOMwebClient:
             url,
             params=params,
             get_remaining=get_remaining
+        )
+
+    @classmethod
+    def _same_media_type(cls, first: str, second: str) -> bool:
+        """Check if two media types have the same type.
+
+        Parameters
+        ----------
+        first: str
+            First media type
+        second: str
+            Second media type
+
+        Returns
+        -------
+        bool
+            Whether media types have the same type
+
+        """
+        return (
+            cls._parse_media_type(first)[0] == cls._parse_media_type(second)[0]
         )
 
     @classmethod
