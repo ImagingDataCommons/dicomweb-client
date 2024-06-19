@@ -1016,10 +1016,10 @@ class DICOMwebClient:
                 '"application/dicom"'
             )
             warn(warning_message, category=UserWarning)
-            part = pydicom.dcmread(BytesIO(response.content))
+            part = pydicom.dcmread(BytesIO(response.content), force=True)
             return iter([part])
         return (
-            pydicom.dcmread(BytesIO(part))
+            pydicom.dcmread(BytesIO(part), force=True)
             for part in self._decode_multipart_message(response, stream=stream)
         )
 
