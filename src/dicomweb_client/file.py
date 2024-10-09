@@ -857,11 +857,12 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                np.prod([
+                                (math.prod  # type: ignore
+                                 if hasattr(math, 'prod') else np.prod)([
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel,
-                                ])
+                                 ])
                             ),
                             transfer_syntax_uid=transfer_syntax_uid,
                             bits_allocated=ds.BitsAllocated
@@ -2027,11 +2028,12 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                np.prod([
+                                (math.prod  # type: ignore
+                                 if hasattr(math, 'prod') else np.prod)([
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel
-                                ])
+                                 ])
                             ),
                             transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
                             bits_allocated=ds.BitsAllocated
