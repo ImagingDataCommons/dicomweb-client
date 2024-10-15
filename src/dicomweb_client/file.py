@@ -584,6 +584,10 @@ class _DatabaseManager:
             end = time.time()
             elapsed = round(end - start)
             logger.info(f'updated database in {elapsed} seconds')
+        # numpy 2 no longer has prod, but Python >= 3.8 does.  We either have
+        # one or the other, so use the python math.prod method when available
+        # and fall abck to np if not.
+        self._prod = math.prod if hasattr(math, 'prod') else np.prod
 
     def __getstate__(self) -> dict:
         """Customize state for serialization via pickle module.
@@ -857,12 +861,11 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                (math.prod  # type: ignore
-                                 if hasattr(math, 'prod') else np.prod)([
+                                self._prod([  # type: ignore
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel,
-                                 ])
+                                ])
                             ),
                             transfer_syntax_uid=transfer_syntax_uid,
                             bits_allocated=ds.BitsAllocated
@@ -2028,12 +2031,11 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                (math.prod  # type: ignore
-                                 if hasattr(math, 'prod') else np.prod)([
+                                self._prod([  # type: ignore
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel
-                                 ])
+                                ])
                             ),
                             transfer_syntax_uid=ds.file_meta.TransferSyntaxUID,
                             bits_allocated=ds.BitsAllocated
