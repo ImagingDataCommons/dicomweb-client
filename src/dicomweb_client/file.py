@@ -568,7 +568,7 @@ class _DatabaseManager:
         # numpy 2 no longer has prod, but Python >= 3.8 does.  We either have
         # one or the other, so use the python math.prod method when available
         # and fall abck to np if not.
-        self._prod = math.prod if hasattr(math, 'prod') else np.prod
+        self._prod = getattr(math, 'prod', np.prod)
 
         self._attributes = {
             _QueryResourceType.STUDIES: self._get_attributes(
