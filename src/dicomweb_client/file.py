@@ -565,6 +565,11 @@ class _DatabaseManager:
 
         self._create_db()
 
+        # numpy 2 no longer has prod, but Python >= 3.8 does.  We either have
+        # one or the other, so use the python math.prod method when available
+        # and fall abck to np if not.
+        self._prod = math.prod if hasattr(math, 'prod') else np.prod
+
         self._attributes = {
             _QueryResourceType.STUDIES: self._get_attributes(
                 _QueryResourceType.STUDIES
@@ -584,10 +589,6 @@ class _DatabaseManager:
             end = time.time()
             elapsed = round(end - start)
             logger.info(f'updated database in {elapsed} seconds')
-        # numpy 2 no longer has prod, but Python >= 3.8 does.  We either have
-        # one or the other, so use the python math.prod method when available
-        # and fall abck to np if not.
-        self._prod = math.prod if hasattr(math, 'prod') else np.prod
 
     def __getstate__(self) -> dict:
         """Customize state for serialization via pickle module.
