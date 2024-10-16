@@ -565,6 +565,11 @@ class _DatabaseManager:
 
         self._create_db()
 
+        # numpy 2 no longer has prod, but Python >= 3.8 does.  We either have
+        # one or the other, so use the python math.prod method when available
+        # and fall abck to np if not.
+        self._prod = getattr(math, 'prod', np.prod)
+
         self._attributes = {
             _QueryResourceType.STUDIES: self._get_attributes(
                 _QueryResourceType.STUDIES
@@ -857,7 +862,7 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                np.prod([
+                                self._prod([  # type: ignore
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel,
@@ -2027,7 +2032,7 @@ class _DatabaseManager:
                                 getattr(ds, 'NumberOfFrames', '1')
                             ),
                             number_of_pixels_per_frame=int(
-                                np.prod([
+                                self._prod([  # type: ignore
                                     ds.Rows,
                                     ds.Columns,
                                     ds.SamplesPerPixel
