@@ -1083,7 +1083,7 @@ class DICOMwebClient:
 
         """  # noqa: E501
         default_media_type = '*/*'
-        supported_media_types = {
+        supported_media_types: Dict[str, Union[str, Tuple[str, ...]]] = {
             '1.2.840.10008.1.2.1': 'application/octet-stream',
             '1.2.840.10008.1.2.5': ('image/dicom-rle', 'image/x-dicom-rle'),
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
@@ -1208,7 +1208,7 @@ class DICOMwebClient:
 
         """  # noqa: E501
         headers = {}
-        supported_media_types = {
+        supported_media_types: Dict[str, Union[str, Tuple[str, ...]]] = {
             '1.2.840.10008.1.2.5': ('image/dicom-rle', 'image/x-dicom-rle'),
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
             '1.2.840.10008.1.2.4.51': 'image/jpeg',
