@@ -892,7 +892,7 @@ def test_retrieve_instance_frames_jls(
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.jls'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
-    headers = {'content-type': f'multipart/related; type="{media_type}"',}
+    headers = {'content-type': f'multipart/related; type="{media_type}"'}
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
@@ -917,6 +917,7 @@ def test_retrieve_instance_frames_jls(
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:35] == headers['content-type'][:35]
 
+
 @pytest.mark.parametrize(
     "media_type", ["image/dicom-rle", "image/x-dicom-rle"]
 )
@@ -929,7 +930,7 @@ def test_retrieve_instance_frames_rle(
     cache_filename = str(cache_dir.joinpath('retrieve_instance_pixeldata.rle'))
     with open(cache_filename, 'rb') as f:
         content = f.read()
-    headers = {'content-type': f'multipart/related; type="{media_type}"',}
+    headers = {'content-type': f'multipart/related; type="{media_type}"'}
     httpserver.serve_content(content=content, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
