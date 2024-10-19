@@ -687,9 +687,10 @@ class DICOMwebClient:
                 data += chunk
 
                 prev_part_index = 0
-                while (
-                        delimiter_index := data.find(delimiter, prev_part_index)
-                ) >= 0:
+                while True:
+                    delimiter_index = data.find(delimiter, prev_part_index)
+                    if delimiter_index < 0:
+                        break
                     logger.debug(f'decode message part #{j}')
                     content = self._extract_part_content(
                         data[prev_part_index:delimiter_index]
