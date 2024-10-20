@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dicomweb-client"
+version = "0.59.2"
+description = "Client for DICOMweb RESTful services."
+readme = "README.md"
+requires-python = ">=3.6"
+authors = [
+    { name = "Markus D. Herrmann" },
+]
+maintainers = [
+    { name = "Markus D. Herrmann" },
+    { name = "Christopher P. Bridge" },
+    { name = "Steve Pieper" },
+]
+license = { text = "LICENSE" }
+classifiers = [
+    "Environment :: Web Environment",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Intended Audience :: Science/Research",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "numpy>=1.19",
+    "requests>=2.18",
+    "retrying>=1.3.3",
+    "Pillow>=8.3",
+    "pydicom>=2.2",
+    "typing-extensions>=4.0; python_version < '3.8.0'",
+]
+
+[project.optional-dependencies]
+gcp = [
+    "dataclasses>=0.8; python_version=='3.6'",
+    "google-auth>=1.6",
+]
+test = [
+    "mypy==0.982",
+    "pytest==7.1.3",
+    "pytest-cov==3.0.0",
+    "pytest-flake8==1.1.3",
+    "pytest-localserver==0.5.0",
+    "types-requests==2.27.14",
+    "types-Pillow==9.0.8",
+]
+docs = [
+    "sphinx-pyreverse==0.0.17",
+    "sphinx-rtd-theme==1.0.0",
+    "sphinxcontrib-autoprogram==0.1.7",
+    "sphinxcontrib-websupport==1.2.4",
+    "sphinx-autodoc-typehints==1.12.0",
+]
+
+[project.scripts]
+dicomweb-client = "dicomweb_client.cli:_main"
+
+[project.urls]
+homepage = "https://github.com/imagingdatacommons/dicomweb-client"
+documentation = "https://dicomweb-client.readthedocs.io/"
+repository = "https://github.com/ImagingDataCommons/dicomweb-client.git"
+
+[tool.pytest.ini_options]
+minversion = "7"
+addopts = ["--doctest-modules", "-ra", "--strict-config", "--strict-markers"]
+testpaths = ["tests"]
+log_cli_level = "INFO"
+xfail_strict = true
+
+[tool.mypy]
+warn_unreachable = true
+enable_error_code = ["redundant-expr", "truthy-bool"]
+
+[[tool.mypy.overrides]]
+module = "pydicom.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "google.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "retrying.*"
+ignore_missing_imports = true

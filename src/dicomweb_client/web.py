@@ -877,9 +877,7 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None]
             Acceptable media types and optionally the UIDs of the corresponding
             transfer syntaxes
-        supported_media_types: Union[
-            Mapping[str, Union[str, Tuple[str, ...]]], Set[str]
-        ]
+        supported_media_types: Union[Mapping[str, Union[str, Tuple[str, ...]]], Set[str]]
             Set of supported media types or mapping of transfer syntaxes
             to their corresponding media types
 
@@ -888,7 +886,7 @@ class DICOMwebClient:
         str
             Accept header field value
 
-        """
+        """  # noqa: E501
         if not isinstance(media_types, (list, tuple, set)):
             raise TypeError(
                 'Acceptable media types must be provided as a sequence.'

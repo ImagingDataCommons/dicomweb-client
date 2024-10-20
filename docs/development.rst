@@ -7,13 +7,16 @@ Source code is available at Github and can be cloned via git:
 
 .. code-block:: none
 
-    git clone https://github.com/ImagingDataCommons/dicomweb-client ~/dicomweb-client
+    git clone https://github.com/ImagingDataCommons/dicomweb-client /path/to/dicomweb-client
+
+where `/path/to/dicomweb-client` is a suitable path on your system where you
+wish to clone the repository.
 
 The :mod:`dicomweb_client` package can be installed in *develop* mode for local development:
 
 .. code-block:: none
 
-    pip install -e ~/dicomweb-client
+    pip install -e /path/to/dicomweb-client
 
 
 .. _pull-requests:
@@ -54,13 +57,13 @@ Install requirements:
 
 .. code-block:: none
 
-    pip install -r ~/dicomweb-client/requirements_test.txt
+    pip install '/path/to/dicomweb-client[test]'
 
 Run tests (including checks for PEP8 compliance):
 
 .. code-block:: none
 
-    cd ~/dicomweb-client
+    cd /path/to/dicomweb-client
     pytest --flake8
 
 .. _building-documentation:
@@ -72,13 +75,13 @@ Install requirements:
 
 .. code-block:: none
 
-    pip install -r ~/dicomweb-client/requirements_docs.txt
+    pip install '/path/to/dicomweb-client[docs]'
 
 Build documentation in *HTML* format:
 
 .. code-block:: none
 
-    cd ~/dicomweb-client
+    cd /path/to/dicomweb-client
     sphinx-build -b html docs/ docs/build/
 
 The built ``index.html`` file will be located in ``docs/build``.
