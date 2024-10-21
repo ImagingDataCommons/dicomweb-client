@@ -69,7 +69,7 @@ docs = [
 ]
 
 [project.scripts]
-dicomweb-client = "dicomweb_client.cli:_main"
+dicomweb_client = "dicomweb_client.cli:_main"
 
 [project.urls]
 homepage = "https://github.com/imagingdatacommons/dicomweb-client"
