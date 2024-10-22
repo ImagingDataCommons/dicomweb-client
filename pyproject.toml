@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dicomweb-client"
-version = "0.59.2"
+version = "0.59.3"
 description = "Client for DICOMweb RESTful services."
 readme = "README.md"
 requires-python = ">=3.6"
