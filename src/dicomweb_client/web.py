@@ -3068,7 +3068,8 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[bytes]:
         """Retrieve one or more frames of an image instance.
 
@@ -3085,6 +3086,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -3099,7 +3102,8 @@ class DICOMwebClient:
                 sop_instance_uid=sop_instance_uid,
                 frame_numbers=frame_numbers,
                 media_types=media_types,
-                stream=False
+                stream=False,
+                additional_params=additional_params
             )
         )
 
@@ -3109,7 +3113,8 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[bytes]:
         """Iterate over frames of an image instance.
 
@@ -3126,6 +3131,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -3143,7 +3150,8 @@ class DICOMwebClient:
             sop_instance_uid=sop_instance_uid,
             frame_numbers=frame_numbers,
             media_types=media_types,
-            stream=True
+            stream=True,
+            additional_params=additional_params
         )
 
     def retrieve_instance_frames_rendered(
