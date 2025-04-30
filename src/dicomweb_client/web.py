@@ -2101,7 +2101,7 @@ class DICOMwebClient:
         study_instance_uid: str
             Study Instance UID
         additional_params: Union[Dict[str, Any], None], optional
-            Additional HTTP GET query parameters 
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -3013,10 +3013,10 @@ class DICOMwebClient:
         url += f'/frames/{frame_list}'
         if media_types is None:
             return self._http_get_multipart(
-                url, 
+                url,
                 stream=stream,
                 params=additional_params
-                )
+            )
 
         common_media_types = self._get_common_media_types(media_types)
         if len(common_media_types) > 1:
