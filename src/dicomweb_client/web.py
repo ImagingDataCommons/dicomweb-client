@@ -1628,7 +1628,8 @@ class DICOMwebClient:
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None,
-        get_remaining: bool = False
+        get_remaining: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
         """Search for studies.
 
@@ -1649,6 +1650,8 @@ class DICOMwebClient:
         get_remaining: bool, optional
             Whether remaining results should be included (this may repeatedly
             query the server for remaining results)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters to include in the request.
 
         Returns
         -------
@@ -1656,12 +1659,14 @@ class DICOMwebClient:
             Study representations
             (see `Study Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
 
-        Note
+        Notes
         ----
-        The server may only return a subset of search results. In this case,
+        - The server may only return a subset of search results. In this case,
         a warning will notify the client that there are remaining results.
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
+        - If `additional_params` is provided, it will be merged into the standard query parameters,
+        with its values overwriting any existing keys if duplicates are present.
 
         """  # noqa: E501: E501
         logger.info('search for studies')
@@ -1673,6 +1678,8 @@ class DICOMwebClient:
             fields=fields,
             search_filters=search_filters
         )
+        if additional_params:
+            params.update(additional_params)
         return self._http_get_application_json(
             url,
             params=params,
@@ -1795,6 +1802,7 @@ class DICOMwebClient:
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None,
         stream: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[bytes]:
         """Get bulk data items at a given location.
 
@@ -1810,6 +1818,8 @@ class DICOMwebClient:
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -1819,26 +1829,45 @@ class DICOMwebClient:
         """  # noqa: E501
         if media_types is None:
             return self._http_get_multipart(
-                url, media_types, byte_range=byte_range, stream=stream
+                url,
+                media_types,
+                byte_range=byte_range,
+                params=additional_params,
+                stream=stream,
             )
         common_media_types = self._get_common_media_types(media_types)
         if len(common_media_types) > 1:
             return self._http_get_multipart(
-                url, media_types, byte_range=byte_range, stream=stream
+                url, media_types,
+                byte_range=byte_range,
+                params=additional_params,
+                stream=stream,
             )
         else:
             common_media_type = common_media_types[0]
             if common_media_type == 'application/octet-stream':
                 return self._http_get_multipart_application_octet_stream(
-                    url, media_types, byte_range=byte_range, stream=stream
+                    url,
+                    media_types,
+                    byte_range=byte_range,
+                    params=additional_params,
+                    stream=stream
                 )
             elif common_media_type.startswith('image'):
                 return self._http_get_multipart_image(
-                    url, media_types, byte_range=byte_range, stream=stream
+                    url,
+                    media_types,
+                    byte_range=byte_range,
+                    params=additional_params,
+                    stream=stream
                 )
             elif common_media_type.startswith('video'):
                 return self._http_get_multipart_video(
-                    url, media_types, byte_range=byte_range, stream=stream
+                    url,
+                    media_types,
+                    byte_range=byte_range,
+                    params=additional_params,
+                    stream=stream
                 )
             else:
                 raise ValueError(
@@ -1850,7 +1879,8 @@ class DICOMwebClient:
         self,
         url: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
-        byte_range: Optional[Tuple[int, int]] = None
+        byte_range: Optional[Tuple[int, int]] = None,
+        additional_params: Optional[Dict[str, Any]] = None,
     ) -> List[bytes]:
         """Retrieve bulk data at a given location.
 
@@ -1863,6 +1893,8 @@ class DICOMwebClient:
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
             Start and end of byte range
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -1875,7 +1907,8 @@ class DICOMwebClient:
                 url=url,
                 media_types=media_types,
                 byte_range=byte_range,
-                stream=False
+                stream=False,
+                additional_params=additional_params,
             )
         )
 
@@ -1883,7 +1916,8 @@ class DICOMwebClient:
         self,
         url: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
-        byte_range: Optional[Tuple[int, int]] = None
+        byte_range: Optional[Tuple[int, int]] = None,
+        additional_params: Optional[Dict[str, Any]] = None,
     ) -> Iterator[bytes]:
         """Iterate over bulk data items at a given location.
 
@@ -1896,6 +1930,8 @@ class DICOMwebClient:
             corresponding transfer syntaxes
         byte_range: Union[Tuple[int, int], None], optional
             Start and end of byte range
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -1911,14 +1947,16 @@ class DICOMwebClient:
             url=url,
             media_types=media_types,
             byte_range=byte_range,
-            stream=True
+            stream=True,
+            additional_params=additional_params,
         )
 
     def _get_study(
         self,
         study_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
-        stream: bool = False
+        stream: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Get all instances of a study.
 
@@ -1932,6 +1970,8 @@ class DICOMwebClient:
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -1947,6 +1987,7 @@ class DICOMwebClient:
         if media_types is None:
             return self._http_get_multipart_application_dicom(
                 url,
+                params=additional_params,
                 stream=stream
             )
         common_media_types = self._get_common_media_types(media_types)
@@ -1964,6 +2005,7 @@ class DICOMwebClient:
         return self._http_get_multipart_application_dicom(
             url,
             media_types=media_types,
+            params=additional_params,
             stream=stream
         )
 
@@ -2049,7 +2091,8 @@ class DICOMwebClient:
 
     def retrieve_study_metadata(
         self,
-        study_instance_uid: str
+        study_instance_uid: str,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
         """Retrieve metadata of all instances of a study.
 
@@ -2057,6 +2100,8 @@ class DICOMwebClient:
         ----------
         study_instance_uid: str
             Study Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2071,7 +2116,7 @@ class DICOMwebClient:
             )
         url = self._get_studies_url(_Transaction.RETRIEVE, study_instance_uid)
         url += '/metadata'
-        return self._http_get_application_json(url)
+        return self._http_get_application_json(url, params=additional_params)
 
     def delete_study(self, study_instance_uid: str) -> None:
         """Delete all instances of a study.
@@ -2129,7 +2174,8 @@ class DICOMwebClient:
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None,
-        get_remaining: bool = False
+        get_remaining: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
         """Search for series.
 
@@ -2152,6 +2198,8 @@ class DICOMwebClient:
         get_remaining: bool, optional
             Whether remaining results should be included (this may repeatedly
             query the server for remaining results)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters to include in the request.
 
         Returns
         -------
@@ -2159,12 +2207,14 @@ class DICOMwebClient:
             Series representations
             (see `Series Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
-        Note
+        Notes
         ----
-        The server may only return a subset of search results. In this case,
+        - The server may only return a subset of search results. In this case,
         a warning will notify the client that there are remaining results.
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
+        - If `additional_params` is provided, it will be merged into the standard query parameters,
+        with its values overwriting any existing keys if duplicates are present.
 
         """  # noqa: E501
         if study_instance_uid is not None:
@@ -2180,6 +2230,8 @@ class DICOMwebClient:
             fields=fields,
             search_filters=search_filters
         )
+        if additional_params:
+            params.update(additional_params)
         return self._http_get_application_json(
             url,
             params=params,
@@ -2191,7 +2243,8 @@ class DICOMwebClient:
         study_instance_uid: str,
         series_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
-        stream: bool = False
+        stream: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Get instances of a series.
 
@@ -2207,6 +2260,8 @@ class DICOMwebClient:
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2236,6 +2291,7 @@ class DICOMwebClient:
         if media_types is None:
             return self._http_get_multipart_application_dicom(
                 url,
+                params=additional_params,
                 stream=stream
             )
         common_media_types = self._get_common_media_types(media_types)
@@ -2253,6 +2309,7 @@ class DICOMwebClient:
         return self._http_get_multipart_application_dicom(
             url,
             media_types=media_types,
+            params=additional_params,
             stream=stream
         )
 
@@ -2348,6 +2405,7 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
         """Retrieve metadata for all instances of a series.
 
@@ -2357,6 +2415,8 @@ class DICOMwebClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2386,7 +2446,7 @@ class DICOMwebClient:
             series_instance_uid
         )
         url += '/metadata'
-        return self._http_get_application_json(url)
+        return self._http_get_application_json(url, params=additional_params)
 
     def retrieve_series_rendered(
         self, study_instance_uid,
@@ -2514,7 +2574,8 @@ class DICOMwebClient:
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None,
-        get_remaining: bool = False
+        get_remaining: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, dict]]:
         """Search for instances.
 
@@ -2539,6 +2600,8 @@ class DICOMwebClient:
         get_remaining: bool, optional
             Whether remaining results should be included (this may repeatedly
             query the server for remaining results)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters to include in the request.
 
         Returns
         -------
@@ -2548,10 +2611,12 @@ class DICOMwebClient:
 
         Note
         ----
-        The server may only return a subset of search results. In this case,
+        - The server may only return a subset of search results. In this case,
         a warning will notify the client that there are remaining results.
         Remaining results can be requested via repeated calls using the
         `offset` parameter.
+        - If `additional_params` is provided, it will be merged into the standard query parameters,
+        with its values overwriting any existing keys if duplicates are present.
 
         """  # noqa: E501
         message = 'search for instances'
@@ -2573,6 +2638,8 @@ class DICOMwebClient:
             fields=fields,
             search_filters=search_filters
         )
+        if additional_params:
+            params.update(additional_params)
         return self._http_get_application_json(
             url,
             params=params,
@@ -2585,6 +2652,7 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> pydicom.dataset.Dataset:
         """Retrieve an individual instance.
 
@@ -2599,6 +2667,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2657,7 +2727,11 @@ class DICOMwebClient:
                 f'Media type "{common_media_type}" is not supported for '
                 'retrieval of an instance. It must be "application/dicom".'
             )
-        iterator = self._http_get_multipart_application_dicom(url, media_types)
+        iterator = self._http_get_multipart_application_dicom(
+            url,
+            media_types=media_types,
+            params=additional_params
+        )
         instances = list(iterator)
         if len(instances) > 1:
             # This should not occur, but safety first.
@@ -2753,7 +2827,8 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        sop_instance_uid: str
+        sop_instance_uid: str,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, dict]:
         """Retrieve metadata of an individual instance.
 
@@ -2765,6 +2840,8 @@ class DICOMwebClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2794,7 +2871,7 @@ class DICOMwebClient:
             sop_instance_uid
         )
         url += '/metadata'
-        return self._http_get_application_json(url)[0]
+        return self._http_get_application_json(url, params=additional_params)[0]
 
     def retrieve_instance_rendered(
         self,
@@ -2884,7 +2961,8 @@ class DICOMwebClient:
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
-        stream: bool = False
+        stream: bool = False,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[bytes]:
         """Get frames of an instance.
 
@@ -2904,6 +2982,8 @@ class DICOMwebClient:
         stream: bool, optional
             Whether data should be streamed (i.e., requested using chunked
             transfer encoding)
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2932,14 +3012,19 @@ class DICOMwebClient:
         frame_list = ','.join([str(n) for n in frame_numbers])
         url += f'/frames/{frame_list}'
         if media_types is None:
-            return self._http_get_multipart(url, stream=stream)
+            return self._http_get_multipart(
+                url,
+                stream=stream,
+                params=additional_params
+            )
 
         common_media_types = self._get_common_media_types(media_types)
         if len(common_media_types) > 1:
             return self._http_get_multipart(
                 url,
                 media_types=media_types,
-                stream=stream
+                stream=stream,
+                params=additional_params
             )
 
         common_media_type = common_media_types[0]
@@ -2947,25 +3032,29 @@ class DICOMwebClient:
             return self._http_get_multipart_application_octet_stream(
                 url,
                 media_types=media_types,
-                stream=stream
+                stream=stream,
+                params=additional_params
             )
         elif common_media_type.startswith('image'):
             return self._http_get_multipart_image(
                 url,
                 media_types=media_types,
-                stream=stream
+                stream=stream,
+                params=additional_params
             )
         elif common_media_type.startswith('video'):
             return self._http_get_multipart_video(
                 url,
                 media_types=media_types,
-                stream=stream
+                stream=stream,
+                params=additional_params
             )
         elif common_media_type.startswith('*'):
             return self._http_get_multipart(
                 url,
                 media_types=media_types,
-                stream=stream
+                stream=stream,
+                params=additional_params
             )
         else:
             raise ValueError(
@@ -2979,7 +3068,8 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[bytes]:
         """Retrieve one or more frames of an image instance.
 
@@ -2996,6 +3086,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -3010,7 +3102,8 @@ class DICOMwebClient:
                 sop_instance_uid=sop_instance_uid,
                 frame_numbers=frame_numbers,
                 media_types=media_types,
-                stream=False
+                stream=False,
+                additional_params=additional_params
             )
         )
 
@@ -3020,7 +3113,8 @@ class DICOMwebClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: Sequence[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[bytes]:
         """Iterate over frames of an image instance.
 
@@ -3037,6 +3131,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -3054,7 +3150,8 @@ class DICOMwebClient:
             sop_instance_uid=sop_instance_uid,
             frame_numbers=frame_numbers,
             media_types=media_types,
-            stream=True
+            stream=True,
+            additional_params=additional_params
         )
 
     def retrieve_instance_frames_rendered(
