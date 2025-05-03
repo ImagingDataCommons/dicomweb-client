@@ -2726,7 +2726,7 @@ class DICOMfileClient:
                 study_instance_uid=study_instance_uid
             )
             collection = []
-            for series_instance_uid, study_instance_uid in series_identifiers:
+            for study_instance_uid, series_instance_uid in series_identifiers:
                 collection.extend(
                     self.retrieve_series_metadata(
                         study_instance_uid=study_instance_uid,
