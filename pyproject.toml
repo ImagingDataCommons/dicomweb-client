@@ -1,20 +1,21 @@
 [build-system]
-requires = ["setuptools>=64"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.uv-dynamic-versioning]
+pattern = "default-unprefixed"
 
 [project]
-name = "dicomweb-client"
+name = "pydicomweb-client"
 version = "0.59.3"
 description = "Client for DICOMweb RESTful services."
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 authors = [
     { name = "Markus D. Herrmann" },
 ]
 maintainers = [
-    { name = "Markus D. Herrmann" },
-    { name = "Christopher P. Bridge" },
-    { name = "Steve Pieper" },
+    { name = "Sumantra Sharma" },
 ]
 license = { text = "LICENSE" }
 classifiers = [
@@ -28,9 +29,6 @@ classifiers = [
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -72,9 +70,9 @@ docs = [
 dicomweb_client = "dicomweb_client.cli:_main"
 
 [project.urls]
-homepage = "https://github.com/imagingdatacommons/dicomweb-client"
+homepage = "https://github.com/openradx/pydicomweb"
 documentation = "https://dicomweb-client.readthedocs.io/"
-repository = "https://github.com/ImagingDataCommons/dicomweb-client.git"
+repository = "https://github.com/openradx/pydicomweb.git"
 
 [tool.pytest.ini_options]
 minversion = "7"
