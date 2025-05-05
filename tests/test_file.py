@@ -178,6 +178,25 @@ def test_search_for_instances_in_series(file_client):
         for attr in STUDY_ATTRIBUTES:
             assert not hasattr(test_instance_pydicom, attr)
 
+def test_retrieve_study_metadata(file_client):
+    instances = file_client.retrieve_study_metadata(
+        '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
+    )
+    assert isinstance(instances, list)
+    assert len(instances) > 0
+
+    for test_instance_json in instances:
+        assert isinstance(test_instance_json, dict)
+        test_instance_pydicom = Dataset.from_json(test_instance_json)
+        attributes = {
+            'SOPClassUID',
+            'SOPInstanceUID',
+            'SeriesInstanceUID',
+            'StudyInstanceUID',
+        }
+        for attr in attributes:
+            assert hasattr(test_instance_pydicom, attr)
+
 
 def test_retrieve_series_metadata(file_client):
     instances = file_client.retrieve_series_metadata(
