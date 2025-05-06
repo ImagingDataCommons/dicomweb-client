@@ -1,4 +1,4 @@
-from dicomweb_client.protocol import DICOMClient
+from pydicomweb_client.protocol import DICOMClient
 
 
 def test_web_client_interface(client):

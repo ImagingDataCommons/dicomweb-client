@@ -135,6 +135,6 @@ def create_session_from_gcp_credentials(
         'underlying implementation directly, now moved to '
         '`dicomweb_client.ext.gcp.session_utils`.',
         DeprecationWarning)
-    import dicomweb_client.ext.gcp.session_utils as gcp_session_utils
+    import pydicomweb_client.ext.gcp.session_utils as gcp_session_utils
     return gcp_session_utils.create_session_from_gcp_credentials(
         google_credentials)

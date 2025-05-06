@@ -9,7 +9,7 @@ import pydicom
 from requests.exceptions import HTTPError
 from retrying import RetryError
 
-from dicomweb_client.web import DICOMwebClient, _load_xml_dataset
+from pydicomweb_client.web import DICOMwebClient, _load_xml_dataset
 
 
 def test_content_extraction_from_part():

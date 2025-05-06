@@ -48,7 +48,7 @@ from pydicom.tag import (
 from pydicom.uid import UID, RLELossless
 from pydicom.valuerep import DA, DT, TM
 
-from dicomweb_client.uri import build_query_string, parse_query_parameters
+from pydicomweb_client.uri import build_query_string, parse_query_parameters
 
 logger = logging.getLogger(__name__)
 

@@ -32,7 +32,7 @@ import pydicom
 import requests
 import retrying
 
-from dicomweb_client.uri import build_query_string, parse_query_parameters
+from pydicomweb_client.uri import build_query_string, parse_query_parameters
 
 
 logger = logging.getLogger(__name__)

@@ -11,9 +11,9 @@ from io import BytesIO
 
 import pydicom
 
-from dicomweb_client.api import DICOMwebClient
-from dicomweb_client.log import configure_logging
-from dicomweb_client.session_utils import (
+from pydicomweb_client.api import DICOMwebClient
+from pydicomweb_client.log import configure_logging
+from pydicomweb_client.session_utils import (
     create_session,
     create_session_from_user_pass,
     add_certs_to_session,

@@ -1,4 +1,4 @@
-from dicomweb_client.uri import URI, URISuffix, URIType
+from pydicomweb_client.uri import URI, URISuffix, URIType
 
 import pytest
 

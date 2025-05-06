@@ -29,7 +29,7 @@ jobs:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: ${{ matrix.python-version }} 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools
@@ -43,4 +43,4 @@ jobs:
         mypy src tests
     - name: Test with pytest
       run: |
-        pytest --cov=dicomweb_client --cov-fail-under=65 tests
+        pytest --cov=pydicomweb_client --cov-fail-under=65 tests

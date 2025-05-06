@@ -4,7 +4,7 @@ import tempfile
 import pytest
 import pydicom
 
-from dicomweb_client.cli import main
+from pydicomweb_client.cli import main
 
 
 def test_parse_search_studies(parser):

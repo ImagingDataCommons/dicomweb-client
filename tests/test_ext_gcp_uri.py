@@ -1,5 +1,5 @@
 """Unit tests for `dicomweb_client.ext.gcp.uri` module."""
-from dicomweb_client.ext.gcp.uri import GoogleCloudHealthcareURL
+from pydicomweb_client.ext.gcp.uri import GoogleCloudHealthcareURL
 
 import pytest
 
