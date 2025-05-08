@@ -1659,7 +1659,7 @@ class DICOMwebClient:
             Study representations
             (see `Study Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2>`_)
 
-        Notes
+        Note
         ----
         - The server may only return a subset of search results. In this case,
         a warning will notify the client that there are remaining results.
@@ -2207,7 +2207,7 @@ class DICOMwebClient:
             Series representations
             (see `Series Result Attributes <http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a>`_)
 
-        Notes
+        Note
         ----
         - The server may only return a subset of search results. In this case,
         a warning will notify the client that there are remaining results.
