@@ -178,6 +178,7 @@ def test_search_for_instances_in_series(file_client):
         for attr in STUDY_ATTRIBUTES:
             assert not hasattr(test_instance_pydicom, attr)
 
+
 def test_retrieve_study_metadata(file_client):
     instances = file_client.retrieve_study_metadata(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',
