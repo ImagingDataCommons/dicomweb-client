@@ -1342,6 +1342,31 @@ def test_delete_study_error(httpserver, client, cache_dir):
     assert request.method == 'DELETE'
 
 
+def test_delete_study_error_with_additional_params(
+    httpserver, client, cache_dir
+):
+    study_instance_uid = '1.2.3'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.delete_study(
+            study_instance_uid=study_instance_uid,
+            additional_params=params
+        )
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = f'/studies/{study_instance_uid}'
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+
+
 def test_delete_series_error(httpserver, client, cache_dir):
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
@@ -1361,6 +1386,34 @@ def test_delete_series_error(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.method == 'DELETE'
+
+
+def test_delete_series_error_with_additional_params(
+    httpserver, client, cache_dir
+):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.delete_series(study_instance_uid=study_instance_uid,
+                             series_instance_uid=series_instance_uid,
+                             additional_params=params)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+    )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
 
 
 def test_delete_instance_error(httpserver, client, cache_dir):
@@ -1385,6 +1438,37 @@ def test_delete_instance_error(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.method == 'DELETE'
+
+
+def test_delete_instance_error_with_additional_params(
+    httpserver, client, cache_dir
+):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.delete_instance(study_instance_uid=study_instance_uid,
+                               series_instance_uid=series_instance_uid,
+                               sop_instance_uid=sop_instance_uid,
+                               additional_params=params)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+    )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):

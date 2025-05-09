@@ -21,7 +21,7 @@ from typing import (
     Union,
     Tuple,
 )
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from warnings import warn
 from xml.etree.ElementTree import (
     Element,
@@ -2126,13 +2126,19 @@ class DICOMwebClient:
         url += '/metadata'
         return self._http_get_application_json(url, params=additional_params)
 
-    def delete_study(self, study_instance_uid: str) -> None:
+    def delete_study(
+        self,
+        study_instance_uid: str,
+        additional_params: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Delete all instances of a study.
 
         Parameters
         ----------
         study_instance_uid: str
             Study Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP DELETE query parameters
 
         Note
         ----
@@ -2149,6 +2155,12 @@ class DICOMwebClient:
                 'Study Instance UID is required for deletion of a study.'
             )
         url = self._get_studies_url(_Transaction.DELETE, study_instance_uid)
+        # Append query string if additional_params is provided
+        if additional_params:
+            additional_params_query_string = urlencode(
+                additional_params, doseq=True
+            )
+            url += f'?{additional_params_query_string}'
         self._http_delete(url)
 
     def _assert_uid_format(self, uid: str) -> None:
@@ -2541,7 +2553,8 @@ class DICOMwebClient:
     def delete_series(
         self,
         study_instance_uid: str,
-        series_instance_uid: str
+        series_instance_uid: str,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> None:
         """Delete all instances of a series.
 
@@ -2551,6 +2564,8 @@ class DICOMwebClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP DELETE query parameters
 
         Note
         ----
@@ -2579,6 +2594,12 @@ class DICOMwebClient:
             study_instance_uid,
             series_instance_uid
         )
+        # Append query string if additional_params is provided
+        if additional_params:
+            additional_params_query_string = urlencode(
+                additional_params, doseq=True
+            )
+            url += f'?{additional_params_query_string}'
         self._http_delete(url)
 
     def search_for_instances(
@@ -2796,7 +2817,8 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        sop_instance_uid: str
+        sop_instance_uid: str,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> None:
         """Delete specified instance.
 
@@ -2808,6 +2830,8 @@ class DICOMwebClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP DELETE query parameters
 
         Note
         ----
@@ -2837,6 +2861,12 @@ class DICOMwebClient:
             series_instance_uid,
             sop_instance_uid
         )
+        # Append query string if additional_params is provided
+        if additional_params:
+            additional_params_query_string = urlencode(
+                additional_params, doseq=True
+            )
+            url += f'?{additional_params_query_string}'
         self._http_delete(url)
 
     def retrieve_instance_metadata(
