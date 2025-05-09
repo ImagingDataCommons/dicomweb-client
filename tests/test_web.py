@@ -136,6 +136,30 @@ def test_search_for_studies(httpserver, client, cache_dir):
     )
 
 
+def test_search_for_studies_with_additional_params(
+        httpserver,
+        client,
+        cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('search_for_studies.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    assert client.search_for_studies(additional_params=params) == parsed_content
+    request = httpserver.requests[0]
+    assert request.path == '/studies'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+    assert all(
+        mime[0] in ('application/json', 'application/dicom+json')
+        for mime in request.accept_mimetypes
+    )
+
+
 def test_search_for_studies_with_retries(httpserver, client, cache_dir):
     headers = {'content-type': 'application/dicom+json'}
     max_attempts = 3
@@ -217,6 +241,30 @@ def test_search_for_series(httpserver, client, cache_dir):
     )
 
 
+def test_search_for_series_with_additional_params(
+        httpserver,
+        client,
+        cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('search_for_series.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    assert client.search_for_series(additional_params=params) == parsed_content
+    request = httpserver.requests[0]
+    assert request.path == '/series'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+    assert all(
+        mime[0] in ('application/json', 'application/dicom+json')
+        for mime in request.accept_mimetypes
+    )
+
+
 def test_search_for_series_filter_modality(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('search_for_series.json'))
     with open(cache_filename, 'r') as f:
@@ -282,6 +330,32 @@ def test_search_for_instances(httpserver, client, cache_dir):
     assert client.search_for_instances() == parsed_content
     request = httpserver.requests[0]
     assert request.path == '/instances'
+    assert all(
+        mime[0] in ('application/json', 'application/dicom+json')
+        for mime in request.accept_mimetypes
+    )
+
+
+def test_search_for_instances_with_additional_params(
+        httpserver,
+        client,
+        cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('search_for_instances.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    assert client.search_for_instances(
+        additional_params=params
+    ) == parsed_content
+    request = httpserver.requests[0]
+    assert request.path == '/instances'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
     assert all(
         mime[0] in ('application/json', 'application/dicom+json')
         for mime in request.accept_mimetypes
@@ -380,6 +454,44 @@ def test_retrieve_instance_metadata(httpserver, client, cache_dir):
     )
 
 
+def test_retrieve_instance_metadata_with_additional_params(
+        httpserver,
+        client,
+        cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('retrieve_instance_metadata.json'))
+    with open(cache_filename, 'r') as f:
+        content = f.read()
+    parsed_content = json.loads(content)
+    headers = {'content-type': 'application/dicom+json'}
+    httpserver.serve_content(content=content, code=200, headers=headers)
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    result = client.retrieve_instance_metadata(
+        study_instance_uid,
+        series_instance_uid,
+        sop_instance_uid,
+        additional_params=params
+    )
+    assert result == parsed_content[0]
+    request = httpserver.requests[0]
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}/metadata'
+    )
+    assert request.path == expected_path
+    assert all(
+        mime[0] in ('application/json', 'application/dicom+json')
+        for mime in request.accept_mimetypes
+    )
+
+
 def test_retrieve_instance_metadata_wado_prefix(httpserver, client, cache_dir):
     client.wado_url_prefix = 'wadors'
     cache_filename = str(cache_dir.joinpath('retrieve_instance_metadata.json'))
@@ -442,6 +554,53 @@ def test_iter_series(client, httpserver, cache_dir):
     assert len(response) == n_resources
 
 
+def test_iter_series_with_additional_params(client, httpserver, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+
+    n_resources = 3
+    chunk_size = 10**3
+    media_type = 'application/dicom'
+    boundary = 'boundary'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+        'transfer-encoding': 'chunked'
+    }
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    chunked_message = _chunk_message(message, chunk_size)
+
+    httpserver.serve_content(content=chunked_message, code=200, headers=headers)
+    study_uid = '1.2.3'
+    series_uid = '1.2.4'
+    iterator = client.iter_series(
+        study_uid, series_uid, additional_params=params
+    )
+    assert isinstance(iterator, Generator)
+    response = list(iterator)
+    for instance in response:
+        with BytesIO() as fp:
+            pydicom.dcmwrite(fp, instance)
+            raw_result = fp.getvalue()
+        assert raw_result == data
+    request = httpserver.requests[0]
+    assert request.path == f'/studies/{study_uid}/series/{series_uid}'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert len(response) == n_resources
+
+
 def test_retrieve_series(client, httpserver, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
@@ -482,6 +641,50 @@ def test_retrieve_series(client, httpserver, cache_dir):
     assert len(response) == n_resources
 
 
+def test_retrieve_series_with_additional_params(client, httpserver, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+
+    n_resources = 3
+    media_type = 'application/dicom'
+    boundary = 'boundary'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+    }
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    response = client.retrieve_series(
+        study_instance_uid, series_instance_uid, additional_params=params
+    )
+    for resource in response:
+        with BytesIO() as fp:
+            pydicom.dcmwrite(fp, resource)
+            raw_result = fp.getvalue()
+        assert raw_result == data
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+    )
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert len(response) == n_resources
+
+
 def test_retrieve_instance(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
@@ -511,6 +714,55 @@ def test_retrieve_instance(httpserver, client, cache_dir):
         raw_result = fp.getvalue()
     assert raw_result == data
     request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+
+
+def test_retrieve_instance_with_additional_params(
+        httpserver,
+        client,
+        cache_dir
+):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+    }
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    response = client.retrieve_instance(
+        study_instance_uid,
+        series_instance_uid,
+        sop_instance_uid,
+        additional_params=params
+    )
+    with BytesIO() as fp:
+        pydicom.dcmwrite(fp, response)
+        raw_result = fp.getvalue()
+    assert raw_result == data
+    request = httpserver.requests[0]
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
     expected_path = (
         f'/studies/{study_instance_uid}'
         f'/series/{series_instance_uid}'
@@ -1055,6 +1307,36 @@ def test_store_instance_error_with_retries(httpserver, client, cache_dir):
     )
 
 
+def test_store_instance_error_with_retries_and_additional_params(
+    httpserver, client, cache_dir
+):
+    dataset = pydicom.Dataset.from_json({})
+    dataset.is_little_endian = True
+    dataset.is_implicit_VR = True
+    max_attempts = 2
+    client.set_http_retry_params(
+        retry=True,
+        max_attempts=max_attempts,
+        wait_exponential_multiplier=10
+    )
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(RetryError):
+        client.store_instances([dataset], additional_params=params)
+    assert len(httpserver.requests) == max_attempts
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+
+
 def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     dataset = pydicom.Dataset.from_json({})
     dataset.is_little_endian = True
@@ -1074,6 +1356,31 @@ def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     )
 
 
+def test_store_instance_error_with_no_retries_and_additional_params(
+    httpserver, client, cache_dir
+):
+    dataset = pydicom.Dataset.from_json({})
+    dataset.is_little_endian = True
+    dataset.is_implicit_VR = True
+    client.set_http_retry_params(retry=False)
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.store_instances([dataset], additional_params=params)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+
+
 def test_delete_study_error(httpserver, client, cache_dir):
     study_instance_uid = '1.2.3'
     httpserver.serve_content(
@@ -1088,6 +1395,31 @@ def test_delete_study_error(httpserver, client, cache_dir):
     expected_path = f'/studies/{study_instance_uid}'
     assert request.path == expected_path
     assert request.method == 'DELETE'
+
+
+def test_delete_study_error_with_additional_params(
+    httpserver, client, cache_dir
+):
+    study_instance_uid = '1.2.3'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.delete_study(
+            study_instance_uid=study_instance_uid,
+            additional_params=params
+        )
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = f'/studies/{study_instance_uid}'
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
 
 
 def test_delete_series_error(httpserver, client, cache_dir):
@@ -1109,6 +1441,34 @@ def test_delete_series_error(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.method == 'DELETE'
+
+
+def test_delete_series_error_with_additional_params(
+    httpserver, client, cache_dir
+):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.delete_series(study_instance_uid=study_instance_uid,
+                             series_instance_uid=series_instance_uid,
+                             additional_params=params)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+    )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
 
 
 def test_delete_instance_error(httpserver, client, cache_dir):
@@ -1133,6 +1493,37 @@ def test_delete_instance_error(httpserver, client, cache_dir):
     )
     assert request.path == expected_path
     assert request.method == 'DELETE'
+
+
+def test_delete_instance_error_with_additional_params(
+    httpserver, client, cache_dir
+):
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    sop_instance_uid = '1.2.5'
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.METHOD_NOT_ALLOWED,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.delete_instance(study_instance_uid=study_instance_uid,
+                               series_instance_uid=series_instance_uid,
+                               sop_instance_uid=sop_instance_uid,
+                               additional_params=params)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+        f'/instances/{sop_instance_uid}'
+    )
+    assert request.path == expected_path
+    assert request.method == 'DELETE'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):
