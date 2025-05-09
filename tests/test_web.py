@@ -1307,6 +1307,36 @@ def test_store_instance_error_with_retries(httpserver, client, cache_dir):
     )
 
 
+def test_store_instance_error_with_retries_and_additional_params(
+    httpserver, client, cache_dir
+):
+    dataset = pydicom.Dataset.from_json({})
+    dataset.is_little_endian = True
+    dataset.is_implicit_VR = True
+    max_attempts = 2
+    client.set_http_retry_params(
+        retry=True,
+        max_attempts=max_attempts,
+        wait_exponential_multiplier=10
+    )
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(RetryError):
+        client.store_instances([dataset], additional_params=params)
+    assert len(httpserver.requests) == max_attempts
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+
+
 def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     dataset = pydicom.Dataset.from_json({})
     dataset.is_little_endian = True
@@ -1323,6 +1353,31 @@ def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     request = httpserver.requests[0]
     assert request.headers['Content-Type'].startswith(
         'multipart/related; type="application/dicom"'
+    )
+
+
+def test_store_instance_error_with_no_retries_and_additional_params(
+    httpserver, client, cache_dir
+):
+    dataset = pydicom.Dataset.from_json({})
+    dataset.is_little_endian = True
+    dataset.is_implicit_VR = True
+    client.set_http_retry_params(retry=False)
+    httpserver.serve_content(
+        content='',
+        code=HTTPStatus.REQUEST_TIMEOUT,
+        headers=''
+    )
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    with pytest.raises(HTTPError):
+        client.store_instances([dataset], additional_params=params)
+    assert len(httpserver.requests) == 1
+    request = httpserver.requests[0]
+    assert request.headers['Content-Type'].startswith(
+        'multipart/related; type="application/dicom"'
+    )
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
     )
 
 

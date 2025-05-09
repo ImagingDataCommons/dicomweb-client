@@ -2778,7 +2778,8 @@ class DICOMwebClient:
     def store_instances(
         self,
         datasets: Sequence[pydicom.dataset.Dataset],
-        study_instance_uid: Optional[str] = None
+        study_instance_uid: Optional[str] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> pydicom.dataset.Dataset:
         """Store instances.
 
@@ -2788,6 +2789,8 @@ class DICOMwebClient:
             Instances that should be stored
         study_instance_uid: Union[str, None], optional
             Study Instance UID
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP POST query parameters
 
         Returns
         -------
@@ -2807,6 +2810,12 @@ class DICOMwebClient:
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
         url = self._get_studies_url(_Transaction.STORE, study_instance_uid)
+        # Append query string if additional_params is provided
+        if additional_params:
+            additional_params_query_string = urlencode(
+                additional_params, doseq=True
+            )
+            url += f'?{additional_params_query_string}'
         encoded_datasets = _iter_encoded_datasets(datasets)
         return self._http_post_multipart_application_dicom(
             url,
