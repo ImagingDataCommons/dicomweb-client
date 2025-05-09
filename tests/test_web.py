@@ -554,6 +554,53 @@ def test_iter_series(client, httpserver, cache_dir):
     assert len(response) == n_resources
 
 
+def test_iter_series_with_additional_params(client, httpserver, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+
+    n_resources = 3
+    chunk_size = 10**3
+    media_type = 'application/dicom'
+    boundary = 'boundary'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+        'transfer-encoding': 'chunked'
+    }
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    chunked_message = _chunk_message(message, chunk_size)
+
+    httpserver.serve_content(content=chunked_message, code=200, headers=headers)
+    study_uid = '1.2.3'
+    series_uid = '1.2.4'
+    iterator = client.iter_series(
+        study_uid, series_uid, additional_params=params
+    )
+    assert isinstance(iterator, Generator)
+    response = list(iterator)
+    for instance in response:
+        with BytesIO() as fp:
+            pydicom.dcmwrite(fp, instance)
+            raw_result = fp.getvalue()
+        assert raw_result == data
+    request = httpserver.requests[0]
+    assert request.path == f'/studies/{study_uid}/series/{series_uid}'
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
+    )
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert len(response) == n_resources
+
+
 def test_retrieve_series(client, httpserver, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
@@ -588,6 +635,50 @@ def test_retrieve_series(client, httpserver, cache_dir):
     expected_path = (
         f'/studies/{study_instance_uid}'
         f'/series/{series_instance_uid}'
+    )
+    assert request.path == expected_path
+    assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]
+    assert len(response) == n_resources
+
+
+def test_retrieve_series_with_additional_params(client, httpserver, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+
+    n_resources = 3
+    media_type = 'application/dicom'
+    boundary = 'boundary'
+    headers = {
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+    }
+    params = {"key1": ["value1", "value2"], "key2": "value3"}
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data for _ in range(n_resources)],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
+    study_instance_uid = '1.2.3'
+    series_instance_uid = '1.2.4'
+    response = client.retrieve_series(
+        study_instance_uid, series_instance_uid, additional_params=params
+    )
+    for resource in response:
+        with BytesIO() as fp:
+            pydicom.dcmwrite(fp, resource)
+            raw_result = fp.getvalue()
+        assert raw_result == data
+    request = httpserver.requests[0]
+    expected_path = (
+        f'/studies/{study_instance_uid}'
+        f'/series/{series_instance_uid}'
+    )
+    assert request.query_string.decode() == (
+        'key1=value1&key1=value2&key2=value3'
     )
     assert request.path == expected_path
     assert request.accept_mimetypes[0][0][:43] == headers['content-type'][:43]

@@ -2013,6 +2013,7 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[pydicom.dataset.Dataset]:
         """Retrieve all instances of a study.
 
@@ -2023,6 +2024,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2044,7 +2047,8 @@ class DICOMwebClient:
             self._get_study(
                 study_instance_uid=study_instance_uid,
                 media_types=media_types,
-                stream=False
+                stream=False,
+                additional_params=additional_params
             )
         )
 
@@ -2052,6 +2056,7 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Iterate over all instances of a study.
 
@@ -2062,6 +2067,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2086,7 +2093,8 @@ class DICOMwebClient:
         return self._get_study(
             study_instance_uid=study_instance_uid,
             media_types=media_types,
-            stream=True
+            stream=True,
+            additional_params=additional_params
         )
 
     def retrieve_study_metadata(
@@ -2317,7 +2325,8 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> List[pydicom.dataset.Dataset]:
         """Retrieve all instances of a series.
 
@@ -2330,6 +2339,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2352,7 +2363,8 @@ class DICOMwebClient:
                 study_instance_uid=study_instance_uid,
                 series_instance_uid=series_instance_uid,
                 media_types=media_types,
-                stream=False
+                stream=False,
+                additional_params=additional_params
             )
         )
 
@@ -2360,7 +2372,8 @@ class DICOMwebClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        additional_params: Optional[Dict[str, Any]] = None
     ) -> Iterator[pydicom.dataset.Dataset]:
         """Iterate over all instances of a series.
 
@@ -2373,6 +2386,8 @@ class DICOMwebClient:
         media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
             Acceptable media types and optionally the UIDs of the
             acceptable transfer syntaxes
+        additional_params: Union[Dict[str, Any], None], optional
+            Additional HTTP GET query parameters
 
         Returns
         -------
@@ -2398,7 +2413,8 @@ class DICOMwebClient:
             study_instance_uid=study_instance_uid,
             series_instance_uid=series_instance_uid,
             media_types=media_types,
-            stream=True
+            stream=True,
+            additional_params=additional_params
         )
 
     def retrieve_series_metadata(
