@@ -1,0 +1,27 @@
+name: Build and Publish Client to PyPI
+on:
+  release:
+    types: [published]
+jobs:
+  build-and-publish-client:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pydicomweb-client
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.2"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+      - name: Build wheel and sdist
+        run: uv build
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

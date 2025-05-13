@@ -1,6 +1,6 @@
 [project]
 name = "dicomweb-client"
-version = "0.59.3"
+dynamic = [ "version" ]
 description = "Client for DICOMweb RESTful services."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -95,6 +95,12 @@ ignore_missing_imports = true
 module = "retrying.*"
 ignore_missing_imports = true
 
+[tool.uv-dynamic-versioning]
+pattern = "default-unprefixed"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
