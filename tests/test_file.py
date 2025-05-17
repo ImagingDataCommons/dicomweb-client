@@ -248,6 +248,15 @@ def test_retrieve_instance(file_client):
     assert isinstance(instance, Dataset)
 
 
+def test_retrieve_instance_rle(file_client):
+    instance = file_client.retrieve_instance(
+        '1.3.46.670589.14.1000.210.4.199999.20110525182825.1.0',
+        '1.3.46.670589.14.1000.210.3.199999.20110525182826.1.0',
+        '1.3.46.670589.14.1000.210.2.199999.20110525185628.1.0'
+    )
+    assert isinstance(instance, Dataset)
+
+
 def test_retrieve_instance_with_default_media_type(file_client):
     instance = file_client.retrieve_instance(
         '1.3.6.1.4.1.5962.1.1.0.0.0.1196530851.28319.0.1',

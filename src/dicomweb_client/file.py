@@ -3127,6 +3127,7 @@ class DICOMfileClient:
             '1.2.840.10008.1.2.4.91': 'application/dicom',
             '1.2.840.10008.1.2.4.92': 'application/dicom',
             '1.2.840.10008.1.2.4.93': 'application/dicom',
+            '1.2.840.10008.1.2.5': 'application/dicom',
         }
 
         supported_media_type_lut = {
@@ -3142,6 +3143,7 @@ class DICOMfileClient:
                 '1.2.840.10008.1.2.4.91',
                 '1.2.840.10008.1.2.4.92',
                 '1.2.840.10008.1.2.4.93',
+                '1.2.840.10008.1.2.5',
                 '*',
             },
         }
