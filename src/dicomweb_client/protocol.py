@@ -149,7 +149,7 @@ class DICOMClient(Protocol):
 
         Note
         ----
-        Instances are by default retrieved using Implicit VR Little Endian
+        Instances are by default retrieved using Explicit VR Little Endian
         transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
         means that Pixel Data of Image instances will be retrieved
         uncompressed. To retrieve instances in any available transfer syntax
@@ -182,7 +182,7 @@ class DICOMClient(Protocol):
 
         Note
         ----
-        Instances are by default retrieved using Implicit VR Little Endian
+        Instances are by default retrieved using Explicit VR Little Endian
         transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
         means that Pixel Data of Image instances will be retrieved
         uncompressed. To retrieve instances in any available transfer syntax
@@ -306,7 +306,7 @@ class DICOMClient(Protocol):
 
         Note
         ----
-        Instances are by default retrieved using Implicit VR Little Endian
+        Instances are by default retrieved using Explicit VR Little Endian
         transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
         means that Pixel Data of Image instances will be retrieved
         uncompressed. To retrieve instances in any available transfer syntax
@@ -342,7 +342,7 @@ class DICOMClient(Protocol):
 
         Note
         ----
-        Instances are by default retrieved using Implicit VR Little Endian
+        Instances are by default retrieved using Explicit VR Little Endian
         transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
         means that Pixel Data of Image instances will be retrieved
         uncompressed. To retrieve instances in any available transfer syntax
@@ -512,7 +512,7 @@ class DICOMClient(Protocol):
 
         Note
         ----
-        Instances are by default retrieved using Implicit VR Little Endian
+        Instances are by default retrieved using Explicit VR Little Endian
         transfer syntax (Transfer Syntax UID ``"1.2.840.10008.1.2"``). This
         means that Pixel Data of Image instances will be retrieved
         uncompressed. To retrieve instances in any available transfer syntax
