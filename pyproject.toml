@@ -1,12 +1,10 @@
 [project]
 name = "dicomweb-client"
-dynamic = [ "version" ]
+dynamic = ["version"]
 description = "Client for DICOMweb RESTful services."
 readme = "README.md"
 requires-python = ">=3.9"
-authors = [
-    { name = "Markus D. Herrmann" },
-]
+authors = [{ name = "Markus D. Herrmann" }]
 maintainers = [
     { name = "Markus D. Herrmann" },
     { name = "Christopher P. Bridge" },
@@ -40,10 +38,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gcp = [
-    "dataclasses>=0.8; python_version=='3.6'",
-    "google-auth>=1.6",
-]
+gcp = ["dataclasses>=0.8; python_version=='3.6'", "google-auth>=1.6"]
 
 [dependency-groups]
 dev = [
