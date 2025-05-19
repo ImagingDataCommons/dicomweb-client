@@ -105,3 +105,6 @@ venv.bak/
 
 # pytest
 .pytest_cache
+
+# lock files
+*.lock
