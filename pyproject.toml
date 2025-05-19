@@ -93,9 +93,6 @@ ignore_missing_imports = true
 module = "retrying.*"
 ignore_missing_imports = true
 
-[tool.uv-dynamic-versioning]
-pattern = "default-unprefixed"
-
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
