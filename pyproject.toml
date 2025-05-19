@@ -59,6 +59,9 @@ docs = [
     "sphinx-autodoc-typehints==1.12.0",
 ]
 
+[tool.uv]
+default-groups = "all"
+
 [project.scripts]
 dicomweb_client = "dicomweb_client.cli:_main"
 
