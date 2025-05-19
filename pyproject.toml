@@ -41,7 +41,7 @@ dependencies = [
 gcp = ["dataclasses>=0.8; python_version=='3.6'", "google-auth>=1.6"]
 
 [dependency-groups]
-dev = [
+test = [
     "mypy==0.982",
     "flake8==6.1.0",
     "pytest==7.1.3",
