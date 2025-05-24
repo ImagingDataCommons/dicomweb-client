@@ -28,18 +28,16 @@ jobs:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: ${{ matrix.python-version }} 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.2"
     - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip setuptools
-        pip install '.[test]'
-        pip install .
+      run: uv sync
     - name: Lint with flake8
-      run: |
-        flake8 --exclude='bin,build,.eggs'
+      run: uv run flake8 src tests --exclude=.venv,build,.eggs  
     - name: Check type hints with mypy
-      run: |
-        mypy src tests
+      run: uv run mypy src tests
     - name: Test with pytest
-      run: |
-        pytest --cov=dicomweb_client --cov-fail-under=65 tests
+      run: uv run pytest --cov=dicomweb_client --cov-fail-under=65 tests
