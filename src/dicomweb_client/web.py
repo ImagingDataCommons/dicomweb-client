@@ -37,6 +37,10 @@ from dicomweb_client.uri import build_query_string, parse_query_parameters
 
 logger = logging.getLogger(__name__)
 
+# For DICOM Standard spec validation of UID components in `DICOMwebClient`.
+_REGEX_UID = re.compile(r'[0-9]+([.][0-9]+)*')
+_REGEX_PERMISSIVE_UID = re.compile(r'[^/@]+')
+
 
 def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
     """Load DICOM Data Set in DICOM XML format.
@@ -200,7 +204,8 @@ class DICOMwebClient:
         proxies: Optional[Dict[str, str]] = None,
         headers: Optional[Dict[str, str]] = None,
         callback: Optional[Callable] = None,
-        chunk_size: int = 10**6
+        chunk_size: int = 10**6,
+        permissive: bool = False
     ) -> None:
         """Instatiate client.
 
@@ -235,6 +240,14 @@ class DICOMwebClient:
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
             method); defaults to ``10**6`` bytes (1MB)
+        permissive: bool, optional
+            If ``True``, relaxes the DICOM Standard validation for UIDs (see
+            main docstring for details). This option is made available since
+            users may be occasionally forced to work with DICOMs or services
+            that may be in violation of the standard. Unless required, use of
+            this flag is **not** recommended, since non-conformant UIDs may
+            lead to unexpected errors downstream, e.g., rejection by a DICOMweb
+            server, etc.
 
         Warning
         -------
@@ -314,6 +327,7 @@ class DICOMwebClient:
         if callback is not None:
             self._session.hooks = {'response': [callback, ]}
         self._chunk_size = chunk_size
+        self._permissive = permissive
         self.set_http_retry_params()
 
     def _get_transaction_url(self, transaction: _Transaction) -> str:
@@ -2176,15 +2190,18 @@ class DICOMwebClient:
         TypeError
             When `uid` is not a string
         ValueError
-            When `uid` doesn't match the regular expression pattern
-            ``"^[.0-9]+$"``
+            When `uid` doesn't match the regular expression pattern for
+            DICOM UIDs (strict or permissive regex)
 
         """
         if not isinstance(uid, str):
             raise TypeError('DICOM UID must be a string.')
-        pattern = re.compile('^[.0-9]+$')
-        if not pattern.search(uid):
-            raise ValueError('DICOM UID has invalid format.')
+        if not self._permissive and _REGEX_UID.fullmatch(uid) is None:
+            raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r} in '
+                           'conformance with the DICOM Standard.')
+        elif self._permissive and _REGEX_PERMISSIVE_UID.fullmatch(uid) is None:
+            raise ValueError(f'Permissive mode is enabled. UID {uid!r} must match '
+                             f'regex {_REGEX_PERMISSIVE_UID!r}.')
 
     def search_for_series(
         self,
