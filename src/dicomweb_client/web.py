@@ -236,7 +236,7 @@ class DICOMwebClient:
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
             method); defaults to ``10**6`` bytes (1MB)
-        permissive: bool, optional
+        permissive_uid: bool, optional
             If ``True``, relaxes the DICOM Standard validation for UIDs (see
             main docstring for details). This option is made available since
             users may be occasionally forced to work with DICOMs or services
