@@ -629,12 +629,13 @@ def _validate_resource_identifiers_and_suffix(
 
 def _validate_uid(uid: str, permissive: bool) -> None:
     """Validates a DICOM UID."""
-    if len(uid) > _MAX_UID_LENGTH:
-        raise ValueError('UID cannot have more than 64 chars. '
-                         f'Actual count in {uid!r}: {len(uid)}')
-    if not permissive and _REGEX_UID.fullmatch(uid) is None:
-        raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r} in '
-                         'conformance with the DICOM Standard.')
+    if not permissive:
+        if len(uid) > _MAX_UID_LENGTH:
+            raise ValueError('UID cannot have more than 64 chars. '
+                             f'Actual count in {uid!r}: {len(uid)}')
+        if _REGEX_UID.fullmatch(uid) is None:
+            raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r} in '
+                            'conformance with the DICOM Standard.')
     elif permissive and _REGEX_PERMISSIVE_UID.fullmatch(uid) is None:
         raise ValueError(f'Permissive mode is enabled. UID {uid!r} must match '
                          f'regex {_REGEX_PERMISSIVE_UID!r}.')
