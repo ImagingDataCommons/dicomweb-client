@@ -629,6 +629,8 @@ def _validate_resource_identifiers_and_suffix(
 
 def _validate_uid(uid: str, permissive: bool) -> None:
     """Validates a DICOM UID."""
+    if not isinstance(uid, str):
+        raise TypeError('DICOM UID must be a string.')
     if not permissive:
         if len(uid) > _MAX_UID_LENGTH:
             raise ValueError('UID cannot have more than 64 chars. '
