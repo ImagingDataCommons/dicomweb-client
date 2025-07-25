@@ -1608,3 +1608,35 @@ def test_load_xml_response(httpserver, client, cache_dir):
         dataset = _load_xml_dataset(tree)
     assert dataset.RetrieveURL.startswith('https://wadors.hospital.com')
     assert len(dataset.ReferencedSOPSequence) == 2
+
+
+@pytest.mark.parametrize('invalid_uid', [
+    '1.2/3.4', '1.2@3.4', '1.2.a.4', '1.2.A.4', '.23.4', '1.2..4', '1.2.', '.'
+])
+def test_uid_strict_validation_fail(httpserver, invalid_uid):
+    client = DICOMwebClient(httpserver.url, permissive_uid=False)
+    with pytest.raises(ValueError,
+                       match=f'UID {invalid_uid!r} must match regex'):
+        client.search_for_series(study_instance_uid=invalid_uid)
+
+
+@pytest.mark.parametrize('uid', ['13-abc', 'hello', 'is it', "you're me"])
+def test_uid_permissive_validation_pass(httpserver, uid):
+    client_strict = DICOMwebClient(httpserver.url, permissive_uid=False)
+    client_permissive = DICOMwebClient(httpserver.url, permissive_uid=True)
+
+    # Should fail in strict mode
+    with pytest.raises(ValueError, match=f'UID {uid!r} must match regex'):
+        client_strict.search_for_series(study_instance_uid=uid)
+
+    # Should not raise exception in permissive mode
+    resp = client_permissive.search_for_series(study_instance_uid=uid)
+    assert isinstance(resp, list)
+
+
+@pytest.mark.parametrize('uid', ['1.23.5@', '1/23.4'])
+def test_uid_permissive_validation_fail(httpserver, uid):
+    client = DICOMwebClient(httpserver.url, permissive_uid=True)
+    with pytest.raises(ValueError,
+                       match=f'UID {uid!r} must match regex'):
+        client.search_for_series(study_instance_uid=uid)

@@ -70,6 +70,21 @@ def test_uid_permissive_invalid(uid):
         URI(_BASE_URL, uid, permissive=True)
 
 
+def test_uid_length_permissive():
+    """Tests that UIDs longer than 64 chars are allowed in permissive mode."""
+    # Create a UID with 65 characters
+    uid_65 = '1' * 65
+
+    # Should fail in strict mode
+    with pytest.raises(ValueError, match='UID cannot have more than 64 chars'):
+        URI(_BASE_URL, uid_65, permissive=False)
+
+    # Should succeed in permissive mode
+    URI(_BASE_URL, uid_65, permissive=True)
+    URI(_BASE_URL, '1.2.3', uid_65, permissive=True)
+    URI(_BASE_URL, '1.2.3', '4.5.6', uid_65, permissive=True)
+
+
 def test_uid_missing_error():
     """Checks *ValueError* is raised when an expected UID is missing."""
     with pytest.raises(ValueError, match='`study_instance_uid` missing with'):

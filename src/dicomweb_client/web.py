@@ -32,7 +32,11 @@ import pydicom
 import requests
 import retrying
 
-from dicomweb_client.uri import build_query_string, parse_query_parameters
+from dicomweb_client.uri import (
+    build_query_string,
+    parse_query_parameters,
+    _validate_uid
+)
 
 
 logger = logging.getLogger(__name__)
@@ -200,7 +204,8 @@ class DICOMwebClient:
         proxies: Optional[Dict[str, str]] = None,
         headers: Optional[Dict[str, str]] = None,
         callback: Optional[Callable] = None,
-        chunk_size: int = 10**6
+        chunk_size: int = 10**6,
+        permissive_uid: bool = False
     ) -> None:
         """Instatiate client.
 
@@ -235,6 +240,14 @@ class DICOMwebClient:
             when streaming data from the server using chunked transfer encoding
             (used by ``iter_*()`` methods as well as the ``store_instances()``
             method); defaults to ``10**6`` bytes (1MB)
+        permissive_uid: bool, optional
+            If ``True``, relaxes the DICOM Standard validation for UIDs (see
+            main docstring for details). This option is made available since
+            users may be occasionally forced to work with DICOMs or services
+            that may be in violation of the standard. Unless required, use of
+            this flag is **not** recommended, since non-conformant UIDs may
+            lead to unexpected errors downstream, e.g., rejection by a DICOMweb
+            server, etc.
 
         Warning
         -------
@@ -314,6 +327,7 @@ class DICOMwebClient:
         if callback is not None:
             self._session.hooks = {'response': [callback, ]}
         self._chunk_size = chunk_size
+        self._permissive_uid = permissive_uid
         self.set_http_retry_params()
 
     def _get_transaction_url(self, transaction: _Transaction) -> str:
@@ -2163,29 +2177,6 @@ class DICOMwebClient:
             url += f'?{additional_params_query_string}'
         self._http_delete(url)
 
-    def _assert_uid_format(self, uid: str) -> None:
-        """Check whether a DICOM UID has the correct format.
-
-        Parameters
-        ----------
-        uid: str
-            DICOM UID
-
-        Raises
-        ------
-        TypeError
-            When `uid` is not a string
-        ValueError
-            When `uid` doesn't match the regular expression pattern
-            ``"^[.0-9]+$"``
-
-        """
-        if not isinstance(uid, str):
-            raise TypeError('DICOM UID must be a string.')
-        pattern = re.compile('^[.0-9]+$')
-        if not pattern.search(uid):
-            raise ValueError('DICOM UID has invalid format.')
-
     def search_for_series(
         self,
         study_instance_uid: Optional[str] = None,
@@ -2238,7 +2229,7 @@ class DICOMwebClient:
 
         """  # noqa: E501
         if study_instance_uid is not None:
-            self._assert_uid_format(study_instance_uid)
+            _validate_uid(study_instance_uid, self._permissive_uid)
             logger.info(f'search for series of study "{study_instance_uid}"')
         else:
             logger.info('search for series')
@@ -2297,12 +2288,12 @@ class DICOMwebClient:
             f'retrieve series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        self._assert_uid_format(study_instance_uid)
+        _validate_uid(study_instance_uid, self._permissive_uid)
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for retrieval of series.'
             )
-        self._assert_uid_format(series_instance_uid)
+        _validate_uid(series_instance_uid, self._permissive_uid)
         url = self._get_series_url(
             _Transaction.RETRIEVE,
             study_instance_uid,
@@ -2457,7 +2448,7 @@ class DICOMwebClient:
                 'Study Instance UID is required for retrieval of '
                 'series metadata.'
             )
-        self._assert_uid_format(study_instance_uid)
+        _validate_uid(study_instance_uid, self._permissive_uid)
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for retrieval of '
@@ -2467,7 +2458,7 @@ class DICOMwebClient:
             f'retrieve metadata of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        self._assert_uid_format(series_instance_uid)
+        _validate_uid(series_instance_uid, self._permissive_uid)
         url = self._get_series_url(
             _Transaction.RETRIEVE,
             study_instance_uid,
@@ -2660,7 +2651,7 @@ class DICOMwebClient:
         if series_instance_uid is not None:
             message += f' of series "{series_instance_uid}"'
         if study_instance_uid is not None:
-            self._assert_uid_format(study_instance_uid)
+            _validate_uid(study_instance_uid, self._permissive_uid)
             message += f' of study "{study_instance_uid}"'
         logger.info(message)
         url = self._get_instances_url(
@@ -2727,12 +2718,12 @@ class DICOMwebClient:
             raise ValueError(
                 'Study Instance UID is required for retrieval of instance.'
             )
-        self._assert_uid_format(study_instance_uid)
+        _validate_uid(study_instance_uid, self._permissive_uid)
         if series_instance_uid is None:
             raise ValueError(
                 'Series Instance UID is required for retrieval of instance.'
             )
-        self._assert_uid_format(series_instance_uid)
+        _validate_uid(series_instance_uid, self._permissive_uid)
         if sop_instance_uid is None:
             raise ValueError(
                 'SOP Instance UID is required for retrieval of instance.'
@@ -2742,7 +2733,7 @@ class DICOMwebClient:
             f'of series "{series_instance_uid}" '
             f'of study "{study_instance_uid}"'
         )
-        self._assert_uid_format(sop_instance_uid)
+        _validate_uid(sop_instance_uid, self._permissive_uid)
         url = self._get_instances_url(
             _Transaction.RETRIEVE,
             study_instance_uid,
