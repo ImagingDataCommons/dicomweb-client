@@ -637,7 +637,7 @@ def _validate_uid(uid: str, permissive: bool) -> None:
                              f'Actual count in {uid!r}: {len(uid)}')
         if _REGEX_UID.fullmatch(uid) is None:
             raise ValueError(f'UID {uid!r} must match regex {_REGEX_UID!r} in '
-                            'conformance with the DICOM Standard.')
+                             'conformance with the DICOM Standard.')
     elif permissive and _REGEX_PERMISSIVE_UID.fullmatch(uid) is None:
         raise ValueError(f'Permissive mode is enabled. UID {uid!r} must match '
                          f'regex {_REGEX_PERMISSIVE_UID!r}.')

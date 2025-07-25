@@ -32,7 +32,11 @@ import pydicom
 import requests
 import retrying
 
-from dicomweb_client.uri import build_query_string, parse_query_parameters, _validate_uid
+from dicomweb_client.uri import (
+    build_query_string,
+    parse_query_parameters,
+    _validate_uid
+)
 
 
 logger = logging.getLogger(__name__)
@@ -2172,7 +2176,6 @@ class DICOMwebClient:
             )
             url += f'?{additional_params_query_string}'
         self._http_delete(url)
-
 
     def search_for_series(
         self,
