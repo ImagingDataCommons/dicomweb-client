@@ -461,7 +461,7 @@ class _QueryResourceType(Enum):
 
 
 def _build_acceptable_media_type_lut(
-    media_types: Tuple[Union[str, Tuple[str, str]], ...],
+    media_types: Tuple[Union[str, Tuple[str, ...]], ...],
     supported_media_type_lut: Mapping[str, Iterable[str]]
 ) -> Mapping[str, Iterable[str]]:
     # If no acceptable transfer syntax has been specified, then we just return

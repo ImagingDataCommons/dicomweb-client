@@ -3,7 +3,7 @@ import sys
 import logging
 
 
-def _filter_header_parsing_error(record: logging.LogRecord) -> int:
+def _filter_header_parsing_error(record: logging.LogRecord) -> bool:
     """Filters warnings of ``urllib3.exceptions.HeaderParsingError``.
 
     Parameters
@@ -13,13 +13,13 @@ def _filter_header_parsing_error(record: logging.LogRecord) -> int:
 
     Returns
     -------
-    int
-        zero if the record should be filtered, non-zero otherwise
+    bool
+        False if the record should be filtered, True otherwise
 
     """
     if 'Failed to parse headers' in record.getMessage():
-        return 0
-    return 1
+        return False
+    return True
 
 
 def _map_logging_verbosity(verbosity: int) -> int:
