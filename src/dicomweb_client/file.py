@@ -32,15 +32,7 @@ from pydicom import config as pydicom_config
 from pydicom.datadict import dictionary_VR, keyword_for_tag, tag_for_keyword
 from pydicom.dataelem import DataElement
 from pydicom.dataset import Dataset, FileMetaDataset
-from pydicom.encaps import encapsulate
-try:
-    # pydicom >= 3.0 - parse_basic_offsets replaces get_frame_offsets
-    from pydicom.encaps import parse_basic_offsets
-    _use_parse_basic_offsets = True
-except ImportError:
-    # pydicom < 3.0 - use deprecated get_frame_offsets
-    from pydicom.encaps import get_frame_offsets
-    _use_parse_basic_offsets = False
+from pydicom.encaps import encapsulate, parse_basic_offsets
 from pydicom.errors import InvalidDicomError
 from pydicom.filebase import DicomFileLike
 from pydicom.filereader import data_element_offset_to_value, dcmread
@@ -358,13 +350,7 @@ def _read_bot(fp: DicomFileLike) -> np.ndarray:
         fp.is_implicit_VR, 'OB'
     )
     fp.seek(pixel_data_element_value_offset - 4, 1)
-
-    # Use parse_basic_offsets for pydicom >= 3.0, get_frame_offsets for < 3.0
-    if _use_parse_basic_offsets:
-        offsets = parse_basic_offsets(fp)
-    else:
-        is_empty, offsets = get_frame_offsets(fp)
-
+    offsets = parse_basic_offsets(fp)
     return np.array(offsets, dtype=np.uint32)
 
 

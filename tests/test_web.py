@@ -1285,8 +1285,8 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
 
 def test_store_instance_error_with_retries(httpserver, client, cache_dir):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     max_attempts = 2
     client.set_http_retry_params(
         retry=True,
@@ -1311,8 +1311,8 @@ def test_store_instance_error_with_retries_and_additional_params(
     httpserver, client, cache_dir
 ):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     max_attempts = 2
     client.set_http_retry_params(
         retry=True,
@@ -1339,8 +1339,8 @@ def test_store_instance_error_with_retries_and_additional_params(
 
 def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     client.set_http_retry_params(retry=False)
     httpserver.serve_content(
         content='',
@@ -1360,8 +1360,8 @@ def test_store_instance_error_with_no_retries_and_additional_params(
     httpserver, client, cache_dir
 ):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     client.set_http_retry_params(retry=False)
     httpserver.serve_content(
         content='',
