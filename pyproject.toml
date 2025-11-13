@@ -3,7 +3,7 @@ name = "dicomweb-client"
 dynamic = ["version"]
 description = "Client for DICOMweb RESTful services."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Markus D. Herrmann" }]
 maintainers = [
     { name = "Markus D. Herrmann" },
@@ -22,7 +22,6 @@ classifiers = [
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
