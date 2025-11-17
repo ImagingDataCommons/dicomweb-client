@@ -1537,7 +1537,7 @@ def test_delete_instance_error_with_additional_params(
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):
-    value = ['2018-11-21']
+    value = ['20181121']  # DA format must be YYYYMMDD
     dicom_json = {
         '00080020': {
             'vr': 'DA',
