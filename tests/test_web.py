@@ -776,10 +776,20 @@ def test_retrieve_instance_singlepart(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         data = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
-        'content-type': 'application/dicom'
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
     }
-    httpserver.serve_content(content=data, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
