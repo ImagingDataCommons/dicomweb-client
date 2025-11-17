@@ -776,10 +776,20 @@ def test_retrieve_instance_singlepart(httpserver, client, cache_dir):
     cache_filename = str(cache_dir.joinpath('file.dcm'))
     with open(cache_filename, 'rb') as f:
         data = f.read()
+    media_type = 'application/dicom'
+    boundary = 'boundary'
     headers = {
-        'content-type': 'application/dicom'
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
     }
-    httpserver.serve_content(content=data, code=200, headers=headers)
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
     study_instance_uid = '1.2.3'
     series_instance_uid = '1.2.4'
     sop_instance_uid = '1.2.5'
@@ -1285,8 +1295,8 @@ def test_retrieve_instance_frames_rendered_png(httpserver, client, cache_dir):
 
 def test_store_instance_error_with_retries(httpserver, client, cache_dir):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     max_attempts = 2
     client.set_http_retry_params(
         retry=True,
@@ -1311,8 +1321,8 @@ def test_store_instance_error_with_retries_and_additional_params(
     httpserver, client, cache_dir
 ):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     max_attempts = 2
     client.set_http_retry_params(
         retry=True,
@@ -1339,8 +1349,8 @@ def test_store_instance_error_with_retries_and_additional_params(
 
 def test_store_instance_error_with_no_retries(httpserver, client, cache_dir):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     client.set_http_retry_params(retry=False)
     httpserver.serve_content(
         content='',
@@ -1360,8 +1370,8 @@ def test_store_instance_error_with_no_retries_and_additional_params(
     httpserver, client, cache_dir
 ):
     dataset = pydicom.Dataset.from_json({})
-    dataset.is_little_endian = True
-    dataset.is_implicit_VR = True
+    dataset.file_meta = pydicom.dataset.FileMetaDataset()
+    dataset.file_meta.TransferSyntaxUID = pydicom.uid.ImplicitVRLittleEndian
     client.set_http_retry_params(retry=False)
     httpserver.serve_content(
         content='',
@@ -1527,7 +1537,7 @@ def test_delete_instance_error_with_additional_params(
 
 
 def test_load_json_dataset_da(httpserver, client, cache_dir):
-    value = ['2018-11-21']
+    value = ['20181121']  # DA format must be YYYYMMDD
     dicom_json = {
         '00080020': {
             'vr': 'DA',
