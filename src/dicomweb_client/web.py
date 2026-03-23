@@ -252,7 +252,7 @@ class DICOMwebClient:
         timeout: float | tuple, optional
             Timeout parameter used for all requests in the format used by the
             requests library. May provide a single number or a tuple of
-            (connect timeout, read timeout).
+            (connect timeout, read timeout), using seconds in both cases.
 
         Warning
         -------
