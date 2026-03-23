@@ -45,7 +45,7 @@ from pydicom.tag import (
     Tag,
     TupleTag,
 )
-from pydicom.uid import UID, RLELossless
+from pydicom.uid import UID
 from pydicom.valuerep import DA, DT, TM
 
 from dicomweb_client.uri import build_query_string, parse_query_parameters
