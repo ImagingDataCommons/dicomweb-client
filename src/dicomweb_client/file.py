@@ -392,7 +392,7 @@ def _build_bot(
         When the number of offsets doesn't match the specified number of frames
 
     """
-      initial_position = fp.tell()
+    initial_position = fp.tell()
 
     # We will keep two lists, one of all fragment boundaries (regardless of
     # whether or not they are frame boundaries) and the other of just those
@@ -432,6 +432,7 @@ def _build_bot(
         first_two_bytes = fp.read(2)
         if not fp.is_little_endian:
             first_two_bytes = first_two_bytes[::-1]
+
         # In case of fragmentation, we only want to get the offsets to the
         # first fragment of a given frame. We can identify those based on
         # the JPEG and JPEG 2000 markers that should be found at the
