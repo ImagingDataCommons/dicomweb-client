@@ -29,6 +29,7 @@ from xml.etree.ElementTree import (
 )
 
 import pydicom
+from pydicom.valuerep import INT_VR, FLOAT_VR, VR
 import requests
 import retrying
 
@@ -60,7 +61,7 @@ def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
     for element in dataset:
         keyword = element.attrib['keyword']
         vr = element.attrib['vr']
-        value: Optional[Union[List[Any], str]]
+        value: Optional[Union[List[Any], str, int, float]]
         if vr == 'SQ':
             value = [
                 _load_xml_dataset(item)
@@ -74,6 +75,26 @@ def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
                 value = [v.text.strip() for v in value]
             else:
                 value = None
+
+            # Convert string values to appropriate Python types for
+            # numeric VRs to satisfy pydicom 3.0+ stricter type validation
+            if value is not None:
+                try:
+                    vr_enum = VR(vr)
+                    if vr_enum in INT_VR:
+                        if isinstance(value, list):
+                            value = [int(v) for v in value]
+                        else:
+                            value = int(value)
+                    elif vr_enum in FLOAT_VR:
+                        if isinstance(value, list):
+                            value = [float(v) for v in value]
+                        else:
+                            value = float(value)
+                except ValueError:
+                    # VR not recognized, leave value as-is
+                    pass
+
         setattr(ds, keyword, value)
     return ds
 
