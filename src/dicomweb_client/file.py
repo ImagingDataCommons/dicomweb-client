@@ -2066,11 +2066,11 @@ class _DatabaseManager:
                 )
                 file_path = self.base_dir.joinpath(rel_file_path)
                 successes.append((ds, file_path, file_content))
-            except Exception as error:
-                logger.error(
+            except BaseException:
+                logger.exception(
                     f'failed to store instance "{ds.SOPInstanceUID}" '
                     f'of series "{ds.SeriesInstanceUID}" '
-                    f'of study "{ds.StudyInstanceUID}": {error}'
+                    f'of study "{ds.StudyInstanceUID}".'
                 )
                 failures.append(ds)
 
@@ -2778,14 +2778,14 @@ class DICOMfileClient:
         )
         try:
             for (
-                study_instance_uid,
+                _,
                 series_instance_uid,
             ) in self._db_manager.get_series_identifiers(
                 study_instance_uid=study_instance_uid
             ):
                 for (
-                    study_instance_uid,
-                    series_instance_uid,
+                    _,
+                    _,
                     sop_instance_uid,
                 ) in self._db_manager.get_instance_identifiers(
                     study_instance_uid=study_instance_uid,
