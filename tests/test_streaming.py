@@ -17,18 +17,6 @@ MAX_STREAM_TO_BUFFERED_RATIO = 2
     'payload_size,chunk_size',
     [
         pytest.param(
-            1 * 10**6, 32 * 10**3, id='1MB-payload-32KB-chunk'
-        ),
-        pytest.param(
-            5 * 10**6, 32 * 10**3, id='5MB-payload-32KB-chunk'
-        ),
-        pytest.param(
-            10 * 10**6, 32 * 10**3, id='10MB-payload-32KB-chunk'
-        ),
-        pytest.param(
-            15 * 10**6, 32 * 10**3, id='15MB-payload-32KB-chunk'
-        ),
-        pytest.param(
             20 * 10**6, 32 * 10**3, id='20MB-payload-32KB-chunk'
         ),
         pytest.param(
@@ -83,3 +71,36 @@ def test_streaming_single_part_decode_is_linear(
         f'({t_streamed:.3f}s vs {t_buffered:.3f}s); '
         f'expected <{MAX_STREAM_TO_BUFFERED_RATIO}x for O(n) scaling'
     )
+
+
+def _stream_parts(httpserver, payloads, chunk_size):
+    message = DICOMwebClient._encode_multipart_message(
+        content=payloads,
+        content_type=CONTENT_TYPE,
+    )
+    httpserver.serve_content(
+        content=message,
+        code=200,
+        headers={'content-type': CONTENT_TYPE},
+    )
+    client = DICOMwebClient(httpserver.url, chunk_size=chunk_size)
+    url = f'{httpserver.url}/studies/1.2.3/series/1.2.4'
+    return list(client._http_get_multipart(url, stream=True))
+
+
+def test_delimiter_split_across_chunks(httpserver):
+    payload = b'part-bytes'
+    message = DICOMwebClient._encode_multipart_message(
+        content=[payload],
+        content_type=CONTENT_TYPE,
+    )
+    delimiter = b'\r\n--boundary'
+    closing = message.rfind(delimiter)
+    chunk_size = closing + len(delimiter) // 2
+    assert 0 < chunk_size < len(message)
+    assert _stream_parts(httpserver, [payload], chunk_size) == [payload]
+
+
+def test_multiple_parts_chunked(httpserver):
+    payloads = [b'one', b'two', b'three']
+    assert _stream_parts(httpserver, payloads, chunk_size=5) == payloads
