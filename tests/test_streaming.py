@@ -1,14 +1,4 @@
-"""Streaming multipart decode of a single large part must stay O(n).
-
-``iter_series`` always passes ``stream=True``. A DBT series is often one
-large instance, so the multipart delimiter appears only at the end of the
-body. Each chunk then rescans and copies the whole buffer
-(``data.find(delimiter, 0)`` / ``data = data[0:]``), which is O(n²).
-
-``retrieve_instance`` uses ``stream=False`` (one scan) and is O(n). This
-test requires the streaming path to stay within a small factor of the
-buffered path. It fails until the parser is incremental.
-"""
+"""Streaming multipart decode of a single large part must stay O(n)."""
 
 import time
 
@@ -17,15 +7,15 @@ import pytest
 from dicomweb_client.web import DICOMwebClient
 
 
-CONTENT_TYPE = 'multipart/related; type="application/dicom"; boundary="boundary"'
-# O(n) streaming is a few times slower than one-shot read, not ~50×.
+CONTENT_TYPE = (
+    'multipart/related; type="application/dicom"; boundary="boundary"'
+)
 MAX_STREAM_TO_BUFFERED_RATIO = 2
 
 
 @pytest.mark.parametrize(
     'payload_size,chunk_size',
     [
-        # Small chunks + one large part → many scans of a growing buffer.
         pytest.param(
             1 * 10**6, 32 * 10**3, id='1MB-payload-32KB-chunk'
         ),
