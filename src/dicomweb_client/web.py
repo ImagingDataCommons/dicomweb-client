@@ -722,6 +722,9 @@ class DICOMwebClient:
         delimiter = b''.join((b'\r\n', marker))
         data = bytearray()
         j = 0
+        # Resume find() from the previous search position to avoid
+        # rescanning the whole buffer.
+        search_start = 0
         with response:
             logger.debug('decode message content')
             if stream:
@@ -735,7 +738,7 @@ class DICOMwebClient:
 
                 prev_part_index = 0
                 while True:
-                    delimiter_index = data.find(delimiter, prev_part_index)
+                    delimiter_index = data.find(delimiter, search_start)
                     if delimiter_index < 0:
                         break
                     logger.debug(f'decode message part #{j}')
@@ -743,13 +746,17 @@ class DICOMwebClient:
                         data[prev_part_index:delimiter_index]
                     )
                     prev_part_index = delimiter_index + len(delimiter)
+                    search_start = prev_part_index
                     j += 1
                     if content is not None:
                         logger.debug(
                             f'extracted {len(content)} bytes from part #{j}'
                         )
                         yield content
-                data = data[prev_part_index:]
+                if prev_part_index:
+                    del data[:prev_part_index]
+                # Overlap by len(delimiter) so a boundary can straddle chunks.
+                search_start = max(0, len(data) - len(delimiter) + 1)
 
         content = self._extract_part_content(data)
         if content is not None:
