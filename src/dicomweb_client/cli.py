@@ -413,9 +413,31 @@ def _print_metadata(data, prettify=False, dicomize=False):
         print(json.dumps(data, sort_keys=True))
 
 
+def _get_output_path(directory: str, filename: str) -> str:
+    """Construct a file path within the selected output directory.
+
+    Parameters
+    ----------
+    directory: str
+        Selected output directory.
+    filename: str
+        Filename derived from the instance UID.
+
+    Returns
+    -------
+    str
+        Output path whose resolved parent is the selected directory.
+
+    """
+    filepath = os.path.join(directory, filename)
+    if os.path.dirname(os.path.realpath(filepath)) != os.path.realpath(directory):
+        raise ValueError('Filename must stay within the output directory.')
+    return filepath
+
+
 def _save_instance(data, directory, sop_instance_uid):
     filename = '{}.dcm'.format(sop_instance_uid)
-    filepath = os.path.join(directory, filename)
+    filepath = _get_output_path(directory, filename)
     logger.info('save instance to file: {}'.format(filepath))
     pydicom.dcmwrite(filepath, data)
 
@@ -426,7 +448,7 @@ def _save_metadata(data, directory, sop_instance_uid, prettify=False,
         filename = '{}.dcm'.format(sop_instance_uid)
     else:
         filename = '{}.json'.format(sop_instance_uid)
-    filepath = os.path.join(directory, filename)
+    filepath = _get_output_path(directory, filename)
     logger.info('save metadata to file: {}'.format(filepath))
     if dicomize:
         dataset = pydicom.dataset.Dataset.from_json(data)
@@ -610,7 +632,7 @@ def _retrieve_instance_frames(client, args):
                     extension=extension
                 )
             )
-            filepath = os.path.join(args.output_dir, filename)
+            filepath = _get_output_path(args.output_dir, filename)
             with open(filepath, 'bw') as fp:
                 fp.write(frame)
         else:
