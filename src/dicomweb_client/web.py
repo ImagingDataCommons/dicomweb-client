@@ -99,6 +99,30 @@ def _load_xml_dataset(dataset: Element) -> pydicom.dataset.Dataset:
     return ds
 
 
+def _read_dataset(
+    content: bytes,
+    force: bool = False
+) -> pydicom.dataset.Dataset:
+    """Read a DICOM data set from the body of a message part.
+
+    Parameters
+    ----------
+    content: bytes
+        DICOM Part 10 file content
+    force: bool, optional
+        Whether the content should be read even if it is not a valid DICOM
+        file, for example because the 128 byte preamble and the "DICM"
+        prefix are missing (passed on as `force` to ``pydicom.dcmread()``)
+
+    Returns
+    -------
+    pydicom.dataset.Dataset
+        data set
+
+    """
+    return pydicom.dcmread(BytesIO(content), force=force)
+
+
 class _Transaction(Enum):
 
     STORE = 'store'
@@ -149,6 +173,20 @@ class DICOMwebClient:
 
         """
         self._chunk_size = chunk_size
+
+    def set_force_read(self, force_read: bool) -> None:
+        """Set value of `force_read` attribute.
+
+        Parameters
+        ----------
+        force_read: bool
+            Whether retrieved instances should be read with ``force=True``
+            (see ``pydicom.dcmread()``), so that instances that are not valid
+            DICOM files (e.g., without preamble and "DICM" prefix) can be
+            read as well
+
+        """
+        self._force_read = force_read
 
     def set_http_retry_params(
         self,
@@ -228,6 +266,7 @@ class DICOMwebClient:
         chunk_size: int = 10**6,
         permissive_uid: bool = False,
         timeout: float | tuple = 20,
+        force_read: bool = False,
     ) -> None:
         """Instatiate client.
 
@@ -274,6 +313,12 @@ class DICOMwebClient:
             Timeout parameter used for all requests in the format used by the
             requests library. May provide a single number or a tuple of
             (connect timeout, read timeout), using seconds in both cases.
+        force_read: bool, optional
+            If ``True``, retrieved instances are read with ``force=True``
+            (see ``pydicom.dcmread()``), so that instances that are not valid
+            DICOM files, e.g., because the origin server leaves out the 128
+            byte preamble and the "DICM" prefix, can still be read. Defaults
+            to ``False``.
 
         Warning
         -------
@@ -355,6 +400,7 @@ class DICOMwebClient:
             self._session.hooks = {'response': [callback, ]}
         self._chunk_size = chunk_size
         self._permissive_uid = permissive_uid
+        self._force_read = force_read
         self.set_http_retry_params()
 
     def _get_transaction_url(self, transaction: _Transaction) -> str:
@@ -1095,10 +1141,10 @@ class DICOMwebClient:
                 '"application/dicom"'
             )
             warn(warning_message, category=UserWarning)
-            part = pydicom.dcmread(BytesIO(response.content))
+            part = _read_dataset(response.content, self._force_read)
             return iter([part])
         return (
-            pydicom.dcmread(BytesIO(part))
+            _read_dataset(part, self._force_read)
             for part in self._decode_multipart_message(response, stream=stream)
         )
 
