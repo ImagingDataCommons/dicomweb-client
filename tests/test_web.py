@@ -6,6 +6,7 @@ from typing import Generator
 
 import pytest
 import pydicom
+from pydicom.errors import InvalidDicomError
 from requests.exceptions import HTTPError
 from retrying import RetryError
 
@@ -802,6 +803,83 @@ def test_retrieve_instance_singlepart(httpserver, client, cache_dir):
     assert raw_result == data
     request = httpserver.requests[0]
     assert request.accept_mimetypes[0][0].startswith('multipart/related')
+
+
+def _multipart_headers():
+    media_type = 'application/dicom'
+    boundary = 'boundary'
+    return {
+        'content-type': (
+            'multipart/related; '
+            f'type="{media_type}"; '
+            f'boundary="{boundary}"'
+        ),
+    }
+
+
+def test_retrieve_instance_without_preamble(httpserver, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+    expected = pydicom.dcmread(BytesIO(data))
+    # Some servers send the data set without the preamble and "DICM" prefix
+    headers = _multipart_headers()
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data[132:]],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
+    client = DICOMwebClient(httpserver.url, force_read=True)
+    response = client.retrieve_instance('1.2.3', '1.2.4', '1.2.5')
+    assert response.SOPInstanceUID == expected.SOPInstanceUID
+    assert response.StudyInstanceUID == expected.StudyInstanceUID
+
+
+def test_retrieve_instance_without_preamble_not_forced(httpserver, client,
+                                                       cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+    headers = _multipart_headers()
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data[132:]],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
+    with pytest.raises(InvalidDicomError):
+        client.retrieve_instance('1.2.3', '1.2.4', '1.2.5')
+
+
+def test_retrieve_instance_non_multipart_without_preamble(httpserver,
+                                                          cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+    expected = pydicom.dcmread(BytesIO(data))
+    headers = {'content-type': 'application/dicom'}
+    httpserver.serve_content(content=data[132:], code=200, headers=headers)
+    client = DICOMwebClient(httpserver.url, force_read=True)
+    with pytest.warns(UserWarning, match='application/dicom'):
+        response = client.retrieve_instance('1.2.3', '1.2.4', '1.2.5')
+    assert response.SOPInstanceUID == expected.SOPInstanceUID
+
+
+def test_retrieve_series_part_without_preamble(httpserver, client, cache_dir):
+    cache_filename = str(cache_dir.joinpath('file.dcm'))
+    with open(cache_filename, 'rb') as f:
+        data = f.read()
+    expected = pydicom.dcmread(BytesIO(data))
+    headers = _multipart_headers()
+    message = DICOMwebClient._encode_multipart_message(
+        content=[data, data[132:]],
+        content_type=headers['content-type']
+    )
+    httpserver.serve_content(content=message, code=200, headers=headers)
+    client.set_force_read(True)
+    response = list(client.retrieve_series('1.2.3', '1.2.4'))
+    assert len(response) == 2
+    for instance in response:
+        assert instance.SOPInstanceUID == expected.SOPInstanceUID
 
 
 def test_retrieve_instance_any_transfer_syntax(httpserver, client, cache_dir):
