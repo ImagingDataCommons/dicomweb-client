@@ -20,7 +20,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Union,
 )
 from urllib.parse import urlparse
 
@@ -470,7 +469,7 @@ class _QueryResourceType(Enum):
 
 
 def _build_acceptable_media_type_lut(
-    media_types: Tuple[Union[str, Tuple[str, ...]], ...],
+    media_types: Tuple[str | Tuple[str, ...], ...],
     supported_media_type_lut: Mapping[str, Iterable[str]]
 ) -> Mapping[str, Iterable[str]]:
     # If no acceptable transfer syntax has been specified, then we just return
@@ -566,8 +565,8 @@ class _DatabaseManager:
                 update_db = True
             self._db_file_identifier = str(filepath)
 
-        self._db_connection_handle: Union[sqlite3.Connection, None] = None
-        self._db_cursor_handle: Union[sqlite3.Cursor, None] = None
+        self._db_connection_handle: sqlite3.Connection | None = None
+        self._db_cursor_handle: sqlite3.Cursor | None = None
         if recreate_db:
             self._drop_db()
             update_db = True
@@ -752,14 +751,14 @@ class _DatabaseManager:
 
     def _get_file_pointer(
         self,
-        buf: Union[io.BufferedReader, io.BytesIO],
+        buf: io.BufferedReader | io.BytesIO,
         transfer_syntax_uid: str
     ) -> DicomFileLike:
         """Get a pointer to a given image file.
 
         Parameters
         ----------
-        buf: Union[io.BufferedReader, io.BytesIO]
+        buf: io.BufferedReader | io.BytesIO
             Buffer of a DICOM file containing a data set of an image
         transfer_syntax_uid: str
             Unique identifier of the transfer syntax
@@ -925,7 +924,7 @@ class _DatabaseManager:
         self,
         dataset: Dataset,
         keyword: str
-    ) -> Union[str, int, None]:
+    ) -> str | int | None:
         try:
             value = getattr(dataset, keyword)
         except (AttributeError, KeyError):
@@ -1163,7 +1162,7 @@ class _DatabaseManager:
         offset: Optional[int] = None,
         fields: Optional[Sequence[str]] = None,
         search_filters: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, Dict[str, Union[int, str]]]:
+    ) -> Tuple[str, Dict[str, int | str]]:
         if fuzzymatching is None:
             fuzzymatching = False
 
@@ -1436,15 +1435,15 @@ class _DatabaseManager:
 
         Parameters
         ----------
-        fuzzymatching: Union[bool, None], optional
+        fuzzymatching: bool | None, optional
             Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
+        limit: int | None, optional
             Maximum number of results that should be returned
-        offset: Union[int, None], optional
+        offset: int | None, optional
             Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
+        fields: Sequence[str] | None, optional
             Names of fields (attributes) that should be included in results
-        search_filters: Union[dict, None], optional
+        search_filters: dict | None, optional
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
@@ -1515,17 +1514,17 @@ class _DatabaseManager:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
-        fuzzymatching: Union[bool, None], optional
+        fuzzymatching: bool | None, optional
             Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
+        limit: int | None, optional
             Maximum number of results that should be returned
-        offset: Union[int, None], optional
+        offset: int | None, optional
             Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
+        fields: Sequence[str] | None, optional
             Names of fields (attributes) that should be included in results
-        search_filters: Union[dict, None], optional
+        search_filters: dict | None, optional
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
@@ -1700,19 +1699,19 @@ class _DatabaseManager:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
-        series_instance_uid: Union[str, None], optional
+        series_instance_uid: str | None, optional
             Series Instance UID
-        fuzzymatching: Union[bool, None], optional
+        fuzzymatching: bool | None, optional
             Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
+        limit: int | None, optional
             Maximum number of results that should be returned
-        offset: Union[int, None], optional
+        offset: int | None, optional
             Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
+        fields: Sequence[str] | None, optional
             Names of fields (attributes) that should be included in results
-        search_filters: Union[dict, None], optional
+        search_filters: dict | None, optional
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
@@ -2027,7 +2026,7 @@ class _DatabaseManager:
                     )
                     pixel_data_offset = fp.tell()
 
-                    pixel_data_element: Union[DataElement, None] = None
+                    pixel_data_element: DataElement | None = None
                     for pixel_data_tag in _PIXEL_DATA_TAGS:
                         try:
                             pixel_data_element = ds[pixel_data_tag]
@@ -2100,7 +2099,7 @@ def _create_client_error(
         URL of the HTTP request message
     reason: str
         Reason that should be included in the HTTP response message
-    headers: Union[Dict[str, Any], None], optional
+    headers: Dict[str, Any] | None, optional
         Headers of the HTTP request message
     status_code: int, optional
         Status code of the HTTP response message
@@ -2152,7 +2151,7 @@ def _create_server_error(
         URL of the HTTP request message
     reason: str
         Reason that should be included in the HTTP response message
-    headers: Union[Dict[str, Any], None], optional
+    headers: Dict[str, Any] | None, optional
         Headers of the HTTP request message
     status_code: int, optional
         Status code of the HTTP response message
@@ -2216,13 +2215,13 @@ class DICOMfileClient:
         Name of the protocol (``None``)
     url_prefix: str
         URL path prefix for DICOMweb services (part of `base_url`)
-    qido_url_prefix: Union[str, None]
+    qido_url_prefix: str | None
         URL path prefix for QIDO-RS (not part of `base_url`)
-    wado_url_prefix: Union[str, None]
+    wado_url_prefix: str | None
         URL path prefix for WADO-RS (not part of `base_url`)
-    stow_url_prefix: Union[str, None]
+    stow_url_prefix: str | None
         URL path prefix for STOW-RS (not part of `base_url`)
-    delete_url_prefix: Union[str, None]
+    delete_url_prefix: str | None
         URL path prefix for DELETE (not part of `base_url`)
 
     """
@@ -2233,7 +2232,7 @@ class DICOMfileClient:
         update_db: bool = False,
         recreate_db: bool = False,
         in_memory: bool = False,
-        db_dir: Optional[Union[Path, str]] = None,
+        db_dir: Optional[Path | str] = None,
         readonly: bool = False
     ):
         """Instantiate client.
@@ -2256,7 +2255,7 @@ class DICOMfileClient:
         in_memory: bool, optional
             Whether the database should only be stored in memory (default:
             ``False``).
-        db_dir: Union[pathlib.Path, str, None], optional
+        db_dir: pathlib.Path | str | None, optional
             Path to directory where database files should be stored (defaults
             to `base_dir`)
         readonly: bool, optional
@@ -2327,7 +2326,7 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
 
         Returns
@@ -2349,9 +2348,9 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
-        series_instance_uid: Union[str, None], optional
+        series_instance_uid: str | None, optional
             Series Instance UID
 
         Returns
@@ -2384,11 +2383,11 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
-        series_instance_uid: Union[str, None], optional
+        series_instance_uid: str | None, optional
             Series Instance UID
-        sop_instance_uid: Union[str, None], optional
+        sop_instance_uid: str | None, optional
             SOP Instance UID
 
         Returns
@@ -2433,15 +2432,15 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        fuzzymatching: Union[bool, None], optional
+        fuzzymatching: bool | None, optional
             Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
+        limit: int | None, optional
             Maximum number of results that should be returned
-        offset: Union[int, None], optional
+        offset: int | None, optional
             Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
+        fields: Sequence[str] | None, optional
             Names of fields (attributes) that should be included in results
-        search_filters: Union[dict, None], optional
+        search_filters: dict | None, optional
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
@@ -2497,17 +2496,17 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
-        fuzzymatching: Union[bool, None], optional
+        fuzzymatching: bool | None, optional
             Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
+        limit: int | None, optional
             Maximum number of results that should be returned
-        offset: Union[int, None], optional
+        offset: int | None, optional
             Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
+        fields: Sequence[str] | None, optional
             Names of fields (attributes) that should be included in results
-        search_filters: Union[dict, None], optional
+        search_filters: dict | None, optional
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
@@ -2561,19 +2560,19 @@ class DICOMfileClient:
 
         Parameters
         ----------
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
-        series_instance_uid: Union[str, None], optional
+        series_instance_uid: str | None, optional
             Series Instance UID
-        fuzzymatching: Union[bool, None], optional
+        fuzzymatching: bool | None, optional
             Whether fuzzy semantic matching should be performed
-        limit: Union[int, None], optional
+        limit: int | None, optional
             Maximum number of results that should be returned
-        offset: Union[int, None], optional
+        offset: int | None, optional
             Number of results that should be skipped
-        fields: Union[Sequence[str], None], optional
+        fields: Sequence[str] | None, optional
             Names of fields (attributes) that should be included in results
-        search_filters: Union[dict, None], optional
+        search_filters: dict | None, optional
             Search filter criteria as key-value pairs, where *key* is a keyword
             or a tag of the attribute and *value* is the expected value that
             should match
@@ -2623,7 +2622,7 @@ class DICOMfileClient:
     def retrieve_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> List[bytes]:
         """Retrieve bulk data at a given location.
@@ -2632,10 +2631,10 @@ class DICOMfileClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Union[Tuple[int, int], None], optional
+        byte_range: Tuple[int, int] | None, optional
             Start and end of byte range
 
         Returns
@@ -2668,7 +2667,7 @@ class DICOMfileClient:
     def iter_bulkdata(
         self,
         url: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None,
         byte_range: Optional[Tuple[int, int]] = None
     ) -> Iterator[bytes]:
         """Iterate over bulk data items at a given location.
@@ -2677,10 +2676,10 @@ class DICOMfileClient:
         ----------
         url: str
             Location of the bulk data
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        byte_range: Union[Tuple[int, int], None], optional
+        byte_range: Tuple[int, int] | None, optional
             Start and end of byte range
 
         Returns
@@ -2755,7 +2754,7 @@ class DICOMfileClient:
     def iter_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> Iterator[Dataset]:
         """Iterate over all instances of a study.
 
@@ -2763,7 +2762,7 @@ class DICOMfileClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2810,7 +2809,7 @@ class DICOMfileClient:
     def retrieve_study(
         self,
         study_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> List[Dataset]:
         """Retrieve all instances of a study.
 
@@ -2818,7 +2817,7 @@ class DICOMfileClient:
         ----------
         study_instance_uid: str
             Study Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2849,7 +2848,7 @@ class DICOMfileClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> Iterator[Dataset]:
         """Iterate over all instances of a series.
 
@@ -2859,7 +2858,7 @@ class DICOMfileClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2905,7 +2904,7 @@ class DICOMfileClient:
         self,
         study_instance_uid: str,
         series_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> List[Dataset]:
         """Retrieve all instances of a series.
 
@@ -2915,7 +2914,7 @@ class DICOMfileClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -2952,7 +2951,7 @@ class DICOMfileClient:
     def retrieve_series_rendered(
         self, study_instance_uid,
         series_instance_uid,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve rendered representation of a series.
@@ -2963,12 +2962,12 @@ class DICOMfileClient:
             Study Instance UID
         series_instance_uid: str
             Series Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
-        params: Union[Dict[str, Any], None], optional
+        params: Dict[str, Any] | None, optional
             Additional parameters relevant for given `media_type`,
             e.g., ``{"quality": 95}`` for ``"image/jpeg"``
 
@@ -3097,7 +3096,7 @@ class DICOMfileClient:
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> Dataset:
         """Retrieve metadata of a single instance.
 
@@ -3109,7 +3108,7 @@ class DICOMfileClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -3250,7 +3249,7 @@ class DICOMfileClient:
         study_instance_uid: str,
         series_instance_uid: str,
         sop_instance_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """Retrieve an individual, server-side rendered instance.
@@ -3263,12 +3262,12 @@ class DICOMfileClient:
             Series Instance UID
         sop_instance_uid: str
             SOP Instance UID
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types (choices: ``"image/jpeg"``, ``"image/jp2"``,
             ``"image/gif"``, ``"image/png"``, ``"video/gif"``, ``"video/mp4"``,
             ``"video/h265"``, ``"text/html"``, ``"text/plain"``,
             ``"text/xml"``, ``"text/rtf"``, ``"application/pdf"``)
-        params: Union[Dict[str, Any], None], optional
+        params: Dict[str, Any] | None, optional
             Additional parameters relevant for given `media_type`,
             e.g., ``{"quality": 95}`` for ``"image/jpeg"``
 
@@ -3346,6 +3345,8 @@ class DICOMfileClient:
                 )
             )
             image = Image.fromarray(array)
+            if codec_name == "png" and image.mode == "I":
+                image = image.convert("I;16")
             with io.BytesIO() as fp:
                 image.save(fp, codec_name, **codec_kwargs)  # type: ignore
                 fp.seek(0)
@@ -3366,8 +3367,8 @@ class DICOMfileClient:
         self,
         url: str,
         transfer_syntax_uid: UID,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
-    ) -> Union[str, None]:
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
+    ) -> str | None:
         transfer_syntax_uid_lut = {
             '1.2.840.10008.1.2.1': 'application/octet-stream',
             '1.2.840.10008.1.2.4.50': 'image/jpeg',
@@ -3517,7 +3518,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: List[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> Iterator[bytes]:
         """Iterate over frames of an image instance.
 
@@ -3531,7 +3532,7 @@ class DICOMfileClient:
             SOP Instance UID
         frame_numbers: List[int]
             Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -3663,7 +3664,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: List[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None
     ) -> List[bytes]:
         """Retrieve one or more frames of an image instance.
 
@@ -3677,7 +3678,7 @@ class DICOMfileClient:
             SOP Instance UID
         frame_numbers: List[int]
             Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
 
@@ -3811,7 +3812,7 @@ class DICOMfileClient:
         series_instance_uid: str,
         sop_instance_uid: str,
         frame_numbers: List[int],
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None,
         params: Optional[Dict[str, str]] = None,
     ) -> bytes:
         """Retrieve server-side rendered frames of an image instance.
@@ -3826,10 +3827,10 @@ class DICOMfileClient:
             SOP Instance UID
         frame_numbers: List[int]
             Frame numbers
-        media_types: Union[Tuple[Union[str, Tuple[str, str]], ...], None], optional
+        media_types: Tuple[str | Tuple[str, str], ...] | None, optional
             Acceptable media types and optionally the UIDs of the
             corresponding transfer syntaxes
-        params: Union[Dict[str, str], None], optional
+        params: Dict[str, str] | None, optional
             Additional query parameters
 
         Returns
@@ -3912,6 +3913,8 @@ class DICOMfileClient:
                 )
             )
             image = Image.fromarray(array)
+            if codec_name == "png" and image.mode == "I":
+                image = image.convert("I;16")
             with io.BytesIO() as fp:
                 image.save(fp, codec_name, **codec_kwargs)  # type: ignore
                 fp.seek(0)
@@ -3933,7 +3936,7 @@ class DICOMfileClient:
     def _get_image_codec_parameters(
         self,
         transfer_syntax_uid: str,
-        media_types: Optional[Tuple[Union[str, Tuple[str, str]], ...]] = None,
+        media_types: Optional[Tuple[str | Tuple[str, str], ...]] = None,
         params: Optional[Dict[str, str]] = None,
         icc_profile: Optional[bytes] = None
     ) -> Tuple[Optional[str], Dict[str, Any]]:
@@ -4018,13 +4021,13 @@ class DICOMfileClient:
 
     @staticmethod
     def lookup_keyword(
-        tag: Union[int, str, Tuple[int, int], BaseTag]
+        tag: int | str | Tuple[int, int] | BaseTag
     ) -> str:
         """Look up the keyword of a DICOM attribute.
 
         Parameters
         ----------
-        tag: Union[str, int, Tuple[int, int], pydicom.tag.BaseTag]
+        tag: str | int | Tuple[int, int] | pydicom.tag.BaseTag
             Attribute tag (e.g. ``"00080018"``)
 
         Returns
@@ -4070,7 +4073,7 @@ class DICOMfileClient:
         ----------
         datasets: Sequence[pydicom.dataset.Dataset]
             Instances that should be stored
-        study_instance_uid: Union[str, None], optional
+        study_instance_uid: str | None, optional
             Study Instance UID
 
         Returns
