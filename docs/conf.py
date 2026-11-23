@@ -14,7 +14,7 @@
 #
 import os
 import sys
-import pkg_resources
+from importlib.metadata import PackageNotFoundError, version as _dist_version
 
 source_dir = os.path.dirname(__file__)
 pkg_dir = os.path.join(source_dir, '..', '..', 'src', 'dicomweb_client')
@@ -28,8 +28,8 @@ author = 'Markus D. Herrmann'
 
 # The full version, including alpha/beta/rc tags
 try:
-    release = pkg_resources.get_distribution('dicomweb_client').version
-except pkg_resources.DistributionNotFound:
+    release = _dist_version('dicomweb_client')
+except PackageNotFoundError:
     print('Package "dicomweb-client" must be installed to build docs.')
     sys.exit(1)
 # The short X.Y version
