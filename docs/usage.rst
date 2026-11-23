@@ -58,7 +58,7 @@ To interact with servers requiring authentication, ``DICOMwebClient`` accepts ar
         session=session
     )
 
-To simplify usage for basic HTTP authentication, you may also directly provide a username and password using the corresponding arguments.
+For basic HTTP authentication, you can also pass a username and password to ``create_session_from_user_pass`` and give the resulting session to ``DICOMwebClient``.
 
 .. code-block:: python
 
@@ -88,7 +88,9 @@ To interact with servers supporting token-based authorization, you can provide t
     )
 
 
-To interact with servers requiring certificate-based authentication, you can provide the CA bundle and client certificate using the ``ca_bundle`` and ``cert`` arguments, respectively.
+For certificate-based authentication, configure a session with ``add_certs_to_session`` and pass it to ``DICOMwebClient``.
+The ``ca_bundle`` verifies the server's certificate.
+The ``cert`` argument is the path to a PEM file containing the client certificate and its unencrypted private key.
 
 .. code-block:: python
 
@@ -105,7 +107,10 @@ To interact with servers requiring certificate-based authentication, you can pro
         cert="/path/to/cert.pem"
     )
 
-    client = DICOMwebClient(url="https://mydicomwebserver.com")
+    client = DICOMwebClient(
+        url="https://mydicomwebserver.com",
+        session=session
+    )
 
 
 To interact with a server of the Google Healthcare API requiring OpenID Connect based authentication and authorization, provide a session authenticated using the Google Cloud Platform (GCP) credentials.
@@ -332,21 +337,13 @@ Retrieve full instances of a given series using specific JPEG 2000 transfer synt
 
 .. code-block:: python
 
-    instance = client.retrieve_instance(
+    instances = client.retrieve_series(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
         series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         media_types=(('application/dicom', '1.2.840.10008.1.2.4.90', ), )
     )
 
-Retrieve bulk data of instances of a given series using specific JPEG 2000 transfer syntax:
-
-.. code-block:: python
-
-    instance = client.retrieve_instance(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
-        media_types=(('image/jp2', '1.2.840.10008.1.2.4.90', ), )
-    )
+For bulk data URLs, see :ref:`retrievebulkdata`.
 
 
 .. _retrieveinstance:
@@ -354,13 +351,13 @@ Retrieve bulk data of instances of a given series using specific JPEG 2000 trans
 WADO-RS RetrieveInstance
 ++++++++++++++++++++++++
 
-Retrieve full instance using default Explicit VR Little Endian transfer syntax for encoding of bulk data:
+Retrieve a full instance using the server's choice of transfer syntax:
 
 .. code-block:: python
 
     instance = client.retrieve_instance(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534'
     )
 
@@ -371,21 +368,12 @@ Retrieve full instance using specific JPEG 2000 transfer syntax for encoding of 
 
     instance = client.retrieve_instance(
         study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
+        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034',
         sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
         media_types=(('application/dicom', '1.2.840.10008.1.2.4.90', ), )
     )
 
-Retrieve bulk data of instance using specific JPEG 2000 transfer syntax:
-
-.. code-block:: python
-
-    instance = client.retrieve_instance(
-        study_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111148288.98361414.79379639',
-        series_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.49685336.24517034'
-        sop_instance_uid='1.2.826.0.1.3680043.8.1055.1.20111103111208937.40440871.13152534',
-        media_types=(('image/jp2', '1.2.840.10008.1.2.4.90', ), )
-    )
+For bulk data URLs, see :ref:`retrievebulkdata`.
 
 .. _retrievemetadata:
 
@@ -502,6 +490,16 @@ Retrieve bulk data given a URL:
 .. code-block:: python
 
     data = client.retrieve_bulkdata('https://mydicomwebserver.com/studies/...')
+
+If metadata includes a ``BulkDataURI`` for pixel data, set ``bulk_data_url`` to its absolute URL.
+To request JPEG 2000 Lossless for that resource:
+
+.. code-block:: python
+
+    data = client.retrieve_bulkdata(
+        bulk_data_url,
+        media_types=(('image/jp2', '1.2.840.10008.1.2.4.90'),)
+    )
 
 
 .. _retrieverenderedtransaction:
